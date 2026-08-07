@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand indigo, used to tint FCM notifications -->
+    <color name="notification_color">#4F6BFF</color>
+	<color name="ic_launcher_background">#0B1020</color>
+</resources>

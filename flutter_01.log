@@ -1,0 +1,84 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter analyze lib/features/auth/login_screen.dart --no-pub
+
+## exception
+
+_Exception: Exception: analysis server exited with code -1073740791 and output:
+[stderr] VirtualAlloc failed 1455
+[stderr] ../../runtime/bin/snapshot_utils.cc: 128: error: Failed to memory map snapshot: C:\src\flutter\bin\cache\dart-sdk\bin\snapshots\analysis_server.dart.snapshot
+[stderr] 
+[stderr] version=3.5.3 (stable) (Wed Sep 11 16:22:47 2024 +0000) on "windows_x64"
+[stderr] pid=21824, thread=10356, isolate_group=(nil)(0000000000000000), isolate=(nil)(0000000000000000)
+[stderr] os=windows, arch=x64, comp=no, sim=no
+[stderr] isolate_instructions=0, vm_instructions=0
+[stderr] fp=4415affb28, sp=4415affb28, pc=7ff6c9038e62
+[stderr] 
+[stderr] ===== CRASH =====
+[stderr] ExceptionCode=-1073741819, ExceptionFlags=0, ExceptionAddress=00007FF978F8B6F5
+[stderr] Aborting reentrant request for stack trace.
+
+```
+```
+
+## flutter doctor
+
+```
+[✓] Flutter (Channel stable, 3.24.3, on Microsoft Windows [Version 10.0.26200.8875], locale en-US)
+    • Flutter version 3.24.3 on channel stable at C:\src\flutter
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision 2663184aa7 (), 2024-09-11 16:27:48 -0500
+    • Engine revision 36335019a8
+    • Dart version 3.5.3
+    • DevTools version 2.37.3
+
+[!] Windows Version (Problem detected with Windows installation)
+    ! Get-Process failed to complete
+
+[!] Android toolchain - develop for Android devices (Android SDK version 34.0.0)
+    • Android SDK at C:\Android
+    • Platform android-36, build-tools 34.0.0
+    • ANDROID_HOME = C:\Android
+    • Java binary at: C:\src\jdk-17.0.2\bin\java
+    ✗ Could not determine java version
+
+[✓] Chrome - develop for the web
+    • Chrome at C:\Program Files\Google\Chrome\Application\chrome.exe
+
+[✗] Visual Studio - develop Windows apps
+    ✗ Visual Studio not installed; this is necessary to develop Windows apps.
+      Download at https://visualstudio.microsoft.com/downloads/.
+      Please install the "Desktop development with C++" workload, including all of its default components
+
+[!] Android Studio (not installed)
+    • Android Studio not found; download from https://developer.android.com/studio/index.html
+      (or visit https://flutter.dev/to/windows-android-setup for detailed instructions).
+
+[☠] Connected device (the doctor check crashed)
+    ✗ Due to an error, the doctor check did not complete. If the error message below is not helpful, please let us know about this issue at https://github.com/flutter/flutter/issues.
+    ✗ Error: Unable to run "adb", check your Android SDK installation and ANDROID_HOME environment variable: C:\Android\platform-tools\adb.exe
+      Error details: The paging file is too small for this operation to complete.
+
+    • #0      throwToolExit (package:flutter_tools/src/base/common.dart:10:3)
+      #1      AndroidDevices.pollingGetDevices (package:flutter_tools/src/android/android_device_discovery.dart:75:7)
+      <asynchronous suspension>
+      #2      PollingDeviceDiscovery._populateDevices (package:flutter_tools/src/device.dart:548:36)
+      <asynchronous suspension>
+      #3      Future.wait.<anonymous closure> (dart:async/future.dart:534:21)
+      <asynchronous suspension>
+      #4      DeviceManager.refreshAllDevices (package:flutter_tools/src/device.dart:218:40)
+      <asynchronous suspension>
+      #5      DeviceValidator.validate (package:flutter_tools/src/doctor.dart:715:34)
+      <asynchronous suspension>
+      #6      Future.any.onValue (dart:async/future.dart:628:5)
+      <asynchronous suspension>
+
+
+[✓] Network resources
+    • All expected network resources are available.
+
+! Doctor found issues in 5 categories.
+```
