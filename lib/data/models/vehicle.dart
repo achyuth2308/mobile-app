@@ -97,6 +97,28 @@ class Vehicle extends Equatable {
   /// Whether the engine is currently cut via relay command.
   final bool isImmobilized;
 
+  /// Infers the correct type for images based on common vehicle names if the backend defaults to 'car'.
+  String get displayType {
+    final String lowerName = name.toLowerCase();
+    if (type == 'car' || type.isEmpty) {
+      if (lowerName.contains('activa') || lowerName.contains('scoot') || lowerName.contains('bike') || lowerName.contains('motor')) {
+        return 'bike';
+      }
+      if (lowerName.contains('truck') || lowerName.contains('lorry') || lowerName.contains('eicher')) {
+        return 'truck';
+      }
+      if (lowerName.contains('tipper')) {
+        return 'tipper';
+      }
+      if (lowerName.contains('bus')) {
+        return 'bus';
+      }
+    }
+    // Map backend types to our available assets if needed
+    if (type == 'scooter' || type == 'motorcycle' || type == 'scooty') return 'bike';
+    return type;
+  }
+
   bool get hasLocation =>
       latitude != null &&
       longitude != null &&
@@ -492,11 +514,22 @@ class Vehicle extends Equatable {
         'overspeedLimit',
         'speedThreshold',
       ]),
-      todayDistanceKm: asDoubleOrNull(json, <String>[
-        'todayDistance',
-        'distanceToday',
-        'dayDistance',
-      ]),
+      todayDistanceKm: () {
+        const List<String> keys = <String>['todayDistance', 'distanceToday', 'dayDistance'];
+        double? val = asDoubleOrNull(src, keys) ??
+            asDoubleOrNull(srcAttrs, keys) ??
+            asDoubleOrNull(json, keys) ??
+            asDoubleOrNull(jsonAttrs, keys) ??
+            asDoubleOrNull(device, keys) ??
+            asDoubleOrNull(deviceAttrs, keys);
+        // Traccar often reports distances in meters. If today's distance is e.g. 5000 (which is 5km),
+        // we might want to convert. But if it's huge, definitely divide.
+        // Usually, if it's > 500, it's likely meters. 500km in a day is rare but possible, 500m is common.
+        if (val != null && val > 2000) {
+          val = val / 1000.0;
+        }
+        return val;
+      }(),
       isActive: asBool(json, <String>['isActive', 'active', 'enabled'],
           fallback: true),
       rawStatus: parsedStatus,

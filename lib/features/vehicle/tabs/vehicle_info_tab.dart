@@ -135,11 +135,9 @@ class _Section extends StatelessWidget {
             style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
           ),
         ),
-        SurfaceCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: <Widget>[
-              for (int i = 0; i < rows.length; i++) ...<Widget>[
+        Column(
+          children: <Widget>[
+            for (int i = 0; i < rows.length; i++) ...<Widget>[
                 _InfoRow(
                   label: rows[i].$1,
                   value: rows[i].$2,
@@ -150,7 +148,6 @@ class _Section extends StatelessWidget {
               ],
             ],
           ),
-        ),
       ],
     );
   }
@@ -410,8 +407,8 @@ class _ImmobilizerCardState extends ConsumerState<_ImmobilizerCard> {
             style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
           ),
         ),
-        SurfaceCard(
-          padding: const EdgeInsets.all(Gap.md),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Gap.sm, vertical: Gap.sm),
           child: Row(
             children: <Widget>[
               Container(

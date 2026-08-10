@@ -6,6 +6,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/vehicle_icons.dart';
 import '../../../data/models/vehicle.dart';
+import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/live_address.dart';
 import '../../../shared/widgets/status_chip.dart';
 
@@ -15,6 +16,8 @@ class VehicleCard extends StatelessWidget {
     required this.onTap,
     this.onTrack,
     this.dense = false,
+    this.glass = false,
+    this.minimal = false,
     super.key,
   });
 
@@ -22,212 +25,205 @@ class VehicleCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onTrack;
   final bool dense;
+  final bool glass;
+  final bool minimal;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
-    final bool alerting =
-        vehicle.isOverspeeding && vehicle.status != VehicleStatus.offline;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: dense ? Gap.md : Gap.lg),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.night3 : theme.colorScheme.surfaceContainerHigh,
-        borderRadius: Corners.rLg,
-        border: Border.all(
-          color: alerting ? AppColors.danger : statusColor.withOpacity(0.7),
-          width: 1.2,
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.7 : 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-          BoxShadow(
-            color: alerting 
-                ? AppColors.danger.withOpacity(isDark ? 0.4 : 0.2) 
-                : statusColor.withOpacity(isDark ? 0.25 : 0.1),
-            blurRadius: 40,
-            spreadRadius: isDark ? 2 : 0,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: Corners.rLg,
-          gradient: isDark ? AppColors.glassSheen : null,
-          border: isDark ? Border.all(
-            color: Colors.white.withOpacity(0.08), 
-            width: 0.5,
-          ) : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: Corners.rLg,
-          child: InkWell(
-          onTap: onTap,
-          borderRadius: Corners.rLg,
-          child: Padding(
-            padding: EdgeInsets.all(dense ? Gap.md : Gap.lg),
-            child: Column(
+    final Widget content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    // Status-tinted vehicle glyph.
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.13),
-                        borderRadius: Corners.rSm,
-                        border:
-                            Border.all(color: statusColor.withOpacity(0.25)),
+              children: [
+                // LEFT COLUMN: Image & Name
+                SizedBox(
+                  width: 105,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/images/vehicles/${vehicle.displayType}.png',
+                        height: 90,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          VehicleIcons.forType(vehicle.displayType),
+                          size: 40,
+                          color: statusColor.withOpacity(0.5),
+                        ),
                       ),
-                      child: Icon(
-                        VehicleIcons.forType(vehicle.type),
-                        size: 22,
-                        color: statusColor,
-                      ),
-                    ),
-                    const SizedBox(width: Gap.md),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Flexible(
-                                child: Text(
-                                  vehicle.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                              ),
-                              if (alerting) ...<Widget>[
-                                const SizedBox(width: Gap.sm),
-                                const Icon(
-                                  Icons.warning_amber_rounded,
-                                  size: 16,
-                                  color: AppColors.danger,
-                                ),
-                              ],
-                            ],
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.radio_button_unchecked,
+                            size: 12,
+                            color: statusColor,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            vehicle.secondaryLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall,
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              vehicle.displayName.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF2E3355),
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-
-                    const SizedBox(width: Gap.sm),
-
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: <Widget>[
-                        StatusChip(status: vehicle.status, compact: true),
-                        const SizedBox(height: 6),
-                        Text(
-                          Fmt.relative(vehicle.lastPacketAt),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 10,
-                            letterSpacing: 0,
-                            color: theme.colorScheme.onSurfaceVariant,
+                      if (vehicle.registrationNumber.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            vehicle.registrationNumber,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(width: 12),
+                
+                // RIGHT COLUMN: Metrics
+                Expanded(
+                  child: Column(
+                    children: [
+                      _MetricRow(
+                        label: 'Last Updated',
+                        value: _formatDateTime(vehicle.lastPacketAt),
+                        dotColor: const Color(0xFF9C27B0), // Purple
+                      ),
+                      _MetricRow(
+                        label: 'Today km',
+                        value: '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
+                        dotColor: const Color(0xFFE91E63), // Pink
+                        trailing: const Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Colors.green),
+                      ),
+                      _MetricRow(
+                        label: 'Speed',
+                        value: '${vehicle.speed.round()} km/h',
+                        dotColor: const Color(0xFF4CAF50), // Green
+                        trailing: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
+                              Text(
+                                '${vehicle.satellites ?? 0}',
+                                style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (!minimal) ...[
+                        _MetricRow(
+                          label: 'Odometer',
+                          value: vehicle.odometer != null ? '${vehicle.odometer!.toStringAsFixed(0)} km' : 'N/A',
+                          dotColor: Colors.cyan,
+                        ),
+                        _MetricRow(
+                          label: 'Battery',
+                          value: vehicle.batteryLevel != null ? '${vehicle.batteryLevel!.toStringAsFixed(0)}%' : 'N/A',
+                          dotColor: Colors.orange,
+                        ),
+                        _MetricRow(
+                          label: 'Since',
+                          value: vehicle.lastPacketAt != null ? Fmt.relative(vehicle.lastPacketAt!).replaceAll(' ago', '') : '-',
+                          dotColor: const Color(0xFF9C27B0), // Purple
+                        ),
                       ],
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: Gap.md),
-
-                // Address line.
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.place_outlined,
-                      size: 14,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: LiveAddress(
-                        vehicle: vehicle,
-                        max: 52,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: Gap.md),
-
-                // Telemetry strip.
-                Row(
-                  children: <Widget>[
-                    _Metric(
-                      value: '${vehicle.speed.round()}',
-                      unit: 'km/h',
-                      color: vehicle.isOverspeeding
-                          ? AppColors.danger
-                          : theme.colorScheme.onSurface,
-                    ),
-                    const SizedBox(width: Gap.lg),
-                    if (vehicle.odometer != null)
-                      _Metric(
-                        value: vehicle.odometer!.toStringAsFixed(0),
-                        unit: 'km',
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    const Spacer(),
-                    InfoPill(
-                      icon: vehicle.ignition
-                          ? Icons.power_settings_new_rounded
-                          : Icons.power_off_rounded,
-                      label: vehicle.ignition ? 'ON' : 'OFF',
-                      color: vehicle.ignition
-                          ? AppColors.moving
-                          : theme.colorScheme.onSurfaceVariant,
-                      background: vehicle.ignition
-                          ? AppColors.moving.withOpacity(0.12)
-                          : null,
-                    ),
-                    if (vehicle.batteryLevel != null) ...<Widget>[
-                      const SizedBox(width: 6),
-                      InfoPill(
-                        icon: _batteryIcon(vehicle.batteryLevel!),
-                        label: '${vehicle.batteryLevel!.round()}%',
-                        color: vehicle.batteryLevel! < 20
-                            ? AppColors.danger
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
                     ],
-                    if (onTrack != null) ...<Widget>[
-                      const SizedBox(width: 6),
-                      _TrackButton(onTap: onTrack!),
-                    ],
-                  ],
+                  ),
                 ),
               ],
             ),
+            
+            if (!minimal) ...[
+              const SizedBox(height: 12),
+              
+              // BOTTOM ROW: Address
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4.0, right: 6.0),
+                    child: Icon(Icons.circle, size: 6, color: Color(0xFFE91E63)), // Pink dot
+                  ),
+                  Expanded(
+                    child: LiveAddress(
+                      vehicle: vehicle,
+                      max: 9999,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+    );
+
+    if (glass) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: dense ? Gap.md : Gap.lg),
+        child: GlassCard(
+          padding: EdgeInsets.all(dense ? Gap.md : Gap.lg),
+          onTap: onTap,
+          child: content,
+        ),
+      );
+    }
+
+    return Container(
+      margin: EdgeInsets.only(bottom: dense ? Gap.md : Gap.lg),
+      padding: EdgeInsets.all(dense ? Gap.md : Gap.lg),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.night3 : theme.colorScheme.surface,
+        borderRadius: Corners.rLg,
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.4 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: Corners.rLg,
+        child: content,
       ),
     );
+  }
+
+  String _formatDateTime(DateTime? dt) {
+    if (dt == null) return 'N/A';
+    final String date = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final int h = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
+    final String min = dt.minute.toString().padLeft(2, '0');
+    final String sec = dt.second.toString().padLeft(2, '0');
+    final String ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$date\n${h.toString().padLeft(2, '0')}:$min:$sec $ampm';
   }
 
   IconData _batteryIcon(double level) {
@@ -238,55 +234,64 @@ class VehicleCard extends StatelessWidget {
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.value, required this.unit, required this.color});
+class _MetricRow extends StatelessWidget {
+  const _MetricRow({
+    required this.label,
+    required this.value,
+    required this.dotColor,
+    this.trailing,
+  });
 
+  final String label;
   final String value;
-  final String unit;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(value, style: AppTypography.metric(size: 17, color: color)),
-          const SizedBox(width: 2),
-          Text(
-            unit,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontSize: 9.5,
-                  letterSpacing: 0,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-        ],
-      );
-}
-
-class _TrackButton extends StatelessWidget {
-  const _TrackButton({required this.onTap});
-
-  final VoidCallback onTap;
+  final Color dotColor;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-
-    return Tooltip(
-      message: 'Track on map',
-      child: Material(
-        color: scheme.primary.withOpacity(0.14),
-        borderRadius: Corners.rXs,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: Corners.rXs,
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(Icons.near_me_rounded, size: 15, color: scheme.primary),
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 75,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade500, 
+                fontSize: 11,
+              ),
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0, right: 6.0),
+            child: Icon(Icons.circle, size: 6, color: dotColor),
+          ),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          if (trailing != null)
+            SizedBox(
+              width: 24,
+              child: Align(
+                alignment: Alignment.topRight,
+                child: trailing!,
+              ),
+            ),
+        ],
       ),
     );
   }

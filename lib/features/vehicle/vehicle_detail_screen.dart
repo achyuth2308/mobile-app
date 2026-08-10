@@ -145,15 +145,22 @@ class _DetailHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
               Container(
-                width: 46,
-                height: 46,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.18),
-                  borderRadius: Corners.rSm,
-                  border: Border.all(color: color.withOpacity(0.3)),
+                  shape: BoxShape.circle,
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: color.withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                child: Icon(VehicleIcons.forType(vehicle.type),
-                    color: color, size: 23),
+                child: Image.asset(
+                  'assets/images/vehicles/${vehicle.displayType}.png',
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(width: Gap.md),
               Expanded(

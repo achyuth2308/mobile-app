@@ -225,7 +225,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final DateTime now = DateTime.now();
     return DateTimeRange(
       start: DateTime(now.year, now.month, now.day),
-      end: DateTime(now.year, now.month, now.day, 23, 59, 59),
+      end: now,
     );
   }
 
@@ -443,11 +443,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
     if (picked == null) return;
 
-    // Always reset to full day when a new date is picked.
+    final DateTime now = DateTime.now();
+    final bool isEndToday = picked.end.year == now.year &&
+        picked.end.month == now.month &&
+        picked.end.day == now.day;
+
     setState(() {
       _range = DateTimeRange(
         start: DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0),
-        end: DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59),
+        end: isEndToday
+            ? now
+            : DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59),
       );
     });
     await _load();

@@ -143,10 +143,18 @@ class _TelemetryCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     final Color accent = cell.color ?? theme.colorScheme.onSurface;
 
-    return SurfaceCard(
+    return Container(
       padding: const EdgeInsets.all(Gap.md),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
+        borderRadius: Corners.rLg,
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.16),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

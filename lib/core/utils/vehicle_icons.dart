@@ -7,7 +7,7 @@ class VehicleIcons {
   static IconData forType(String type) => switch (type.toLowerCase().trim()) {
         'truck' || 'lorry' || 'hgv' || 'trailer' => Icons.local_shipping_rounded,
         'bus' || 'coach' || 'van' => Icons.directions_bus_rounded,
-        'bike' || 'motorcycle' || 'scooter' || 'two-wheeler' =>
+        'bike' || 'motorcycle' || 'scooter' || 'scooty' || 'two-wheeler' =>
           Icons.two_wheeler_rounded,
         'tractor' || 'harvester' || 'excavator' || 'jcb' =>
           Icons.agriculture_rounded,

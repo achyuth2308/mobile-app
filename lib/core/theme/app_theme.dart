@@ -131,7 +131,7 @@ class AppTheme {
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: <TargetPlatform, PageTransitionsBuilder>{
           TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
         },
       ),
 
@@ -147,7 +147,7 @@ class AppTheme {
         iconTheme: IconThemeData(color: scheme.onSurface, size: 22),
       ),
 
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: scheme.surfaceContainer,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -254,7 +254,7 @@ class AppTheme {
         clipBehavior: Clip.antiAlias,
       ),
 
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -307,7 +307,7 @@ class AppTheme {
         ),
       ),
 
-      tabBarTheme: TabBarTheme(
+      tabBarTheme: TabBarThemeData(
         labelColor: scheme.primary,
         unselectedLabelColor: scheme.onSurfaceVariant,
         labelStyle: text.labelLarge,

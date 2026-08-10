@@ -14,6 +14,8 @@ import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
+import '../../shared/widgets/glass_card.dart';
+import 'widgets/animated_vehicle_marker.dart';
 import 'widgets/map_tiles.dart';
 import 'widgets/vehicle_marker.dart';
 import 'widgets/vehicle_peek_sheet.dart';
@@ -165,46 +167,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     });
   }
 
-  Future<void> _pickStyle() async {
-    final MapStyle? picked = await showModalBottomSheet<MapStyle>(
-      context: context,
-      builder: (BuildContext ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.sm, Gap.lg, Gap.md),
-              child: Row(
-                children: <Widget>[
-                  Text('Map style', style: Theme.of(ctx).textTheme.titleLarge),
-                ],
-              ),
-            ),
-            ...MapStyle.values.map(
-              (MapStyle s) => ListTile(
-                leading: Icon(s.icon),
-                title: Text(s.label),
-                subtitle: Text(
-                  s.attribution,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: _style == s
-                    ? Icon(Icons.check_circle_rounded,
-                        color: Theme.of(ctx).colorScheme.primary, size: 20)
-                    : null,
-                onTap: () => Navigator.pop(ctx, s),
-              ),
-            ),
-            const SizedBox(height: Gap.md),
-          ],
-        ),
-      ),
-    );
+  Future<void> _cycleStyle() async {
+    final List<MapStyle> styles = MapStyle.values;
+    final int currentIndex = styles.indexOf(_style);
+    final int nextIndex = (currentIndex + 1) % styles.length;
+    final MapStyle nextStyle = styles[nextIndex];
 
-    if (picked == null) return;
-    setState(() => _style = picked);
-    await ref.read(secureStoreProvider).setMapType(picked.name);
+    setState(() => _style = nextStyle);
+    await ref.read(secureStoreProvider).setMapType(nextStyle.name);
   }
 
   // ── Markers ──────────────────────────────────────────────────────
@@ -221,10 +191,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             alignment: Alignment.center,
             child: GestureDetector(
               onTap: () => _selectVehicle(v),
-              child: VehicleMarkerPin(
-                vehicle: v,
-                selected: v.id == _selectedId,
-                showLabel: v.id == _selectedId,
+              child: AnimatedVehicleMarker(
+                key: ValueKey<String>('anim_${v.id}'),
+                point: LatLng(v.latitude!, v.longitude!),
+                child: VehicleMarkerPin(
+                  vehicle: v,
+                  selected: v.id == _selectedId,
+                  showLabel: v.id == _selectedId,
+                ),
               ),
             ),
           ),
@@ -356,9 +330,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             child: Column(
               children: <Widget>[
                 _MapButton(
-                  icon: _style.icon,
-                  tooltip: 'Map style',
-                  onTap: _pickStyle,
+                  icon: Icons.layers_rounded,
+                  tooltip: 'Change map style',
+                  onTap: _cycleStyle,
                 ),
                 const SizedBox(height: Gap.sm),
                 _MapButton(
@@ -483,13 +457,11 @@ class _MapHeader extends StatelessWidget {
 
     return Row(
       children: <Widget>[
-        Container(
+        GlassCard(
           padding: const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: 10),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainer.withOpacity(0.94),
-            borderRadius: Corners.rPill,
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
+          borderRadius: Corners.rPill,
+          opacity: theme.brightness == Brightness.dark ? 0.4 : 0.65,
+          blur: 16,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
@@ -525,21 +497,16 @@ class _MapButton extends StatelessWidget {
 
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: scheme.surfaceContainer.withOpacity(0.96),
-        borderRadius: Corners.rSm,
-        child: InkWell(
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: GlassCard(
+          padding: EdgeInsets.zero,
+          borderRadius: Corners.rPill,
+          opacity: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.65,
+          blur: 16,
           onTap: onTap,
-          borderRadius: Corners.rSm,
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              borderRadius: Corners.rSm,
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Icon(icon, size: 20, color: scheme.onSurface),
-          ),
+          child: Icon(icon, size: 20, color: scheme.onSurface),
         ),
       ),
     );
@@ -560,13 +527,11 @@ class _MapLegend extends StatelessWidget {
       (AppColors.offline, 'Offline'),
     ];
 
-    return Container(
+    return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer.withOpacity(0.94),
-        borderRadius: Corners.rSm,
-        border: Border.all(color: scheme.outlineVariant),
-      ),
+      borderRadius: Corners.rLg,
+      opacity: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.65,
+      blur: 16,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -27,15 +27,21 @@ class FleetOverviewCard extends ConsumerWidget {
       padding: const EdgeInsets.all(Gap.xl),
       decoration: BoxDecoration(
         borderRadius: Corners.rXl,
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            theme.colorScheme.surfaceContainerHigh,
-            theme.colorScheme.surfaceContainer,
+          colors: [
+            Color(0xFF0F172A), // Slate 900
+            Color(0xFF1E1B4B), // Indigo 950
           ],
         ),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E1B4B).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,8 +56,8 @@ class FleetOverviewCard extends ConsumerWidget {
                     Text(
                       'TOTAL FLEET',
                       style: AppTypography.eyebrow(
-                        theme.colorScheme.onSurfaceVariant,
-                      ),
+                        Colors.grey.shade400,
+                      ).copyWith(letterSpacing: 2.0),
                     ),
                     const SizedBox(height: Gap.sm),
                     Row(
@@ -61,16 +67,19 @@ class FleetOverviewCard extends ConsumerWidget {
                         Text(
                           '${stats.total}',
                           style: AppTypography.metric(
-                            size: 42,
-                            color: theme.colorScheme.onSurface,
-                          ),
+                            size: 48,
+                            color: Colors.white,
+                          ).copyWith(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(width: Gap.sm),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 5),
                           child: Text(
                             stats.total == 1 ? 'vehicle' : 'vehicles',
-                            style: theme.textTheme.bodyMedium,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
@@ -81,14 +90,10 @@ class FleetOverviewCard extends ConsumerWidget {
               _OnlineRing(percent: stats.onlinePercent, online: stats.online),
             ],
           ),
-
           const SizedBox(height: Gap.xl),
-
           // Proportional composition bar.
           _CompositionBar(stats: stats),
-
           const SizedBox(height: Gap.xl),
-
           Row(
             children: <Widget>[
               Expanded(
@@ -159,7 +164,7 @@ class _CompositionBar extends StatelessWidget {
       return Container(
         height: 8,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: Colors.white.withOpacity(0.05),
           borderRadius: Corners.rPill,
         ),
       );
@@ -203,17 +208,27 @@ class _OnlineRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
     return SizedBox(
-      width: 74,
-      height: 74,
+      width: 76,
+      height: 76,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.moving.withOpacity(0.3 * percent),
+                  blurRadius: 15,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
           SizedBox(
-            width: 74,
-            height: 74,
+            width: 76,
+            height: 76,
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 0, end: percent),
               duration: Motion.slow,
@@ -223,7 +238,7 @@ class _OnlineRing extends StatelessWidget {
                 value: v,
                 strokeWidth: 6,
                 strokeCap: StrokeCap.round,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                backgroundColor: Colors.white.withOpacity(0.1),
                 valueColor:
                     const AlwaysStoppedAnimation<Color>(AppColors.moving),
               ),
@@ -235,13 +250,17 @@ class _OnlineRing extends StatelessWidget {
               Text(
                 '${(percent * 100).round()}%',
                 style: AppTypography.metric(
-                  size: 17,
-                  color: theme.colorScheme.onSurface,
-                ),
+                  size: 18,
+                  color: Colors.white,
+                ).copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
                 'online',
-                style: theme.textTheme.labelSmall?.copyWith(fontSize: 9.5),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -270,8 +289,6 @@ class _StatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
     return Semantics(
       button: true,
       selected: selected,
@@ -281,42 +298,53 @@ class _StatusTile extends StatelessWidget {
         curve: Motion.emphasized,
         decoration: BoxDecoration(
           color: selected
-              ? color.withOpacity(0.16)
-              : theme.colorScheme.surface.withOpacity(0.5),
+              ? color.withOpacity(0.15)
+              : Colors.white.withOpacity(0.04),
           borderRadius: Corners.rMd,
           border: Border.all(
             color: selected
                 ? color.withOpacity(0.5)
-                : theme.colorScheme.outlineVariant,
+                : Colors.white.withOpacity(0.08),
             width: selected ? 1.5 : 1,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
             borderRadius: Corners.rMd,
+            splashColor: color.withOpacity(0.2),
+            highlightColor: color.withOpacity(0.1),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: Gap.md, horizontal: 6),
+              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
               child: Column(
                 children: <Widget>[
-                  Icon(icon, size: 16, color: color),
-                  const SizedBox(height: 6),
+                  Icon(icon, size: 20, color: selected ? color : color.withOpacity(0.8)),
+                  const SizedBox(height: 8),
                   Text(
                     '$count',
                     style: AppTypography.metric(
-                      size: 19,
-                      color: theme.colorScheme.onSurface,
-                    ),
+                      size: 20,
+                      color: Colors.white,
+                    ).copyWith(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 1),
+                  const SizedBox(height: 2),
                   Text(
                     label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 9.5,
-                      letterSpacing: 0.1,
-                      color: theme.colorScheme.onSurfaceVariant,
+                    style: TextStyle(
+                      fontSize: 10,
+                      letterSpacing: 0.2,
+                      color: selected ? Colors.white : Colors.grey.shade400,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
                 ],

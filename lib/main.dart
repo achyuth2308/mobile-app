@@ -18,7 +18,6 @@ import 'providers/core_providers.dart';
 import 'providers/fleet_provider.dart';
 import 'providers/lifecycle_provider.dart';
 import 'shared/widgets/connectivity_banner.dart';
-import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,9 +35,7 @@ Future<void> main() async {
 
   // ── Firebase (non-fatal if it fails: the app still works without push) ──
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
   } catch (e) {
     debugPrint('[main] Firebase init failed: $e');

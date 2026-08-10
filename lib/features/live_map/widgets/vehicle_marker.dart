@@ -42,16 +42,16 @@ class VehicleMarkerPin extends StatelessWidget {
         if (showLabel) _Label(text: vehicle.displayName, color: color),
         if (showLabel) const SizedBox(height: 3),
         SizedBox(
-          width: selected ? 52 : 42,
-          height: selected ? 52 : 42,
+          width: selected ? 64 : 52,
+          height: selected ? 64 : 52,
           child: Stack(
             alignment: Alignment.center,
             children: <Widget>[
               // Soft halo — also the selection affordance.
               AnimatedContainer(
                 duration: Motion.fast,
-                width: selected ? 52 : 40,
-                height: selected ? 52 : 40,
+                width: selected ? 64 : 48,
+                height: selected ? 64 : 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: color.withOpacity(selected ? 0.26 : 0.16),
@@ -66,34 +66,28 @@ class VehicleMarkerPin extends StatelessWidget {
                 Transform.rotate(
                   angle: vehicle.heading * math.pi / 180,
                   child: CustomPaint(
-                    size: Size(selected ? 52 : 42, selected ? 52 : 42),
+                    size: Size(selected ? 64 : 52, selected ? 64 : 52),
                     painter: _HeadingPainter(color: color),
                   ),
                 ),
 
               // Body.
               Container(
-                width: selected ? 28 : 24,
-                height: selected ? 28 : 24,
+                width: selected ? 42 : 34,
+                height: selected ? 42 : 34,
                 decoration: BoxDecoration(
-                  color: color,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.94),
-                    width: 2.4,
-                  ),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
-                      color: color.withOpacity(0.45),
-                      blurRadius: 10,
-                      spreadRadius: 1,
+                      color: color.withOpacity(0.6),
+                      blurRadius: selected ? 15 : 10,
+                      spreadRadius: selected ? 3 : 1,
                     ),
                   ],
                 ),
-                child: Icon(
-                  VehicleIcons.forType(vehicle.type),
-                  size: selected ? 15 : 13,
-                  color: Colors.white,
+                child: Image.asset(
+                  'assets/images/vehicles/${vehicle.displayType}.png',
+                  fit: BoxFit.contain,
                 ),
               ),
 

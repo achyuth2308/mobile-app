@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
@@ -263,10 +264,18 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
         const SizedBox(height: Gap.lg),
 
         // ── Address + actions ────────────────────────────────────
-        SurfaceCard(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(left: 2, bottom: Gap.md),
+                child: Text(
+                  'CURRENT LOCATION',
+                  style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -317,6 +326,8 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
           ),
         ),
 
+        const SizedBox(height: Gap.lg),
+        Divider(color: theme.colorScheme.outlineVariant.withOpacity(0.3), height: 1),
         const SizedBox(height: Gap.lg),
 
         TelemetryGrid(vehicle: vehicle),
