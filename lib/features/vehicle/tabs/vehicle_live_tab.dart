@@ -304,7 +304,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: FilledButton.icon(
                         onPressed: () => _openDirections(vehicle),
                         icon: const Icon(Icons.directions_rounded, size: 18),
                         label: const Text('Directions'),

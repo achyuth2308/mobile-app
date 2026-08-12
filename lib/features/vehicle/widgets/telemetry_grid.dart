@@ -68,9 +68,9 @@ class TelemetryGrid extends StatelessWidget {
         _Cell(
           icon: Icons.battery_charging_full_rounded,
           label: 'Battery',
-          value: vehicle.batteryLevel!.round().toString(),
-          unit: '%',
-          color: vehicle.batteryLevel! < 20 ? AppColors.danger : null,
+          value: vehicle.batteryLevel!.toStringAsFixed(2),
+          unit: 'V',
+          color: vehicle.batteryLevel! < 11.5 ? AppColors.danger : null,
         ),
       if (vehicle.gsmSignal != null)
         _Cell(
@@ -177,7 +177,8 @@ class _TelemetryCell extends StatelessWidget {
                       cell.value,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.metric(size: 19, color: accent),
+                      style: AppTypography.metric(size: 24, color: accent)
+                          .copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   if (cell.unit != null) ...<Widget>[

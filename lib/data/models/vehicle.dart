@@ -11,9 +11,9 @@ extension VehicleStatusX on VehicleStatus {
   String get key => name;
 
   String get label => switch (this) {
-        VehicleStatus.moving => 'Moving',
+        VehicleStatus.moving => 'Running',
         VehicleStatus.idle => 'Idle',
-        VehicleStatus.stopped => 'Stopped',
+        VehicleStatus.stopped => 'Parking',
         VehicleStatus.offline => 'Offline',
       };
 
@@ -255,7 +255,7 @@ class Vehicle extends Equatable {
     final Map<String, dynamic> srcAttrs =
         asMap(src, <String>['attributes', 'params', 'attr', 'io']);
     final Map<String, dynamic> jsonAttrs =
-        asMap(json, <String>['attributes', 'params', 'attr', 'io']);
+        asMap(json, <String>['attributes', 'params', 'attr', 'io', 'metadata', 'state', 'latest_state', 'latestState', 'vehicle_latest_state']);
     final Map<String, dynamic> device =
         asMap(json, <String>['device', 'tracker', 'gpsDevice']);
     final Map<String, dynamic> deviceAttrs =
@@ -280,6 +280,7 @@ class Vehicle extends Equatable {
 
     const List<String> ignKeys = <String>[
       'ignition',
+      'current_ignition',
       'ign',
       'acc',
       'ACC',
@@ -407,23 +408,23 @@ class Vehicle extends Equatable {
       longitude: lng,
       speed: parsedSpeed,
       heading: asDouble(
-          src, <String>['heading', 'course', 'bearing', 'direction', 'angle']),
+          src, <String>['heading', 'current_direction', 'course', 'bearing', 'direction', 'angle']),
       ignition: isIgnition,
       isMoving: isMotion,
       isImmobilized: isImmobilized,
       odometer: () {
         double? val = asDoubleOrNull(
-                src, <String>['odometer', 'totalDistance', 'mileage', 'odo']) ??
+                src, <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??
             asDoubleOrNull(srcAttrs,
-                <String>['odometer', 'totalDistance', 'mileage', 'odo']) ??
+                <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??
             asDoubleOrNull(json,
-                <String>['odometer', 'totalDistance', 'mileage', 'odo']) ??
+                <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??
             asDoubleOrNull(jsonAttrs,
-                <String>['odometer', 'totalDistance', 'mileage', 'odo']) ??
+                <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??
             asDoubleOrNull(device,
-                <String>['odometer', 'totalDistance', 'mileage', 'odo']) ??
+                <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??
             asDoubleOrNull(deviceAttrs,
-                <String>['odometer', 'totalDistance', 'mileage', 'odo']);
+                <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']);
         if (val != null && val > 50000) {
           val = val / 1000.0;
         }
@@ -436,11 +437,11 @@ class Vehicle extends Equatable {
               asDoubleOrNull(json, <String>['fuel', 'fuelLevel']) ??
               asDoubleOrNull(jsonAttrs, <String>['fuel', 'fuelLevel']),
       batteryLevel:
-          asDoubleOrNull(src, <String>['battery', 'batteryLevel', 'bat']) ??
+          asDoubleOrNull(src, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']) ??
               asDoubleOrNull(
-                  srcAttrs, <String>['battery', 'batteryLevel', 'bat']) ??
-              asDoubleOrNull(json, <String>['battery', 'batteryLevel']) ??
-              asDoubleOrNull(jsonAttrs, <String>['battery', 'batteryLevel']),
+                  srcAttrs, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']) ??
+              asDoubleOrNull(json, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']) ??
+              asDoubleOrNull(jsonAttrs, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']),
       gsmSignal: asDoubleOrNull(src, <String>['gsm', 'gsmSignal', 'signal'])
               ?.round() ??
           asDoubleOrNull(srcAttrs, <String>['gsm', 'gsmSignal', 'signal'])
@@ -515,7 +516,7 @@ class Vehicle extends Equatable {
         'speedThreshold',
       ]),
       todayDistanceKm: () {
-        const List<String> keys = <String>['todayDistance', 'distanceToday', 'dayDistance'];
+        const List<String> keys = <String>['todayDistance', 'distanceToday', 'dayDistance', 'today_distance', 'today_km', 'distance_today'];
         double? val = asDoubleOrNull(src, keys) ??
             asDoubleOrNull(srcAttrs, keys) ??
             asDoubleOrNull(json, keys) ??

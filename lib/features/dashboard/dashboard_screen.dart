@@ -110,7 +110,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
               actions: <Widget>[
-                LivePill(isLive: isLive),
                 const SizedBox(width: Gap.sm),
                 IconButton(
                   tooltip: 'Search fleet',
@@ -188,7 +187,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding:
-                    const EdgeInsets.fromLTRB(Gap.lg, Gap.xxl, Gap.lg, Gap.md),
+                    const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.md),
                 child: Row(
                   children: <Widget>[
                     Text('Vehicles', style: theme.textTheme.titleLarge),
@@ -213,14 +212,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         icon:
                             const Icon(Icons.filter_alt_off_rounded, size: 16),
                         label: const Text('Clear filter'),
-                      )
-                    else if (fleet.lastSyncedAt != null)
-                      Text(
-                        'Synced ${Fmt.relative(fleet.lastSyncedAt)}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          letterSpacing: 0,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
                       ),
                   ],
                 ),

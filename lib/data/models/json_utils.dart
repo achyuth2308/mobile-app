@@ -13,14 +13,25 @@ T? pick<T>(Map<String, dynamic> json, List<String> keys) {
   return null;
 }
 
-String asString(Map<String, dynamic> json, List<String> keys,
-    {String fallback = ''}) {
+String asString(Map<String, dynamic> json, List<String> keys, {String fallback = ''}) {
   for (final String k in keys) {
-    final Object? v = json[k];
-    if (v == null) continue;
-    if (v is String && v.trim().isNotEmpty) return v.trim();
-    if (v is num || v is bool) return v.toString();
-    if (v is Map && v['\$oid'] is String) return v['\$oid'] as String;
+    Object? v = json[k];
+    if (v != null) {
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is num || v is bool) return v.toString();
+      if (v is Map && v['\$oid'] is String) return v['\$oid'] as String;
+    }
+    final String fuzzyK = k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final MapEntry<String, dynamic> entry in json.entries) {
+      if (entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == fuzzyK) {
+        v = entry.value;
+        if (v != null) {
+          if (v is String && v.trim().isNotEmpty) return v.trim();
+          if (v is num || v is bool) return v.toString();
+          if (v is Map && v['\$oid'] is String) return v['\$oid'] as String;
+        }
+      }
+    }
   }
   return fallback;
 }
@@ -30,15 +41,28 @@ String? asStringOrNull(Map<String, dynamic> json, List<String> keys) {
   return v.isEmpty ? null : v;
 }
 
-double asDouble(Map<String, dynamic> json, List<String> keys,
-    {double fallback = 0}) {
+double asDouble(Map<String, dynamic> json, List<String> keys, {double fallback = 0}) {
   for (final String k in keys) {
-    final Object? v = json[k];
-    if (v == null) continue;
-    if (v is num) return v.toDouble();
-    if (v is String) {
-      final double? p = double.tryParse(v.replaceAll(RegExp(r'[^0-9.\-]'), ''));
-      if (p != null) return p;
+    Object? v = json[k];
+    if (v != null) {
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        final double? p = double.tryParse(v.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+        if (p != null) return p;
+      }
+    }
+    final String fuzzyK = k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final MapEntry<String, dynamic> entry in json.entries) {
+      if (entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == fuzzyK) {
+        v = entry.value;
+        if (v != null) {
+          if (v is num) return v.toDouble();
+          if (v is String) {
+            final double? p = double.tryParse(v.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+            if (p != null) return p;
+          }
+        }
+      }
     }
   }
   return fallback;
@@ -46,12 +70,26 @@ double asDouble(Map<String, dynamic> json, List<String> keys,
 
 double? asDoubleOrNull(Map<String, dynamic> json, List<String> keys) {
   for (final String k in keys) {
-    final Object? v = json[k];
-    if (v == null) continue;
-    if (v is num) return v.toDouble();
-    if (v is String) {
-      final double? p = double.tryParse(v.replaceAll(RegExp(r'[^0-9.\-]'), ''));
-      if (p != null) return p;
+    Object? v = json[k];
+    if (v != null) {
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        final double? p = double.tryParse(v.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+        if (p != null) return p;
+      }
+    }
+    final String fuzzyK = k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final MapEntry<String, dynamic> entry in json.entries) {
+      if (entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == fuzzyK) {
+        v = entry.value;
+        if (v != null) {
+          if (v is num) return v.toDouble();
+          if (v is String) {
+            final double? p = double.tryParse(v.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+            if (p != null) return p;
+          }
+        }
+      }
     }
   }
   return null;
@@ -60,18 +98,31 @@ double? asDoubleOrNull(Map<String, dynamic> json, List<String> keys) {
 int asInt(Map<String, dynamic> json, List<String> keys, {int fallback = 0}) =>
     asDouble(json, keys, fallback: fallback.toDouble()).round();
 
-bool asBool(Map<String, dynamic> json, List<String> keys,
-    {bool fallback = false}) {
+bool asBool(Map<String, dynamic> json, List<String> keys, {bool fallback = false}) {
   for (final String k in keys) {
-    final Object? v = json[k];
-    if (v == null) continue;
-    if (v is bool) return v;
-    if (v is num) return v != 0;
-    if (v is String) {
-      final String s = v.toLowerCase().trim();
-      if (<String>['true', '1', 'on', 'yes', 'active'].contains(s)) return true;
-      if (<String>['false', '0', 'off', 'no', 'inactive'].contains(s)) {
-        return false;
+    Object? v = json[k];
+    if (v != null) {
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      if (v is String) {
+        final String s = v.toLowerCase().trim();
+        if (<String>['true', '1', 'on', 'yes', 'active'].contains(s)) return true;
+        if (<String>['false', '0', 'off', 'no', 'inactive'].contains(s)) return false;
+      }
+    }
+    final String fuzzyK = k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final MapEntry<String, dynamic> entry in json.entries) {
+      if (entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == fuzzyK) {
+        v = entry.value;
+        if (v != null) {
+          if (v is bool) return v;
+          if (v is num) return v != 0;
+          if (v is String) {
+            final String s = v.toLowerCase().trim();
+            if (<String>['true', '1', 'on', 'yes', 'active'].contains(s)) return true;
+            if (<String>['false', '0', 'off', 'no', 'inactive'].contains(s)) return false;
+          }
+        }
       }
     }
   }

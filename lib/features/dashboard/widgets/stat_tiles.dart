@@ -24,9 +24,10 @@ class FleetOverviewCard extends ConsumerWidget {
     final VehicleStatus? active = ref.watch(fleetFilterProvider);
 
     return Container(
-      padding: const EdgeInsets.all(Gap.xl),
+      padding: const EdgeInsets.all(Gap.lg),
       decoration: BoxDecoration(
         borderRadius: Corners.rXl,
+        border: Border.all(color: AppColors.brand.withOpacity(0.5), width: 1.5),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -67,11 +68,11 @@ class FleetOverviewCard extends ConsumerWidget {
                         Text(
                           '${stats.total}',
                           style: AppTypography.metric(
-                            size: 48,
+                            size: 36,
                             color: Colors.white,
                           ).copyWith(fontWeight: FontWeight.w800),
                         ),
-                        const SizedBox(width: Gap.sm),
+                        const SizedBox(width: Gap.xs),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 5),
                           child: Text(
@@ -90,10 +91,10 @@ class FleetOverviewCard extends ConsumerWidget {
               _OnlineRing(percent: stats.onlinePercent, online: stats.online),
             ],
           ),
-          const SizedBox(height: Gap.xl),
+          const SizedBox(height: Gap.md),
           // Proportional composition bar.
           _CompositionBar(stats: stats),
-          const SizedBox(height: Gap.xl),
+          const SizedBox(height: Gap.md),
           Row(
             children: <Widget>[
               Expanded(

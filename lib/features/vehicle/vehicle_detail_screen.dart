@@ -70,13 +70,26 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
     }
 
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
+    final ThemeData theme = Theme.of(context);
 
     return Scaffold(
       body: NestedScrollView(
         headerSliverBuilder: (BuildContext context, bool _) => <Widget>[
           SliverAppBar(
             pinned: true,
-            expandedHeight: 148,
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.circle, size: 12, color: statusColor),
+                const SizedBox(width: Gap.sm),
+                Text(
+                  vehicle.displayName.toUpperCase(),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
               onPressed: () => context.pop(),
@@ -91,9 +104,6 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
               ),
               const SizedBox(width: Gap.xs),
             ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: _DetailHeader(vehicle: vehicle, color: statusColor),
-            ),
             bottom: TabBar(
               controller: _tabs,
               tabs: const <Widget>[
@@ -117,87 +127,3 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
   }
 }
 
-class _DetailHeader extends StatelessWidget {
-  const _DetailHeader({required this.vehicle, required this.color});
-
-  final Vehicle vehicle;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            color.withOpacity(0.16),
-            theme.colorScheme.surface,
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.x3l, Gap.lg, 48),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: color.withOpacity(0.4),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Image.asset(
-                  'assets/images/vehicles/${vehicle.displayType}.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(width: Gap.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      vehicle.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: <Widget>[
-                        StatusChip(status: vehicle.status, compact: true),
-                        const SizedBox(width: Gap.sm),
-                        Flexible(
-                          child: Text(
-                            Fmt.relative(vehicle.lastPacketAt),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

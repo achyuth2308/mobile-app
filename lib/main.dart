@@ -35,8 +35,10 @@ Future<void> main() async {
 
   // ── Firebase (non-fatal if it fails: the app still works without push) ──
   try {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+    if (!kIsWeb) {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+    }
   } catch (e) {
     debugPrint('[main] Firebase init failed: $e');
   }
@@ -82,7 +84,9 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
     await ref.read(authProvider.notifier).bootstrap();
 
     // 3 ─ Push notifications — the only channel while backgrounded.
-    unawaited(_initPush());
+    if (!kIsWeb) {
+      unawaited(_initPush());
+    }
   }
 
   Future<void> _initPush() async {

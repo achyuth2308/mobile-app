@@ -132,14 +132,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
           if (movingCount >= 2) {
             final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
             if (diff.inMinutes >= 5) {
-              stops.add(StoppageEvent(
-                lat: stopStart.latitude,
-                lng: stopStart.longitude,
-                startTime: stopStart.timestamp,
-                endTime: stopEnd.timestamp,
-                duration: diff,
-                address: stopStart.address,
-              ));
+              // Ignore the initial stoppage if it starts exactly at the beginning of the route
+              if (stopStart.timestamp != points.first.timestamp) {
+                stops.add(StoppageEvent(
+                  lat: stopStart.latitude,
+                  lng: stopStart.longitude,
+                  startTime: stopStart.timestamp,
+                  endTime: stopEnd.timestamp,
+                  duration: diff,
+                  address: stopStart.address,
+                ));
+              }
             }
             stopStart = null;
             stopEnd = null;
@@ -152,15 +155,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (stopStart != null && stopEnd != null) {
       final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
       if (diff.inMinutes >= 5) {
-        stops.add(StoppageEvent(
-          lat: stopStart.latitude,
-          lng: stopStart.longitude,
-          startTime: stopStart.timestamp,
-          endTime: stopEnd.timestamp,
-          duration: diff,
-          address: stopStart.address,
-          isOngoing: true,
-        ));
+        if (stopStart.timestamp != points.first.timestamp) {
+          stops.add(StoppageEvent(
+            lat: stopStart.latitude,
+            lng: stopStart.longitude,
+            startTime: stopStart.timestamp,
+            endTime: stopEnd.timestamp,
+            duration: diff,
+            address: stopStart.address,
+            isOngoing: true,
+          ));
+        }
       }
     }
 
@@ -213,7 +218,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   bool get _isCurrentlyStopped {
     if (_points.isEmpty) return false;
     final StoppageEvent? s = _currentStoppage;
-    return s != null && s.duration.inMinutes >= 5;
+    return s != null && s.duration.inMinutes >= 5 && _currentPoint.speed <= 3;
   }
 
   late DateTimeRange _range = _todayRange();
@@ -380,7 +385,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       final TrackPoint a = _points[idx];
       final TrackPoint b = _points[idx + 1];
       final int diffMs = b.timestamp.difference(a.timestamp).inMilliseconds;
-      final int effectiveDiffMs = diffMs.clamp(400, 3000);
+      // Make base playback proportional to real time (1x = 10x real speed).
+      // This ensures 18 km/h visually moves faster across the map than 2 km/h,
+      // regardless of the GPS tracker's polling frequency.
+      int effectiveDiffMs = (diffMs / 10).round();
+      // Clamp to avoid waiting forever on massive gaps, and prevent divide-by-zero
+      effectiveDiffMs = effectiveDiffMs.clamp(50, 3000);
 
       // Calculate step size so that progress smoothly advances
       final double step = (33.0 / effectiveDiffMs) * _effectiveSpeedMultiplier;
@@ -591,17 +601,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                   ),
                 ),
 
-              // Active Stoppage Mini Card — Floating above the speed gauge when vehicle is stopped
-              if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
-                Positioned(
-                  bottom: 152,
-                  left: Gap.lg,
-                  width: 195,
-                  child: _ActiveStoppageLeftCard(
-                    point: _currentPoint,
-                    stoppage: _currentStoppage,
-                  ),
-                ),
 
               // Speed gauge — bottom-left, like the web app.
               if (_points.isNotEmpty && !_loading)
@@ -615,6 +614,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         ),
 
         // ── Transport controls ───────────────────────────────────
+        if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
+          _ActiveStoppageBottomCard(
+            point: _currentPoint,
+            stoppage: _currentStoppage,
+          ),
+
         if (_points.isNotEmpty && !_loading)
           _PlaybackControls(
             index: _playbackProgress.round().clamp(0, _points.length - 1),
@@ -766,9 +771,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final TrackPoint cursor = _currentPoint;
 
     return <Marker>[
-      // Playback waypoints — actual GPS fixes as blue dots (sampled every 10 points to avoid clutter)
+      // Playback waypoints — actual GPS fixes as blue dots.
+      // Dynamically sample to avoid clutter on massive routes, but show all on short routes.
       for (int i = 0; i < _points.length; i++)
-        if (i % 10 == 0)
+        if (_points.length < 100 || i % (_points.length ~/ 100) == 0)
           Marker(
             point: _points[i].latLng,
             width: 8,
@@ -1358,7 +1364,7 @@ class _PlaybackControls extends StatelessWidget {
           Row(
             children: <Widget>[
               Text(
-                _formatTime(points.first.timestamp),
+                _formatTime(points[index].timestamp),
                 style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 0),
               ),
               Expanded(
@@ -1660,9 +1666,9 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   }
 }
 
-/// Active Stoppage 2-Column Floating Card (Left side overlay when vehicle is stopped).
-class _ActiveStoppageLeftCard extends StatefulWidget {
-  const _ActiveStoppageLeftCard({
+/// Active Stoppage Bottom Card (Full width bottom sheet style)
+class _ActiveStoppageBottomCard extends StatefulWidget {
+  const _ActiveStoppageBottomCard({
     required this.point,
     this.stoppage,
   });
@@ -1671,10 +1677,10 @@ class _ActiveStoppageLeftCard extends StatefulWidget {
   final StoppageEvent? stoppage;
 
   @override
-  State<_ActiveStoppageLeftCard> createState() => _ActiveStoppageLeftCardState();
+  State<_ActiveStoppageBottomCard> createState() => _ActiveStoppageBottomCardState();
 }
 
-class _ActiveStoppageLeftCardState extends State<_ActiveStoppageLeftCard> {
+class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
   String? _address;
   int _lastReqId = 0;
 
@@ -1685,7 +1691,7 @@ class _ActiveStoppageLeftCardState extends State<_ActiveStoppageLeftCard> {
   }
 
   @override
-  void didUpdateWidget(covariant _ActiveStoppageLeftCard old) {
+  void didUpdateWidget(covariant _ActiveStoppageBottomCard old) {
     super.didUpdateWidget(old);
     if (old.point.latitude != widget.point.latitude ||
         old.point.longitude != widget.point.longitude) {
@@ -1706,7 +1712,9 @@ class _ActiveStoppageLeftCardState extends State<_ActiveStoppageLeftCard> {
     });
   }
 
-  Future<void> _openGoogleMaps(double lat, double lng) async {
+  Future<void> _openGoogleMaps() async {
+    final double lat = widget.point.latitude;
+    final double lng = widget.point.longitude;
     final Uri uri = Uri.parse('https://maps.google.com/?q=$lat,$lng');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -1717,122 +1725,216 @@ class _ActiveStoppageLeftCardState extends State<_ActiveStoppageLeftCard> {
   Widget build(BuildContext context) {
     final StoppageEvent? stop = widget.stoppage;
     final Duration dur = stop?.duration ?? Duration.zero;
-    final String durStr = dur > Duration.zero ? stop!.compactDuration : '0s';
+    
+    String formattedDur = '0s';
+    if (dur > Duration.zero) {
+      final int hours = dur.inHours;
+      final int mins = dur.inMinutes.remainder(60);
+      final int secs = dur.inSeconds.remainder(60);
+      if (hours > 0) {
+        formattedDur = '${hours.toString().padLeft(2, '0')}h ${mins.toString().padLeft(2, '0')}m';
+      } else {
+        formattedDur = '${mins.toString().padLeft(2, '0')}m ${secs.toString().padLeft(2, '0')}s';
+      }
+    }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Material(
-        color: const Color(0xF2111728), // Sleek dark glass
-        child: InkWell(
-          onTap: () => _openGoogleMaps(widget.point.latitude, widget.point.longitude),
-          splashColor: const Color(0x333B82F6),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: const Color(0xFFEF4444).withOpacity(0.4),
-                width: 0.9,
+    final String stoppedAt = stop != null ? _toIstString(stop.startTime, Fmt.time) : '—';
+
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
               ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                // Header: Stopped + Duration badge
-                Row(
-                  children: <Widget>[
-                    const Icon(
-                      Icons.pause_circle_filled_rounded,
-                      size: 13,
-                      color: Color(0xFFEF4444),
-                    ),
-                    const SizedBox(width: 5),
-                    const Text(
-                      'Stopped',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFFFF6B6B),
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        durStr,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFFF6B6B),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                // Address (2 lines readable)
+                // Header Row
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 12,
-                      color: Color(0xFF00E5FF),
+                    // Blue circle location pin
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2563EB), // Blue
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.location_on, color: Colors.white, size: 24),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 16),
+                    // Titles
                     Expanded(
-                      child: Text(
-                        _address ?? 'Locating...',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          color: Colors.white.withOpacity(0.9),
-                          height: 1.25,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              const Expanded(
+                                child: Text(
+                                  'Vehicle Stopped',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                              // Red Stopped Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEE2E2), // Light red
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const <Widget>[
+                                    Icon(Icons.pan_tool_rounded, size: 12, color: Color(0xFFDC2626)),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Stopped',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFDC2626),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(Icons.location_on, size: 14, color: Colors.black54),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  _address ?? 'Locating...',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black87,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                // Action: View on Maps indicator
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: <Widget>[
-                    Text(
-                      'View on Maps',
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF60A5FA),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                
+                // Stopped For
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.timer_outlined, size: 20, color: Colors.black87),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Stopped For',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                        ),
                       ),
+                      Text(
+                        formattedDur,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2563EB), // Blue
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                
+                // Stopped At
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.access_time_rounded, size: 20, color: Colors.black87),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Stopped At',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                        ),
+                      ),
+                      Text(
+                        stoppedAt,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                
+                // Address Action
+                InkWell(
+                  onTap: _openGoogleMaps,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      children: const <Widget>[
+                        Icon(Icons.map_outlined, size: 20, color: Colors.black87),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Address',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 20, color: Colors.black54),
+                      ],
                     ),
-                    SizedBox(width: 3),
-                    Icon(
-                      Icons.open_in_new_rounded,
-                      size: 10,
-                      color: Color(0xFF60A5FA),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
