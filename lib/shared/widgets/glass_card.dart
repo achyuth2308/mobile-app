@@ -1,8 +1,14 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_spacing.dart';
+
+// On Flutter Web the HTML renderer does NOT support BackdropFilter / ImageFilter.blur
+// and will crash the app. Rather than fragile renderer sniffing we simply skip blur
+// on all web platforms — the elevated surface opacity is sufficient for legibility.
+bool get _skipBlur => kIsWeb;
 
 /// Frosted surface used for map overlays and hero panels.
 ///
@@ -32,10 +38,14 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
 
+    // On web, BackdropFilter may crash with the HTML renderer; skip blur and
+    // boost opacity slightly so the card stays legible without the blur effect.
+    final double effectiveOpacity = _skipBlur ? (opacity + 0.15).clamp(0.0, 1.0) : opacity;
+
     final Widget content = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer.withOpacity(opacity),
+        color: scheme.surfaceContainer.withOpacity(effectiveOpacity),
         borderRadius: borderRadius,
         border: border
             ? Border.all(color: scheme.outlineVariant.withOpacity(0.9))
@@ -44,24 +54,31 @@ class GlassCard extends StatelessWidget {
       child: child,
     );
 
+    final Widget tappable = onTap == null
+        ? content
+        : Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: borderRadius,
+              child: content,
+            ),
+          );
+
+    if (_skipBlur) {
+      return ClipRRect(borderRadius: borderRadius, child: tappable);
+    }
+
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: onTap == null
-            ? content
-            : Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onTap,
-                  borderRadius: borderRadius,
-                  child: content,
-                ),
-              ),
+        child: tappable,
       ),
     );
   }
 }
+
 
 /// Standard elevated content surface — the workhorse container.
 class SurfaceCard extends StatelessWidget {

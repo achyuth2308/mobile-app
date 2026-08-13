@@ -24,12 +24,14 @@ class VehicleMarkerPin extends StatelessWidget {
     required this.vehicle,
     this.selected = false,
     this.showLabel = false,
+    this.useSprite = false,
     super.key,
   });
 
   final Vehicle vehicle;
   final bool selected;
   final bool showLabel;
+  final bool useSprite;
 
   @override
   Widget build(BuildContext context) {
@@ -72,24 +74,51 @@ class VehicleMarkerPin extends StatelessWidget {
                 ),
 
               // Body.
-              Container(
-                width: selected ? 42 : 34,
-                height: selected ? 42 : 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: color.withOpacity(0.6),
-                      blurRadius: selected ? 15 : 10,
-                      spreadRadius: selected ? 3 : 1,
+              useSprite
+                  ? Transform.rotate(
+                      angle: (vehicle.heading - 90) * 3.1415926535897932 / 180,
+                      child: Container(
+                        width: selected ? 52 : 42,
+                        height: selected ? 52 : 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: color.withOpacity(0.6),
+                              blurRadius: selected ? 15 : 10,
+                              spreadRadius: selected ? 3 : 1,
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          vehicle.displayType == 'scooter' || vehicle.displayType == 'bike'
+                              ? 'assets/images/vehicles/bike.png'
+                              : 'assets/images/vehicles/car.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      width: selected ? 42 : 34,
+                      height: selected ? 42 : 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        border: Border.all(color: color, width: 2.0),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: color.withOpacity(0.6),
+                            blurRadius: selected ? 15 : 10,
+                            spreadRadius: selected ? 3 : 1,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        VehicleIcons.forType(vehicle.type),
+                        color: color,
+                        size: selected ? 24 : 18,
+                      ),
                     ),
-                  ],
-                ),
-                child: Image.asset(
-                  'assets/images/vehicles/${vehicle.displayType}.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
 
               // Overspeed badge.
               if (vehicle.isOverspeeding &&

@@ -48,57 +48,66 @@ class FastCachedTileProvider extends TileProvider {
   }
 }
 
-enum MapStyle { standard, dark, satellite, terrain }
+enum MapStyle { standard, dark, satellite, topo, isometric3D, google }
 
 extension MapStyleX on MapStyle {
   String get label => switch (this) {
-        MapStyle.standard => 'Standard',
-        MapStyle.dark => 'Dark',
-        MapStyle.satellite => 'Satellite',
-        MapStyle.terrain => 'Terrain',
+        MapStyle.standard => 'Modern Light',
+        MapStyle.dark => 'Dark Mode',
+        MapStyle.satellite => 'Satellite (Esri)',
+        MapStyle.topo => '3D Topo',
+        MapStyle.isometric3D => '3D Isometric',
+        MapStyle.google => 'Google Maps',
       };
 
   IconData get icon => switch (this) {
         MapStyle.standard => Icons.map_rounded,
         MapStyle.dark => Icons.dark_mode_rounded,
         MapStyle.satellite => Icons.satellite_alt_rounded,
-        MapStyle.terrain => Icons.terrain_rounded,
+        MapStyle.topo => Icons.terrain_rounded,
+        MapStyle.isometric3D => Icons.threed_rotation,
+        MapStyle.google => Icons.public,
       };
 
   String get urlTemplate => switch (this) {
-        // High-speed CartoDB Voyager CDN — crisp, fast road basemap with global edge servers.
         MapStyle.standard =>
-          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        // High-speed CartoDB Dark CDN — muted palette optimized for fleet telemetry.
+          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         MapStyle.dark =>
           'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-        // Google Hybrid Satellite CDN — ultra-fast global imagery with roads and labels.
         MapStyle.satellite =>
-          'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-        // Google Terrain CDN — shaded relief with roads and landmarks.
-        MapStyle.terrain =>
-          'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        MapStyle.topo =>
+          'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        MapStyle.google =>
+          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        MapStyle.isometric3D => '', // Handled by MapLibre
       };
 
   List<String> get subdomains => switch (this) {
-        MapStyle.standard => const <String>['a', 'b', 'c', 'd'],
+        MapStyle.standard => const <String>[],
         MapStyle.dark => const <String>['a', 'b', 'c', 'd'],
-        MapStyle.satellite => const <String>['0', '1', '2', '3'],
-        MapStyle.terrain => const <String>['0', '1', '2', '3'],
+        MapStyle.satellite => const <String>[],
+        MapStyle.topo => const <String>['a', 'b', 'c'],
+        MapStyle.google => const <String>[],
+        MapStyle.isometric3D => const <String>[],
       };
 
   /// Max zoom the source serves.
   double get maxZoom => switch (this) {
-        MapStyle.satellite => 20,
-        MapStyle.terrain => 18,
+        MapStyle.isometric3D => 22,
+        MapStyle.satellite => 18,
+        MapStyle.topo => 17,
+        MapStyle.google => 20,
         _ => 19,
       };
 
   String get attribution => switch (this) {
-        MapStyle.satellite => 'Google Maps · Maxar',
-        MapStyle.terrain => 'Google Maps',
         MapStyle.dark => 'CARTO · OpenStreetMap',
-        MapStyle.standard => 'CARTO · OpenStreetMap',
+        MapStyle.standard => 'OpenStreetMap',
+        MapStyle.satellite => 'Esri · World Imagery',
+        MapStyle.topo => 'OpenTopoMap',
+        MapStyle.google => 'Google',
+        MapStyle.isometric3D => 'OpenFreeMap',
       };
 
   static MapStyle fromKey(String key) => MapStyle.values.firstWhere(

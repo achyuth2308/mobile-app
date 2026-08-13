@@ -9,10 +9,10 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/vehicle.dart';
-import '../../../data/repositories/vehicle_repository.dart';
+
 import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
-import '../../../shared/widgets/glass_card.dart';
+
 import 'package:local_auth/local_auth.dart';
 
 class VehicleInfoTab extends ConsumerWidget {

@@ -8,8 +8,8 @@ plugins {
 
 android {
     namespace = "com.fueltracks.customer"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    compileSdk = 35
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         // Required by flutter_local_notifications (java.time backport).

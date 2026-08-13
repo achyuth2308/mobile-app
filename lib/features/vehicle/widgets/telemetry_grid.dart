@@ -5,7 +5,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/vehicle.dart';
-import '../../../shared/widgets/glass_card.dart';
+
 
 /// Instrument-cluster grid of every live signal the tracker reports.
 class TelemetryGrid extends StatelessWidget {

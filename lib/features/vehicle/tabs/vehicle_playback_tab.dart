@@ -16,6 +16,7 @@ import '../../../data/models/trip.dart';
 import '../../../providers/core_providers.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
+import '../../live_map/widgets/vehicle_3d_marker.dart';
 
 /// Stoppage / parking event along a historical route.
 class StoppageEvent {
@@ -824,13 +825,19 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             child: _StoppagePin(duration: stop.duration),
           ),
         ),
-      // Simple vehicle cursor — no popup card, no dots
       Marker(
         point: cursor.latLng,
-        width: 44,
-        height: 44,
+        width: 36,
+        height: 36,
         alignment: Alignment.center,
-        child: _VehicleCursor(heading: cursor.heading),
+        child: Transform.rotate(
+          angle: cursor.heading * 3.1415926535897932 / 180,
+          child: const Icon(
+            Icons.navigation,
+            size: 36,
+            color: Colors.blueAccent,
+          ),
+        ),
       ),
     ];
   }

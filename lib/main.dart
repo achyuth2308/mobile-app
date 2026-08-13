@@ -90,6 +90,11 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
   }
 
   Future<void> _initPush() async {
+    if (kIsWeb) {
+      debugPrint('[main] Skipping push notifications on Web (no Firebase config)');
+      return;
+    }
+    
     try {
       final PushService push = PushService(
         onTokenRefresh: (String token) async {

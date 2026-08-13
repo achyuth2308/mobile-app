@@ -255,9 +255,9 @@ class _OnlineRing extends StatelessWidget {
                   color: Colors.white,
                 ).copyWith(fontWeight: FontWeight.w700),
               ),
-              Text(
+              const Text(
                 'online',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   color: Colors.white70,
                   fontWeight: FontWeight.w500,

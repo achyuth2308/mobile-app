@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -310,118 +311,115 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Widget _buildSuccessCard() {
     final String email = _emailCtrl.text.trim();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.5),
+    final Widget cardContent = Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: const Color(0xFF059669).withOpacity(0.2),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF10B981), width: 2),
+            ),
+            child: const Icon(
+              Icons.mark_email_read_rounded,
+              color: Color(0xFF34D399),
+              size: 34,
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 68,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF059669).withOpacity(0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF10B981), width: 2),
-                ),
-                child: const Icon(
-                  Icons.mark_email_read_rounded,
-                  color: Color(0xFF34D399),
-                  size: 34,
-                ),
+          const SizedBox(height: 20),
+          Text(
+            'Check Your Inbox',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              fontStyle: FontStyle.italic,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                color: Colors.white70,
+                height: 1.5,
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Check Your Inbox',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
+              children: [
+                const TextSpan(text: 'If an account exists for '),
+                TextSpan(
+                  text: email,
                   style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 14,
-                    color: Colors.white70,
-                    height: 1.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
-                  children: [
-                    const TextSpan(text: 'If an account exists for '),
-                    TextSpan(
-                      text: email,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const TextSpan(text: ', an email has been sent with a password reset link (valid for 60 minutes).'),
-                  ],
                 ),
+                const TextSpan(text: ', an email has been sent with a password reset link (valid for 60 minutes).'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+          _buildGradientButton(
+            label: 'ENTER RESET TOKEN',
+            icon: Icons.vpn_key_rounded,
+            onPressed: () => context.push('/reset-password'),
+            isLoading: false,
+          ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: () => setState(() => _sent = false),
+            child: const Text(
+              'Use a different email address',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white70,
               ),
-              const SizedBox(height: 28),
-
-              // Button to go to Reset Password screen
-              _buildGradientButton(
-                label: 'ENTER RESET TOKEN',
-                icon: Icons.vpn_key_rounded,
-                onPressed: () => context.push('/reset-password'),
-                isLoading: false,
-              ),
-
-              const SizedBox(height: 16),
-
-              TextButton(
-                onPressed: () => setState(() => _sent = false),
-                child: const Text(
-                  'Use a different email address',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => context.go('/login'),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_back_rounded, color: Colors.white, size: 16),
+                SizedBox(width: 6),
+                Text(
+                  'Back to Sign In',
                   style: TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 8),
-
-              TextButton(
-                onPressed: () => context.go('/login'),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.arrow_back_rounded, color: Colors.white, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'Back to Sign In',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: kIsWeb
+          ? cardContent
+          : BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: cardContent,
+            ),
     );
   }
 
@@ -430,44 +428,47 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     required String hint,
     required IconData icon,
   }) {
+    final textField = TextField(
+      controller: controller,
+      keyboardType: TextInputType.emailAddress,
+      style: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontWeight: FontWeight.w500,
+        ),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.15),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 20, right: 12),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 52),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF00D2FF), width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      ),
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: TextField(
-          controller: controller,
-          keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontWeight: FontWeight.w500,
+      child: kIsWeb
+          ? textField
+          : BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: textField,
             ),
-            filled: true,
-            fillColor: Colors.white.withOpacity(0.15),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 20, right: 12),
-              child: Icon(icon, color: Colors.white, size: 20),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 52),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF00D2FF), width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          ),
-        ),
-      ),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -253,58 +254,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required IconData icon,
     bool isPassword = false,
   }) {
+    final textField = TextField(
+      controller: controller,
+      obscureText: isPassword && _obscurePassword,
+      style: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontWeight: FontWeight.w500,
+        ),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.15),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 20, right: 12),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 52),
+        suffixIcon: isPassword
+            ? GestureDetector(
+                onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 20),
+                  child: Icon(
+                    _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                    color: Colors.white70,
+                    size: 20,
+                  ),
+                ),
+              )
+            : null,
+        suffixIconConstraints: const BoxConstraints(minWidth: 40),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF00D2FF), width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      ),
+    );
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), // Frosted glass effect
-        child: TextField(
-          controller: controller,
-          obscureText: isPassword && _obscurePassword,
-          style: const TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontWeight: FontWeight.w500,
+      child: kIsWeb
+          ? textField
+          : BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: textField,
             ),
-            filled: true,
-            fillColor: Colors.white.withOpacity(0.15), // Milky highlight
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 20, right: 12),
-              child: Icon(icon, color: Colors.white, size: 20),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 52),
-            suffixIcon: isPassword
-                ? GestureDetector(
-                    onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 20),
-                      child: Icon(
-                        _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                        color: Colors.white70,
-                        size: 20,
-                      ),
-                    ),
-                  )
-                : null,
-            suffixIconConstraints: const BoxConstraints(minWidth: 40),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5), // Visible resting border
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF00D2FF), width: 2), // Bright brand blue highlight when tapped
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          ),
-        ),
-      ),
     );
   }
 
@@ -366,19 +371,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Instead of a glass pill, a clean minimal row that sits on the white background
     return Column(
       children: [
-        const Row(
+        Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+          children: const [
             Icon(Icons.verified_user, color: Colors.white70, size: 16),
             SizedBox(width: 8),
-            Text(
-              'SECURED WITH END-TO-END ENCRYPTION',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white70,
-                letterSpacing: 0.5,
+            Flexible(
+              child: Text(
+                'SECURED WITH END-TO-END ENCRYPTION',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white70,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
           ],
