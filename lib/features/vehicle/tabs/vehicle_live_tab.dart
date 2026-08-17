@@ -120,6 +120,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                                 child: VehicleMarkerPin(
                                   vehicle: vehicle,
                                   selected: true,
+                                  useSprite: true,
                                 ),
                               ),
                             ],
@@ -127,7 +128,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                           const Align(
                             alignment: Alignment.bottomRight,
                             child: OsmAttribution(
-                              style: MapStyle.dark,
+                              style: MapStyle.standard,
                               compact: true,
                             ),
                           ),

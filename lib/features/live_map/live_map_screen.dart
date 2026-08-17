@@ -3,14 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
-import 'widgets/map3d_view.dart';
 import 'widgets/map_tiles.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -49,11 +47,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   String? _selectedId;
   String? _followingId;
   String? _pendingFocusId;
-  MapStyle _style = MapStyle.isometric3D;
-  bool get _is3D => _style == MapStyle.isometric3D;
+  MapStyle _style = MapStyle.standard;
   bool _mapReady = false;
   bool _userInteracting = false;
-  bool _3dEverMounted = false;
 
   /// India-centred default until the first fix arrives.
   static const LatLng _fallbackCenter = LatLng(17.385, 78.4867);
@@ -65,9 +61,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _followingId = widget.focusVehicleId;
     _pendingFocusId = widget.focusVehicleId;
     _style = MapStyleX.fromKey(ref.read(secureStoreProvider).mapType);
-    if (_style == MapStyle.isometric3D) {
-      _3dEverMounted = true;
-    }
   }
 
   @override
@@ -84,11 +77,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   void _move(LatLng target, {double? zoom}) {
     if (!_mapReady) return;
-    if (_is3D) {
-      // 3D map handles its own panning based on Map3DView's mapCenter prop if needed
-    } else {
-      _map.move(target, zoom ?? _map.camera.zoom);
-    }
+    _map.move(target, zoom ?? _map.camera.zoom);
   }
 
   void _focusVehicle(String? vehicleId, {double zoom = 17.0}) {
@@ -129,21 +118,17 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       return;
     }
 
-    if (_is3D) {
-      // 3D map fits bounds itself or we don't fit
-    } else {
-      _map.fitCamera(
-        CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints(
-            located
-                .map((Vehicle v) => LatLng(v.latitude!, v.longitude!))
-                .toList(),
-          ),
-          padding: const EdgeInsets.fromLTRB(60, 120, 60, 200),
-          maxZoom: 16,
+    _map.fitCamera(
+      CameraFit.bounds(
+        bounds: LatLngBounds.fromPoints(
+          located
+              .map((Vehicle v) => LatLng(v.latitude!, v.longitude!))
+              .toList(),
         ),
-      );
-    }
+        padding: const EdgeInsets.fromLTRB(60, 120, 60, 200),
+        maxZoom: 16,
+      ),
+    );
   }
 
   void _selectVehicle(Vehicle v) {
@@ -200,7 +185,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                   child: Text(
                     'Map Type',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -214,21 +200,28 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                     contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                     leading: Icon(
                       s.icon,
-                      color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     title: Text(
                       s.label,
                       style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
-                    trailing: isSelected ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
+                    trailing: isSelected
+                        ? Icon(Icons.check,
+                            color: Theme.of(context).colorScheme.primary)
+                        : null,
                     onTap: () async {
                       Navigator.pop(ctx);
                       setState(() {
                         _style = s;
-                        if (s == MapStyle.isometric3D) _3dEverMounted = true;
                       });
                       await ref.read(secureStoreProvider).setMapType(s.name);
                     },
@@ -241,7 +234,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       },
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +273,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             mapController: _map,
             vehicles: vehicles,
             style: _style,
-            is3dEverMounted: _3dEverMounted,
             fallbackCenter: _fallbackCenter,
             selectedId: _selectedId,
             followingId: _followingId,
@@ -324,140 +315,68 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             top: MediaQuery.paddingOf(context).top + Gap.sm,
             left: Gap.lg,
             right: Gap.lg,
-            child: kIsWeb && _is3D
-                ? PointerInterceptor(
-                    child: _MapHeader(
-                      locatedCount: located,
-                      totalCount: vehicles.length,
-                      followingName: following?.displayName,
-                      onStopFollowing: () => setState(() => _followingId = null),
-                      onRecenter: following != null && following.hasLocation
-                          ? () => _move(
-                                LatLng(following.latitude!, following.longitude!),
-                                zoom: 17,
-                              )
-                          : null,
-                    ),
-                  )
-                : _MapHeader(
-                    locatedCount: located,
-                    totalCount: vehicles.length,
-                    followingName: following?.displayName,
-                    onStopFollowing: () => setState(() => _followingId = null),
-                    onRecenter: following != null && following.hasLocation
-                        ? () => _move(
-                              LatLng(following.latitude!, following.longitude!),
-                              zoom: 17,
-                            )
-                        : null,
-                  ),
+            child: _MapHeader(
+              locatedCount: located,
+              totalCount: vehicles.length,
+              followingName: following?.displayName,
+              onStopFollowing: () => setState(() => _followingId = null),
+              onRecenter: following != null && following.hasLocation
+                  ? () => _move(
+                        LatLng(following.latitude!, following.longitude!),
+                        zoom: 17,
+                      )
+                  : null,
+            ),
           ),
 
-          if (_is3D && following != null)
-            kIsWeb 
-              ? PointerInterceptor(child: NavigationHUD(vehicle: following))
-              : NavigationHUD(vehicle: following),
+          if (following != null) NavigationHUD(vehicle: following),
 
           Positioned(
             right: Gap.lg,
             bottom: Gap.navClearance + Gap.sm,
-            child: kIsWeb && _is3D
-                ? PointerInterceptor(
-                    child: Column(
-                      children: <Widget>[
-                        _MapButton(
-                          icon: Icons.layers_rounded,
-                          tooltip: 'Change map style',
-                          onTap: _showMapStylePicker,
-                        ),
-                        const SizedBox(height: Gap.sm),
-                        _MapButton(
-                          icon: Icons.fit_screen_rounded,
-                          tooltip: 'Fit all vehicles',
-                          onTap: () => _fitAll(vehicles),
-                        ),
-                        const SizedBox(height: Gap.sm),
-                        _MapButton(
-                          icon: Icons.add_rounded,
-                          tooltip: 'Zoom in',
-                          onTap: () {
-                            if (_is3D) {
-                            } else {
-                              _map.move(
-                                _map.camera.center,
-                                (_map.camera.zoom + 1).clamp(2, _style.maxZoom),
-                              );
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 2),
-                        _MapButton(
-                          icon: Icons.remove_rounded,
-                          tooltip: 'Zoom out',
-                          onTap: () {
-                            if (_is3D) {
-                            } else {
-                              _map.move(
-                                _map.camera.center,
-                                (_map.camera.zoom - 1).clamp(2, _style.maxZoom),
-                              );
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  )
-                : Column(
-                    children: <Widget>[
-                      _MapButton(
-                        icon: Icons.layers_rounded,
-                        tooltip: 'Change map style',
-                        onTap: _showMapStylePicker,
-                      ),
-                      const SizedBox(height: Gap.sm),
-                      _MapButton(
-                        icon: Icons.fit_screen_rounded,
-                        tooltip: 'Fit all vehicles',
-                        onTap: () => _fitAll(vehicles),
-                      ),
-                      const SizedBox(height: Gap.sm),
-                      _MapButton(
-                        icon: Icons.add_rounded,
-                        tooltip: 'Zoom in',
-                        onTap: () {
-                          if (_is3D) {
-                          } else {
-                            _map.move(
-                              _map.camera.center,
-                              (_map.camera.zoom + 1).clamp(2, _style.maxZoom),
-                            );
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 2),
-                      _MapButton(
-                        icon: Icons.remove_rounded,
-                        tooltip: 'Zoom out',
-                        onTap: () {
-                          if (_is3D) {
-                          } else {
-                            _map.move(
-                              _map.camera.center,
-                              (_map.camera.zoom - 1).clamp(2, _style.maxZoom),
-                            );
-                          }
-                        },
-                      ),
-                    ],
-                  ),
+            child: Column(
+              children: <Widget>[
+                _MapButton(
+                  icon: Icons.layers_rounded,
+                  tooltip: 'Change map style',
+                  onTap: _showMapStylePicker,
+                ),
+                const SizedBox(height: Gap.sm),
+                _MapButton(
+                  icon: Icons.fit_screen_rounded,
+                  tooltip: 'Fit all vehicles',
+                  onTap: () => _fitAll(vehicles),
+                ),
+                const SizedBox(height: Gap.sm),
+                _MapButton(
+                  icon: Icons.add_rounded,
+                  tooltip: 'Zoom in',
+                  onTap: () {
+                    _map.move(
+                      _map.camera.center,
+                      (_map.camera.zoom + 1).clamp(2, _style.maxZoom),
+                    );
+                  },
+                ),
+                const SizedBox(height: 2),
+                _MapButton(
+                  icon: Icons.remove_rounded,
+                  tooltip: 'Zoom out',
+                  onTap: () {
+                    _map.move(
+                      _map.camera.center,
+                      (_map.camera.zoom - 1).clamp(2, _style.maxZoom),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
 
           Positioned(
             left: Gap.lg,
             bottom: Gap.navClearance + Gap.sm,
-            child: kIsWeb && _is3D
-                ? PointerInterceptor(child: const _MapLegend())
-                : const _MapLegend(),
+            child: const _MapLegend(),
           ),
 
           // ODbL attribution — required, bottom-right by convention.

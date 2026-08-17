@@ -223,7 +223,7 @@ class _GeofenceCard extends StatelessWidget {
                           ),
                         ),
                         children: <Widget>[
-                          buildTileLayer(MapStyle.dark),
+                          buildTileLayer(MapStyle.standard),
                           if (fence.shape == GeofenceShape.circle)
                             CircleLayer<Object>(
                               circles: <CircleMarker<Object>>[

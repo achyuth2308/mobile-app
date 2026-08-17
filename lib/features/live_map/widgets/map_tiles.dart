@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -48,71 +50,52 @@ class FastCachedTileProvider extends TileProvider {
   }
 }
 
-enum MapStyle { standard, dark, satellite, topo, isometric3D, google }
+enum MapStyle { standard, satellite, google }
 
 extension MapStyleX on MapStyle {
   String get label => switch (this) {
         MapStyle.standard => 'Modern Light',
-        MapStyle.dark => 'Dark Mode',
         MapStyle.satellite => 'Satellite (Esri)',
-        MapStyle.topo => '3D Topo',
-        MapStyle.isometric3D => '3D Isometric',
         MapStyle.google => 'Google Maps',
       };
 
   IconData get icon => switch (this) {
         MapStyle.standard => Icons.map_rounded,
-        MapStyle.dark => Icons.dark_mode_rounded,
         MapStyle.satellite => Icons.satellite_alt_rounded,
-        MapStyle.topo => Icons.terrain_rounded,
-        MapStyle.isometric3D => Icons.threed_rotation,
         MapStyle.google => Icons.public,
       };
 
   String get urlTemplate => switch (this) {
         MapStyle.standard =>
           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        MapStyle.dark =>
-          'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
         MapStyle.satellite =>
           'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        MapStyle.topo =>
-          'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
         MapStyle.google =>
           'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        MapStyle.isometric3D => '', // Handled by MapLibre
       };
 
   List<String> get subdomains => switch (this) {
         MapStyle.standard => const <String>[],
-        MapStyle.dark => const <String>['a', 'b', 'c', 'd'],
         MapStyle.satellite => const <String>[],
-        MapStyle.topo => const <String>['a', 'b', 'c'],
         MapStyle.google => const <String>[],
-        MapStyle.isometric3D => const <String>[],
       };
 
   /// Max zoom the source serves.
   double get maxZoom => switch (this) {
-        MapStyle.isometric3D => 22,
         MapStyle.satellite => 18,
-        MapStyle.topo => 17,
         MapStyle.google => 20,
         _ => 19,
       };
 
   String get attribution => switch (this) {
-        MapStyle.dark => 'CARTO · OpenStreetMap',
         MapStyle.standard => 'OpenStreetMap',
         MapStyle.satellite => 'Esri · World Imagery',
-        MapStyle.topo => 'OpenTopoMap',
         MapStyle.google => 'Google',
-        MapStyle.isometric3D => 'OpenFreeMap',
       };
 
   static MapStyle fromKey(String key) => MapStyle.values.firstWhere(
         (MapStyle s) => s.name == key,
-        orElse: () => MapStyle.dark,
+        orElse: () => MapStyle.standard,
       );
 }
 
@@ -131,7 +114,7 @@ TileLayer buildTileLayer(MapStyle style, {bool retina = false}) {
     maxNativeZoom: style.maxZoom.toInt(),
     maxZoom: style.maxZoom,
     userAgentPackageName: AppConfig.tileUserAgent,
-    tileProvider: FastCachedTileProvider(),
+    tileProvider: kIsWeb ? CancellableNetworkTileProvider() : FastCachedTileProvider(),
     retinaMode: false, // Standard tiles are 4x smaller and load significantly faster
     panBuffer: 2, // Preload 2-tile perimeter so panning is instant without blank squares
     keepBuffer: 8, // Keep 8 buffer levels in RAM to avoid reload flickers

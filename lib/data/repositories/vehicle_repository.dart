@@ -138,4 +138,19 @@ class VehicleRepository {
       throw Exception('Invalid vehicle ID');
     }
   }
+
+  Future<void> updateSettings(String vehicleId, {
+    double? overSpeedLimit,
+    double? overspeedDurationAlert,
+    double? idleDurationAlert,
+  }) async {
+    final Map<String, dynamic> body = <String, dynamic>{};
+    if (overSpeedLimit != null) body['overSpeedLimit'] = overSpeedLimit;
+    if (overspeedDurationAlert != null) body['overspeedDurationAlert'] = overspeedDurationAlert;
+    if (idleDurationAlert != null) body['idleDurationAlert'] = idleDurationAlert;
+
+    if (body.isEmpty) return;
+
+    await _api.patch<dynamic>('/vehicles/$vehicleId/settings', body: body);
+  }
 }

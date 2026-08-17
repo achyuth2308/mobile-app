@@ -35,29 +35,61 @@ class SecureStore {
   }
 
   // ── Tokens ───────────────────────────────────────────────────────
-  Future<String?> readToken() => _secure.read(key: _kToken);
-  Future<void> writeToken(String v) => _secure.write(key: _kToken, value: v);
+  Future<String?> readToken() async {
+    try {
+      return await _secure.read(key: _kToken);
+    } catch (_) {
+      await _secure.deleteAll();
+      return null;
+    }
+  }
+  
+  Future<void> writeToken(String v) async {
+    try {
+      await _secure.write(key: _kToken, value: v);
+    } catch (_) {
+      await _secure.deleteAll();
+      await _secure.write(key: _kToken, value: v);
+    }
+  }
 
-  Future<String?> readRefreshToken() => _secure.read(key: _kRefresh);
-  Future<void> writeRefreshToken(String v) =>
-      _secure.write(key: _kRefresh, value: v);
+  Future<String?> readRefreshToken() async {
+    try {
+      return await _secure.read(key: _kRefresh);
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  Future<void> writeRefreshToken(String v) async {
+    try {
+      await _secure.write(key: _kRefresh, value: v);
+    } catch (_) {
+      // Ignore
+    }
+  }
 
   Future<String?> readFcmToken() => _secure.read(key: _kFcm);
   Future<void> writeFcmToken(String v) => _secure.write(key: _kFcm, value: v);
 
   // ── Cached user (for instant cold-start render) ──────────────────
   Future<Map<String, dynamic>?> readUser() async {
-    final String? raw = await _secure.read(key: _kUser);
-    if (raw == null || raw.isEmpty) return null;
     try {
+      final String? raw = await _secure.read(key: _kUser);
+      if (raw == null || raw.isEmpty) return null;
       return jsonDecode(raw) as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
   }
 
-  Future<void> writeUser(Map<String, dynamic> user) =>
-      _secure.write(key: _kUser, value: jsonEncode(user));
+  Future<void> writeUser(Map<String, dynamic> user) async {
+    try {
+      await _secure.write(key: _kUser, value: jsonEncode(user));
+    } catch (_) {
+      // Ignore
+    }
+  }
 
   /// Wipes every credential. Called on logout and on hard 401.
   Future<void> clearSession() async {

@@ -74,6 +74,7 @@ class SocketService {
     'vehicle:update',
     'location:update',
     'position:update',
+    'positions',
     'alert:new',
     'geofence:event',
     'vehicle:status',
@@ -114,7 +115,6 @@ class SocketService {
     final io.Socket socket = io.io(
       AppConfig.socketUrl,
       io.OptionBuilder()
-          .setTransports(<String>['polling', 'websocket'])
           // Socket.io is mounted at the server root, NOT under /api.
           .setPath(AppConfig.socketPath)
           .setAuth(<String, dynamic>{'token': token})
@@ -198,6 +198,8 @@ class SocketService {
 
   // ── Rooms ────────────────────────────────────────────────────────
 
+  final Set<String> _userRooms = <String>{};
+
   /// Joins `org:{orgId}` — the firehose of updates for the whole fleet.
   void joinOrg(String orgId) {
     if (orgId.isEmpty) return;
@@ -207,6 +209,17 @@ class SocketService {
         ..emit('join:org', <String, dynamic>{'orgId': orgId})
         ..emit('join', <String, dynamic>{'room': 'org:$orgId'});
       _log('joined org:$orgId');
+    }
+  }
+
+  void joinUser(String userId) {
+    if (userId.isEmpty) return;
+    _userRooms.add(userId);
+    if (isConnected) {
+      _socket!
+        ..emit('join:user', <String, dynamic>{'userId': userId})
+        ..emit('join', <String, dynamic>{'room': 'user:$userId'});
+      _log('joined user:$userId');
     }
   }
 
@@ -237,6 +250,9 @@ class SocketService {
   void _rejoinRooms() {
     for (final String org in _orgRooms) {
       joinOrg(org);
+    }
+    for (final String u in _userRooms) {
+      joinUser(u);
     }
     for (final String v in _vehicleRooms) {
       joinVehicle(v);
@@ -275,6 +291,7 @@ class SocketService {
   /// Full shutdown on logout: rooms are forgotten too.
   void disconnect() {
     _orgRooms.clear();
+    _userRooms.clear();
     _vehicleRooms.clear();
     _teardown();
     _setStatus(SocketStatus.idle);

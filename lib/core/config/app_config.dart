@@ -63,7 +63,7 @@ class AppConfig {
   // ── Real-time tuning ─────────────────────────────────────────────
   /// Marker positions are re-rendered at most this often to keep the
   /// map at 60fps even when hundreds of `fleet:update` frames arrive.
-  static const Duration mapThrottle = Duration(milliseconds: 450);
+  static const Duration mapThrottle = Duration(milliseconds: 200);
 
   /// A vehicle is considered "offline" if its last packet is older than this.
   static const Duration offlineThreshold = Duration(minutes: 10);

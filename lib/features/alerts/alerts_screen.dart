@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -268,6 +269,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       });
 
       ref.read(unreadAlertsProvider.notifier).state = 0;
+      FlutterLocalNotificationsPlugin().cancelAll();
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(

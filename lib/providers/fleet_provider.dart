@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config/app_config.dart';
 import '../core/network/api_exception.dart';
 import '../core/realtime/socket_service.dart';
+import '../data/models/user.dart';
 import '../data/models/vehicle.dart';
 import 'auth_provider.dart';
 import 'core_providers.dart';
@@ -190,8 +191,12 @@ class FleetController extends Notifier<FleetState> {
 
     _socketSub = socket.events$.listen(_onSocketEvent);
 
-    final String? orgId = ref.read(authProvider).user?.orgId;
-    if (orgId != null && orgId.isNotEmpty) socket.joinOrg(orgId);
+    final AppUser? user = ref.read(authProvider).user;
+    if (user?.orgId != null && user!.orgId.isNotEmpty) {
+      socket.joinOrg(user.orgId);
+    } else if (user?.id != null) {
+      socket.joinUser(user!.id);
+    }
 
     _flushTimer?.cancel();
     _flushTimer = Timer.periodic(AppConfig.mapThrottle, (_) => _flush());
@@ -211,6 +216,7 @@ class FleetController extends Notifier<FleetState> {
       case 'vehicle:update':
       case 'location:update':
       case 'position:update':
+      case 'positions':
       case 'vehicle:status':
         _bufferUpdate(event.payload);
       default:
@@ -231,7 +237,8 @@ class FleetController extends Notifier<FleetState> {
   }
 
   void _bufferOne(Map<String, dynamic> frame) {
-    final String id = <String>['vehicleId', '_id', 'id', 'vehicle']
+    // Attempt to extract any known identifier from the socket payload
+    final String rawId = <String>['vehicleId', '_id', 'id', 'vehicle', 'deviceId', 'device_id', 'imei', 'IMEI']
             .map((String k) => frame[k])
             .firstWhere(
               (Object? v) => v != null && v.toString().isNotEmpty,
@@ -240,22 +247,32 @@ class FleetController extends Notifier<FleetState> {
             ?.toString() ??
         '';
 
-    if (id.isEmpty) return;
+    if (rawId.isEmpty) {
+      // Also check nested device object (common in Traccar)
+      if (frame['device'] is Map) {
+        final Map<String, dynamic> dev = frame['device'] as Map<String, dynamic>;
+        final String devId = dev['id']?.toString() ?? dev['imei']?.toString() ?? '';
+        if (devId.isNotEmpty) {
+          _bufferOne({...frame, 'deviceId': devId});
+        }
+      }
+      return;
+    }
 
-    final Vehicle? existing = _pending[id] ??
+    final Vehicle? existing = _pending[rawId] ??
         state.vehicles.cast<Vehicle?>().firstWhere(
-              (Vehicle? v) => v?.id == id,
+              (Vehicle? v) => v?.id == rawId || v?.deviceId == rawId || v?.imei == rawId,
               orElse: () => null,
             );
 
     if (existing == null) {
       // Unknown vehicle — likely added server-side while we were connected.
       final Vehicle fresh = Vehicle.fromJson(frame);
-      if (fresh.id.isNotEmpty) _pending[id] = fresh;
+      if (fresh.id.isNotEmpty) _pending[fresh.id] = fresh;
       return;
     }
 
-    _pending[id] = existing.mergeLive(frame);
+    _pending[existing.id] = existing.mergeLive(frame);
   }
 
   void _flush() {
@@ -297,6 +314,26 @@ class FleetController extends Notifier<FleetState> {
       if (r != 0) return r;
       return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
     });
+  }
+
+  Future<void> updateSettings(String vehicleId, {
+    double? overSpeedLimit,
+    double? overspeedDurationAlert,
+    double? idleDurationAlert,
+  }) async {
+    try {
+      await ref.read(vehicleRepositoryProvider).updateSettings(
+        vehicleId,
+        overSpeedLimit: overSpeedLimit,
+        overspeedDurationAlert: overspeedDurationAlert,
+        idleDurationAlert: idleDurationAlert,
+      );
+      // Reload fleet so changes reflect instantly in UI
+      await load(silent: true);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
   }
 
   void clear() {

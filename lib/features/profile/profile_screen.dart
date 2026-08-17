@@ -118,6 +118,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onTap: () => context.push('/geofences'),
                 ),
               _SettingsTile(
+                icon: Icons.add_road_rounded,
+                title: 'Route Management',
+                subtitle: 'Set routes & get trip/deviation alerts',
+                onTap: () => context.push('/routes'),
+              ),
+              _SettingsTile(
                 icon: Icons.notifications_active_outlined,
                 title: 'Notification preferences',
                 onTap: () => showModalBottomSheet<void>(

@@ -9,6 +9,8 @@ import '../../core/theme/app_spacing.dart';
 import '../../data/models/alert.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:convert';
 
 /// Root shell: owns the bottom navigation and starts the real-time session
 /// once, for the whole authenticated experience.
@@ -42,7 +44,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!mounted) return;
     ref.read(fleetProvider.notifier).attachSocket();
 
-    // 3 ─ Global listener for in-app alert snackbars.
+    // 3 ─ Global listener for real-time system notifications (replaces snackbar).
     _socketSub = ref.read(socketServiceProvider).events$.listen((event) {
       if (event.name == 'alert:new' || event.name == 'geofence:event') {
         try {
@@ -61,20 +63,90 @@ class _AppShellState extends ConsumerState<AppShell> {
 
           if (!mounted) return;
 
+          // Check user preferences before showing local notification
+          final prefs = ref.read(notificationPreferencesProvider);
+          bool enabled = true;
+          switch (newAlert.type.toLowerCase()) {
+            case 'sos':
+            case 'panic':
+            case 'crash':
+            case 'accident':
+            case 'tow':
+            case 'power_cut':
+              enabled = prefs.sos;
+            case 'theft':
+            case 'theft_alarm':
+            case 'tamper':
+              enabled = prefs.theft;
+            case 'overspeed':
+            case 'overspeeding':
+              enabled = prefs.overspeed;
+            case 'geofence_enter':
+            case 'geofenceenter':
+            case 'geofence_exit':
+            case 'geofenceexit':
+            case 'geofence':
+              enabled = prefs.geofence;
+            case 'ignition_on':
+            case 'ignition_off':
+            case 'moving':
+            case 'start_moving':
+            case 'trip_started':
+            case 'trip_ended':
+            case 'route_deviation':
+            case 'trip':
+            case 'stopped':
+            case 'idle':
+            case 'stoppage':
+              enabled = prefs.ignition;
+            case 'harsh_braking':
+            case 'harsh_acceleration':
+              enabled = prefs.harsh;
+          }
+          if (!enabled) return;
+
           final String title = newAlert.title;
           final String msg = newAlert.vehicleName != null
               ? '${newAlert.vehicleName} - ${newAlert.message}'
               : newAlert.message;
 
-          scaffoldMessengerKey.currentState?.showSnackBar(
-            SnackBar(
-              content: Text('$title\n$msg',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 4),
-              showCloseIcon: true,
-              margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+          final bool isTheft = <String>['theft', 'theft_alarm', 'tamper'].contains(newAlert.type);
+          final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(newAlert.type);
+          final bool isRoute = <String>['route_deviation', 'trip_started', 'trip_ended'].contains(newAlert.type);
+          
+          final String channelId = isTheft
+              ? 'fueltracks_theft'
+              : (isCritical ? 'fueltracks_critical' : (isRoute ? 'fueltracks_route' : 'fueltracks_alerts'));
+          final String channelName = isTheft
+              ? 'Theft Alarms'
+              : (isCritical ? 'Critical Fleet Alerts' : (isRoute ? 'Route & Trip Alerts' : 'Fleet Alerts'));
+
+          final local = FlutterLocalNotificationsPlugin();
+          local.show(
+            newAlert.hashCode,
+            title,
+            msg,
+            NotificationDetails(
+              android: AndroidNotificationDetails(
+                channelId,
+                channelName,
+                importance: Importance.max,
+                priority: (isTheft || isCritical) ? Priority.max : Priority.high,
+                fullScreenIntent: true,
+                color: const Color(0xFF4F6BFF),
+                icon: '@drawable/ic_notification',
+                styleInformation: BigTextStyleInformation(msg),
+              ),
+              iOS: DarwinNotificationDetails(
+                presentAlert: true,
+                presentBadge: true,
+                presentSound: true,
+                interruptionLevel: (isTheft || isCritical)
+                    ? InterruptionLevel.timeSensitive
+                    : InterruptionLevel.active,
+              ),
             ),
+            payload: jsonEncode(event.payload),
           );
         } catch (_) {}
       }
@@ -131,6 +203,7 @@ class _FloatingNavBar extends StatelessWidget {
     _NavItem('Alerts', Icons.notifications_none_rounded,
         Icons.notifications_rounded),
     _NavItem('Reports', Icons.insights_outlined, Icons.insights_rounded),
+    _NavItem('Trips', Icons.route_outlined, Icons.route_rounded),
     _NavItem('Account', Icons.person_outline_rounded, Icons.person_rounded),
   ];
 

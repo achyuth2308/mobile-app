@@ -51,6 +51,8 @@ class Vehicle extends Equatable {
     this.lastPacketAt,
     this.expiryDate,
     this.speedLimit,
+    this.overspeedDurationAlert,
+    this.idleDurationAlert,
     this.todayDistanceKm,
     this.isActive = true,
     this.rawStatus,
@@ -88,6 +90,8 @@ class Vehicle extends Equatable {
   // ── Commercial ───────────────────────────────────────────────────
   final DateTime? expiryDate;
   final double? speedLimit;
+  final double? overspeedDurationAlert;
+  final double? idleDurationAlert;
   final double? todayDistanceKm;
   final bool isActive;
 
@@ -100,22 +104,19 @@ class Vehicle extends Equatable {
   /// Infers the correct type for images based on common vehicle names if the backend defaults to 'car'.
   String get displayType {
     final String lowerName = name.toLowerCase();
+    // Default all unknown/generic car types to truck per user request
     if (type == 'car' || type.isEmpty) {
       if (lowerName.contains('activa') || lowerName.contains('scoot') || lowerName.contains('bike') || lowerName.contains('motor')) {
         return 'bike';
       }
-      if (lowerName.contains('truck') || lowerName.contains('lorry') || lowerName.contains('eicher')) {
-        return 'truck';
-      }
-      if (lowerName.contains('tipper')) {
-        return 'tipper';
-      }
       if (lowerName.contains('bus')) {
         return 'bus';
       }
+      return 'truck';
     }
     // Map backend types to our available assets if needed
     if (type == 'scooter' || type == 'motorcycle' || type == 'scooty') return 'bike';
+    if (type == 'car') return 'truck';
     return type;
   }
 
@@ -513,7 +514,14 @@ class Vehicle extends Equatable {
         'speedLimit',
         'maxSpeed',
         'overspeedLimit',
+        'overSpeedLimit',
         'speedThreshold',
+      ]),
+      overspeedDurationAlert: asDoubleOrNull(json, <String>[
+        'overspeedDurationAlert',
+      ]),
+      idleDurationAlert: asDoubleOrNull(json, <String>[
+        'idleDurationAlert',
       ]),
       todayDistanceKm: () {
         const List<String> keys = <String>['todayDistance', 'distanceToday', 'dayDistance', 'today_distance', 'today_km', 'distance_today'];

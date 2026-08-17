@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../data/models/alert.dart';
+
 /// Top-level background handler — required by FCM to be a static/top-level
 /// function. Runs in a separate isolate with no access to app state, so it
 /// only does work that is safe there.
@@ -73,15 +75,29 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
     final String title = (data['title'] as String?) ?? 
         (data['alert_title'] as String?) ?? 
         (data['alertTitle'] as String?) ?? 
-        'Fleet Alert';
-    final String body = (data['message'] as String?) ?? 
+        FleetAlert.titleFor(type);
+        
+    final String vehicleName = (data['vehicleName'] as String?) ?? 
+        (data['vehicle_name'] as String?) ?? 
+        (data['vehicleNumber'] as String?) ?? 
+        '';
+
+    String body = (data['message'] as String?) ?? 
         (data['body'] as String?) ?? 
         (data['alert_message'] as String?) ?? 
         (data['alertMessage'] as String?) ??
         (data['alertText'] as String?) ??
         (data['alert_text'] as String?) ??
         '';
-    if (body.isEmpty && title == 'Fleet Alert') return; // Nothing to show
+        
+    // If body is empty, we MUST provide some text so the notification is visible.
+    if (body.isEmpty) {
+      if (vehicleName.isNotEmpty) {
+        body = 'Alert for $vehicleName';
+      } else {
+        body = 'A new $title event has occurred.';
+      }
+    }
 
     final bool isTheft = <String>['theft', 'theft_alarm', 'tamper'].contains(type);
     final bool isCritical =
@@ -96,6 +112,19 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
 
     final FlutterLocalNotificationsPlugin local =
         FlutterLocalNotificationsPlugin();
+
+    // Ensure the channel exists before showing, otherwise Android drops the notification
+    // if it was never created or the app data was cleared.
+    final AndroidNotificationChannel channel = AndroidNotificationChannel(
+      channelId,
+      channelName,
+      importance: Importance.max,
+      enableVibration: true,
+      playSound: true,
+    );
+    await local
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
 
     // Basic initialization required to show a notification from the background isolate
     await local.initialize(
@@ -115,6 +144,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           channelName,
           importance: Importance.max,
           priority: (isTheft || isCritical) ? Priority.max : Priority.high,
+          fullScreenIntent: true, // Forces popup
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(body),
@@ -325,8 +355,14 @@ class PushService {
         (data['title'] as String?) ??
         (data['alert_title'] as String?) ??
         (data['alertTitle'] as String?) ??
-        'Fleet Alert';
-    final String body = n?.body ?? 
+        FleetAlert.titleFor(type);
+        
+    final String vehicleName = (data['vehicleName'] as String?) ?? 
+        (data['vehicle_name'] as String?) ?? 
+        (data['vehicleNumber'] as String?) ?? 
+        '';
+
+    String body = n?.body ?? 
         (data['message'] as String?) ?? 
         (data['body'] as String?) ?? 
         (data['alert_message'] as String?) ?? 
@@ -334,6 +370,14 @@ class PushService {
         (data['alertText'] as String?) ??
         (data['alert_text'] as String?) ??
         '';
+        
+    if (body.isEmpty) {
+      if (vehicleName.isNotEmpty) {
+        body = 'Alert for $vehicleName';
+      } else {
+        body = 'A new $title event has occurred.';
+      }
+    }
     final bool isTheft = <String>['theft', 'theft_alarm', 'tamper'].contains(type);
     final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow']
         .contains(type);
@@ -353,6 +397,7 @@ class PushService {
           channelDescription: channel.description,
           importance: channel.importance,
           priority: (isTheft || isCritical) ? Priority.max : Priority.high,
+          fullScreenIntent: true,
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(body),

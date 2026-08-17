@@ -113,6 +113,12 @@ class AuthController extends Notifier<AuthState> {
         fieldErrors: e.fieldErrors,
       );
       return false;
+    } catch (e) {
+      state = state.copyWith(
+        isBusy: false,
+        error: 'An unexpected error occurred during login. Please try again.',
+      );
+      return false;
     }
   }
 

@@ -4,16 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/utils/formatters.dart';
-
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
-import '../../shared/widgets/status_chip.dart';
 import 'tabs/vehicle_info_tab.dart';
 import 'tabs/vehicle_live_tab.dart';
 import 'tabs/vehicle_playback_tab.dart';
+import 'vehicle_settings_sheet.dart';
 
 /// Three-tab vehicle workspace: Live, History (playback), Info.
 ///
@@ -95,6 +93,18 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
               onPressed: () => context.pop(),
             ),
             actions: <Widget>[
+              IconButton(
+                tooltip: 'Vehicle settings',
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: () {
+                  showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => VehicleSettingsSheet(vehicleId: widget.vehicleId),
+                  );
+                },
+              ),
               IconButton(
                 tooltip: 'Live zoomed tracking',
                 icon: const Icon(Icons.gps_fixed_rounded),

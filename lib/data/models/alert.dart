@@ -73,9 +73,9 @@ class FleetAlert extends Equatable {
       id: asString(json, <String>['_id', 'id', 'alertId', 'alert_id']),
       type: rawType.toLowerCase(),
       title: asString(json, <String>['title', 'name', 'heading', 'alert_title', 'alertTitle'],
-          fallback: _titleFor(rawType)),
+          fallback: titleFor(rawType)),
       message: asString(json, <String>['message', 'description', 'body', 'text', 'alert_message', 'alertMessage', 'alertText', 'alert_text'],
-          fallback: _titleFor(rawType)),
+          fallback: titleFor(rawType)),
       vehicleId: asStringOrNull(json, <String>['vehicleId', 'vehicle_id']) ??
           asStringOrNull(veh, <String>['_id', 'id']),
       vehicleName:
@@ -91,7 +91,7 @@ class FleetAlert extends Equatable {
     );
   }
 
-  static String _titleFor(String type) => switch (type.toLowerCase()) {
+  static String titleFor(String type) => switch (type.toLowerCase()) {
         'overspeed' || 'overspeeding' => 'Overspeeding',
         'geofence' => 'Geofence Alert',
         'geofence_enter' || 'geofenceenter' => 'Geofence Entry',

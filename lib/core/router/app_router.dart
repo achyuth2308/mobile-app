@@ -16,6 +16,8 @@ import '../../features/reports/report_detail_screen.dart';
 import '../../features/reports/reports_hub_screen.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../features/routes/routes_screen.dart';
+import '../../features/trips/trips_screen.dart';
 import '../../features/vehicle/vehicle_detail_screen.dart';
 import '../../providers/auth_provider.dart';
 
@@ -155,6 +157,15 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
+                path: '/trips',
+                builder: (BuildContext c, GoRouterState s) =>
+                    const TripsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
                 path: '/profile',
                 builder: (BuildContext c, GoRouterState s) =>
                     const ProfileScreen(),
@@ -180,6 +191,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         path: '/renewals',
         parentNavigatorKey: _rootKey,
         builder: (BuildContext c, GoRouterState s) => const RenewalsScreen(),
+      ),
+      GoRoute(
+        path: '/routes',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => const RoutesScreen(),
       ),
     ],
 
@@ -222,6 +238,7 @@ String routeForNotification(Map<String, dynamic> data) {
       (data['vehicleId'] ?? data['vehicle_id'])?.toString();
 
   if (type.contains('renewal') || type.contains('billing')) return '/renewals';
+  if (type == 'route_deviation' || type == 'trip_started' || type == 'trip_ended') return '/routes';
   if (vehicleId != null && vehicleId.isNotEmpty) return '/vehicle/$vehicleId';
   return '/alerts';
 }

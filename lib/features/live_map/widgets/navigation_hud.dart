@@ -252,6 +252,8 @@ class _NavigationStatsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String statusLabel = vehicle.status.key[0].toUpperCase() +
+        vehicle.status.key.substring(1);
     // Determine direction from heading
     String direction = 'N';
     final h = vehicle.heading % 360;
@@ -288,21 +290,15 @@ class _NavigationStatsWidget extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _StatRow(
-            icon: Icons.timer_outlined,
-            value: _formatDuration(0),
-            label: 'Duration',
+            icon: Icons.directions_car_outlined,
+            value: '${(vehicle.odometer ?? 0).toStringAsFixed(1)} km',
+            label: 'Odometer',
           ),
           const SizedBox(height: 12),
           _StatRow(
-            icon: Icons.speed_rounded,
-            value: '72 km/h',
-            label: 'Max Speed',
-          ),
-          const SizedBox(height: 12),
-          _StatRow(
-            icon: Icons.satellite_alt_outlined,
-            value: '${vehicle.satellites ?? 16}',
-            label: 'Satellites',
+            icon: Icons.info_outline,
+            value: statusLabel,
+            label: 'Status',
           ),
           const SizedBox(height: 12),
           _StatRow(
@@ -310,24 +306,26 @@ class _NavigationStatsWidget extends StatelessWidget {
             value: direction,
             label: 'Direction',
           ),
+          const SizedBox(height: 12),
+          _StatRow(
+            icon: Icons.place_outlined,
+            value: vehicle.address ?? (vehicle.hasLocation ? '${vehicle.latitude!.toStringAsFixed(5)}, ${vehicle.longitude!.toStringAsFixed(5)}' : 'Unknown'),
+            label: 'Location',
+            maxLines: 2,
+          ),
         ],
       ),
     );
   }
-
-  String _formatDuration(double engineHours) {
-    final int hours = engineHours.floor();
-    final int minutes = ((engineHours - hours) * 60).floor();
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:00';
-  }
 }
 
 class _StatRow extends StatelessWidget {
-  const _StatRow({required this.icon, required this.value, required this.label});
+  const _StatRow({required this.icon, required this.value, required this.label, this.maxLines = 1});
 
   final IconData icon;
   final String value;
   final String label;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -341,6 +339,8 @@ class _StatRow extends StatelessWidget {
             children: [
               Text(
                 value,
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
