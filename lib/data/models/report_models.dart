@@ -14,6 +14,7 @@ enum ReportType {
   idle,
   consolidated,
   individual,
+  manualTrip,
 }
 
 extension ReportTypeX on ReportType {
@@ -28,10 +29,11 @@ extension ReportTypeX on ReportType {
         ReportType.idle => '/reports/stoppages',
         ReportType.consolidated => '/reports/consolidated',
         ReportType.individual => '/reports/individual',
+        ReportType.manualTrip => '/trips',
       };
 
   String get label => switch (this) {
-        ReportType.trip => 'Trip Report',
+        ReportType.trip => 'Automated Trips',
         ReportType.distance => 'Distance Report',
         ReportType.activity => 'Activity Report',
         ReportType.routeHistory => 'Route History',
@@ -41,6 +43,7 @@ extension ReportTypeX on ReportType {
         ReportType.idle => 'Idle Report',
         ReportType.consolidated => 'Consolidated',
         ReportType.individual => 'Individual Summary',
+        ReportType.manualTrip => 'Manual Trips',
       };
 
   String get blurb => switch (this) {
@@ -54,6 +57,7 @@ extension ReportTypeX on ReportType {
         ReportType.idle => 'Engine running while stationary — wasted fuel',
         ReportType.consolidated => 'Whole-fleet totals in a single sheet',
         ReportType.individual => 'Deep-dive summary for one vehicle',
+        ReportType.manualTrip => 'Pre-planned and manually tracked trips',
       };
 
   /// A single vehicle must be chosen before running these.

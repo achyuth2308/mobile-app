@@ -26,21 +26,14 @@ class FleetOverviewCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(Gap.lg),
       decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: Corners.rXl,
-        border: Border.all(color: AppColors.brand.withOpacity(0.5), width: 1.5),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0F172A), // Slate 900
-            Color(0xFF1E1B4B), // Indigo 950
-          ],
-        ),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E1B4B).withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -57,7 +50,7 @@ class FleetOverviewCard extends ConsumerWidget {
                     Text(
                       'TOTAL FLEET',
                       style: AppTypography.eyebrow(
-                        Colors.grey.shade400,
+                        Colors.grey.shade600,
                       ).copyWith(letterSpacing: 2.0),
                     ),
                     const SizedBox(height: Gap.sm),
@@ -69,7 +62,7 @@ class FleetOverviewCard extends ConsumerWidget {
                           '${stats.total}',
                           style: AppTypography.metric(
                             size: 36,
-                            color: Colors.white,
+                            color: Colors.grey.shade900,
                           ).copyWith(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(width: Gap.xs),
@@ -78,7 +71,7 @@ class FleetOverviewCard extends ConsumerWidget {
                           child: Text(
                             stats.total == 1 ? 'vehicle' : 'vehicles',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey.shade400,
+                              color: Colors.grey.shade600,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -239,7 +232,7 @@ class _OnlineRing extends StatelessWidget {
                 value: v,
                 strokeWidth: 6,
                 strokeCap: StrokeCap.round,
-                backgroundColor: Colors.white.withOpacity(0.1),
+                backgroundColor: Colors.grey.shade100,
                 valueColor:
                     const AlwaysStoppedAnimation<Color>(AppColors.moving),
               ),
@@ -252,14 +245,14 @@ class _OnlineRing extends StatelessWidget {
                 '${(percent * 100).round()}%',
                 style: AppTypography.metric(
                   size: 18,
-                  color: Colors.white,
+                  color: Colors.grey.shade900,
                 ).copyWith(fontWeight: FontWeight.w700),
               ),
               const Text(
                 'online',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.white70,
+                  color: Colors.grey,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -299,13 +292,13 @@ class _StatusTile extends StatelessWidget {
         curve: Motion.emphasized,
         decoration: BoxDecoration(
           color: selected
-              ? color.withOpacity(0.15)
-              : Colors.white.withOpacity(0.04),
+              ? color.withOpacity(0.12)
+              : Colors.grey.shade50,
           borderRadius: Corners.rMd,
           border: Border.all(
             color: selected
-                ? color.withOpacity(0.5)
-                : Colors.white.withOpacity(0.08),
+                ? color.withOpacity(0.4)
+                : Colors.grey.shade200,
             width: selected ? 1.5 : 1,
           ),
           boxShadow: selected
@@ -335,7 +328,7 @@ class _StatusTile extends StatelessWidget {
                     '$count',
                     style: AppTypography.metric(
                       size: 20,
-                      color: Colors.white,
+                      color: Colors.grey.shade900,
                     ).copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 2),
@@ -344,7 +337,7 @@ class _StatusTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       letterSpacing: 0.2,
-                      color: selected ? Colors.white : Colors.grey.shade400,
+                      color: selected ? color : Colors.grey.shade600,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),

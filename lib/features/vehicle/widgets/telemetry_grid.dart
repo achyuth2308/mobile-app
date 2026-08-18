@@ -64,7 +64,7 @@ class TelemetryGrid extends StatelessWidget {
           unit: '%',
           color: vehicle.fuelLevel! < 15 ? AppColors.danger : null,
         ),
-      if (vehicle.batteryLevel != null)
+      if (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0)
         _Cell(
           icon: Icons.battery_charging_full_rounded,
           label: 'Battery',

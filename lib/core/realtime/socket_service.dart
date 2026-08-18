@@ -123,6 +123,7 @@ class SocketService {
             'token': token,
             'auth': token,
           })
+          .setTransports(<String>['websocket'])
           .enableForceNew()
           .disableAutoConnect()
           .enableReconnection()

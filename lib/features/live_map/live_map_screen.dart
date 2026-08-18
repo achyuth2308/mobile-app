@@ -373,12 +373,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ),
           ),
 
-          Positioned(
-            left: Gap.lg,
-            bottom: Gap.navClearance + Gap.sm,
-            child: const _MapLegend(),
-          ),
-
           // ODbL attribution — required, bottom-right by convention.
           Positioned(
             right: 0,

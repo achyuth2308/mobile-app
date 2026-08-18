@@ -21,7 +21,7 @@ class ReportTabMeta {
 const List<ReportTabMeta> kReportTabs = <ReportTabMeta>[
   ReportTabMeta(
     type: ReportType.trip,
-    title: 'Trip Report',
+    title: 'Trips',
     icon: Icons.alt_route_rounded,
     color: Color(0xFF9333EA),
     bg: Color(0xFFF3E8FF),
@@ -90,7 +90,9 @@ class ReportTopTabs extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: kReportTabs.map((ReportTabMeta tab) {
-            final bool isActive = tab.type == selectedType;
+            final bool isActive = tab.type == selectedType ||
+                (tab.type == ReportType.trip &&
+                    selectedType == ReportType.manualTrip);
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Material(

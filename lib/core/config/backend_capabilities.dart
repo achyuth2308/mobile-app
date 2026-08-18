@@ -40,7 +40,7 @@ class BackendCapabilities {
   /// `POST /api/auth/device-token` → 404.
   /// FCM still *receives* pushes; we just cannot register this device's token
   /// with the backend yet, so targeting is server-side only.
-  static const bool deviceTokenRegistration = false;
+  static const bool deviceTokenRegistration = true;
 
   /// `GET /api/alerts` → Deployed and active with pagination and filters.
   static const bool alertsHistory = true;

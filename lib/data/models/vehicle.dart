@@ -438,11 +438,11 @@ class Vehicle extends Equatable {
               asDoubleOrNull(json, <String>['fuel', 'fuelLevel']) ??
               asDoubleOrNull(jsonAttrs, <String>['fuel', 'fuelLevel']),
       batteryLevel:
-          asDoubleOrNull(src, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']) ??
+          asDoubleOrNull(src, <String>['current_voltage', 'voltage', 'external_voltage']) ??
               asDoubleOrNull(
-                  srcAttrs, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']) ??
-              asDoubleOrNull(json, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']) ??
-              asDoubleOrNull(jsonAttrs, <String>['battery', 'current_voltage', 'device_battery', 'power', 'batteryLevel', 'bat', 'vehicle_battery', 'vehicleBattery', 'battery_voltage', 'batteryVoltage', 'voltage', 'vehicle_voltage', 'external_voltage', 'main_voltage', 'ext_power', 'main_power', 'external_battery', 'ext_batt', 'car_battery', 'vbatt']),
+                  srcAttrs, <String>['current_voltage', 'voltage', 'external_voltage']) ??
+              asDoubleOrNull(json, <String>['current_voltage', 'voltage', 'external_voltage']) ??
+              asDoubleOrNull(jsonAttrs, <String>['current_voltage', 'voltage', 'external_voltage']),
       gsmSignal: asDoubleOrNull(src, <String>['gsm', 'gsmSignal', 'signal'])
               ?.round() ??
           asDoubleOrNull(srcAttrs, <String>['gsm', 'gsmSignal', 'signal'])

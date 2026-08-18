@@ -21,12 +21,12 @@ class AlertRepository {
     // shows an honest "not enabled" state instead of a red error.
     if (!BackendCapabilities.alertsHistory) return const <FleetAlert>[];
 
+    final String url = vehicleId != null ? '/vehicles/$vehicleId/alerts' : '/alerts';
     final dynamic res = await _api.get<dynamic>(
-      '/alerts',
+      url,
       query: <String, dynamic>{
         'page': page,
         'limit': limit,
-        if (vehicleId != null) 'vehicleId': vehicleId,
         if (type != null) 'alertType': type,
         if (type != null) 'type': type,
         if (start != null) 'startDate': start.toUtc().toIso8601String(),
@@ -78,6 +78,24 @@ class AlertRepository {
   Future<void> updatePreferences(Map<String, bool> preferences) async {
     try {
       await _api.put<dynamic>('/alerts/preferences', body: preferences);
+    } on ApiException {/* non-critical */}
+  }
+
+  Future<void> deleteAlert(String alertId) async {
+    try {
+      await _api.delete<dynamic>('/alerts/$alertId');
+    } on ApiException {/* non-critical */}
+  }
+
+  Future<void> clearVehicleAlerts(String vehicleId) async {
+    try {
+      await _api.delete<dynamic>('/vehicles/$vehicleId/alerts');
+    } on ApiException {/* non-critical */}
+  }
+
+  Future<void> clearAllAlerts() async {
+    try {
+      await _api.delete<dynamic>('/alerts');
     } on ApiException {/* non-critical */}
   }
 }

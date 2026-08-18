@@ -46,7 +46,8 @@ class FleetAlert extends Equatable {
         'tow' ||
         'power_cut' ||
         'theft' ||
-        'theft_alarm' =>
+        'theft_alarm' ||
+        'safety_park' =>
           AlertSeverity.critical,
         'overspeed' ||
         'overspeeding' ||
@@ -111,7 +112,7 @@ class FleetAlert extends Equatable {
         'moving' || 'start_moving' => 'Vehicle Moving',
         'stopped' => 'Vehicle Stopped',
         'parking' => 'Parking Alert',
-        'theft' || 'theft_alarm' => 'Theft Alarm',
+        'theft' || 'theft_alarm' || 'safety_park' => 'Vehicle Theft Alarm',
         _ => 'Fleet Alert',
       };
 

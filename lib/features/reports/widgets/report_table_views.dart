@@ -330,6 +330,164 @@ class TripReportTable extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════
+// 1b. MANUAL TRIP REPORT TABLE
+// ═════════════════════════════════════════════════════════════════
+class ManualTripReportTable extends StatelessWidget {
+  const ManualTripReportTable({required this.rows, super.key});
+
+  final List<ReportRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: DataTableTheme(
+        data: const DataTableThemeData(
+          headingRowColor: WidgetStatePropertyAll<Color>(Color(0xFFF8FAFC)),
+          horizontalMargin: 12,
+          columnSpacing: 16,
+        ),
+        child: Table(
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          columnWidths: const <int, TableColumnWidth>{
+            0: FixedColumnWidth(140), // STATUS
+            1: FixedColumnWidth(160), // TRIP NAME
+            2: FixedColumnWidth(150), // START TIME
+            3: FixedColumnWidth(200), // ORIGIN / START ADDR
+            4: FixedColumnWidth(150), // END TIME
+            5: FixedColumnWidth(200), // DESTINATION / END ADDR
+            6: FixedColumnWidth(160), // DURATION
+            7: FixedColumnWidth(100), // DISTANCE
+            8: FixedColumnWidth(100), // MAX SPEED
+          },
+          children: <TableRow>[
+            const TableRow(
+              decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
+              children: <Widget>[
+                TableHeaderCell('STATUS'),
+                TableHeaderCell('TRIP NAME'),
+                TableHeaderCell('START TIME'),
+                TableHeaderCell('START / ORIGIN'),
+                TableHeaderCell('END TIME'),
+                TableHeaderCell('END / DESTINATION'),
+                TableHeaderCell('DURATION (HH:MM:SS)'),
+                TableHeaderCell('DISTANCE', align: TextAlign.right),
+                TableHeaderCell('MAX SPEED', align: TextAlign.right),
+              ],
+            ),
+            ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
+              final int idx = entry.key;
+              final ReportRow r = entry.value;
+              final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+
+              final String tripName = r.raw['name']?.toString() ?? '-';
+              final String originStr = r.raw['origin']?.toString() ?? '';
+              final String destStr = r.raw['destination']?.toString() ?? '';
+              
+              final String statusStr = (r.status ?? 'unknown').toUpperCase();
+              Color statusColor = const Color(0xFF64748B);
+              if (statusStr == 'COMPLETED') statusColor = const Color(0xFF10B981);
+              if (statusStr == 'IN_PROGRESS') statusColor = const Color(0xFF3B82F6);
+              if (statusStr == 'CANCELLED') statusColor = const Color(0xFFEF4444);
+
+              return TableRow(
+                decoration: BoxDecoration(color: rowColor),
+                children: <Widget>[
+                  TableDataCell(
+                    text: statusStr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                    ),
+                  ),
+                  TableDataCell(
+                    text: tripName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  TableDataCell(
+                    text: Fmt.dateTimeWeb(r.startTime),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  TableDataCell(
+                    child: originStr.isNotEmpty
+                        ? Text(originStr, style: const TextStyle(fontSize: 12, color: Color(0xFF334155)))
+                        : AddressCell(
+                            lat: r.startLat,
+                            lng: r.startLng,
+                            maxWidth: 190,
+                          ),
+                  ),
+                  TableDataCell(
+                    text: Fmt.dateTimeWeb(r.endTime),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  TableDataCell(
+                    child: destStr.isNotEmpty
+                        ? Text(destStr, style: const TextStyle(fontSize: 12, color: Color(0xFF334155)))
+                        : AddressCell(
+                            lat: r.endLat,
+                            lng: r.endLng,
+                            maxWidth: 190,
+                          ),
+                  ),
+                  TableDataCell(
+                    text: Fmt.durationWeb(r.durationSecVal),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                  TableDataCell(
+                    text: r.distanceTravelled != null
+                        ? r.distanceTravelled!.toStringAsFixed(r.distanceTravelled! < 10 ? 1 : 0)
+                        : '-',
+                    align: TextAlign.right,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  TableDataCell(
+                    text: r.maxSpeedVal != null ? r.maxSpeedVal!.round().toString() : '-',
+                    align: TextAlign.right,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
 // 2. DAILY DISTANCE REPORT TABLE
 // ═════════════════════════════════════════════════════════════════
 class DailyDistanceReportTable extends StatelessWidget {
@@ -1086,9 +1244,16 @@ class IdleReportTable extends StatelessWidget {
 // 6. INDIVIDUAL REPORT TABLE
 // ═════════════════════════════════════════════════════════════════
 class IndividualReportTable extends StatelessWidget {
-  const IndividualReportTable({required this.rows, super.key});
+  const IndividualReportTable({
+    required this.rows,
+    this.fallbackVehicleName,
+    this.fallbackPlate,
+    super.key,
+  });
 
   final List<ReportRow> rows;
+  final String? fallbackVehicleName;
+  final String? fallbackPlate;
 
   @override
   Widget build(BuildContext context) {
@@ -1132,7 +1297,7 @@ class IndividualReportTable extends StatelessWidget {
               decoration: BoxDecoration(color: rowColor),
               children: <Widget>[
                 TableDataCell(
-                  text: r.vehicleName ?? '-',
+                  text: r.vehicleName ?? fallbackVehicleName ?? '-',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1140,7 +1305,7 @@ class IndividualReportTable extends StatelessWidget {
                   ),
                 ),
                 TableDataCell(
-                  text: r.plate ?? '-',
+                  text: r.plate ?? fallbackPlate ?? '-',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,

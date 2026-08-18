@@ -39,6 +39,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         break;
       case 'theft':
       case 'theft_alarm':
+      case 'safety_park':
       case 'tamper':
         enabled = prefs.getBool('ft_notif_theft') ?? true;
         break;
@@ -99,13 +100,13 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
       }
     }
 
-    final bool isTheft = <String>['theft', 'theft_alarm', 'tamper'].contains(type);
+    final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical =
         <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(type);
 
     final String channelId = isTheft
-        ? 'fueltracks_theft'
-        : (isCritical ? 'fueltracks_critical' : 'fueltracks_alerts');
+        ? 'fueltracks_theft_v3'
+        : (isCritical ? 'fueltracks_critical_v3' : 'fueltracks_alerts_v3');
     final String channelName = isTheft
         ? 'Theft Alarms'
         : (isCritical ? 'Critical Fleet Alerts' : 'Fleet Alerts');
@@ -121,6 +122,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
       importance: Importance.max,
       enableVibration: true,
       playSound: true,
+      sound: const RawResourceAndroidNotificationSound('observation_haki'),
     );
     await local
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
@@ -148,17 +150,39 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(body),
+          groupKey: 'fueltracks_alerts',
+          sound: const RawResourceAndroidNotificationSound('observation_haki'),
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
+          sound: 'observation_haki.mp3',
           interruptionLevel: (isTheft || isCritical)
               ? InterruptionLevel.timeSensitive
               : InterruptionLevel.active,
         ),
       ),
       payload: jsonEncode(data),
+    );
+
+    // Update the group summary notification so they bundle together on Android
+    await local.show(
+      0,
+      'FuelTracker',
+      'New fleet alerts',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          importance: Importance.max,
+          priority: Priority.high,
+          color: const Color(0xFF4F6BFF),
+          icon: '@drawable/ic_notification',
+          groupKey: 'fueltracks_alerts',
+          setAsGroupSummary: true,
+        ),
+      ),
     );
   }
 }
@@ -205,31 +229,34 @@ class PushService {
   /// as heads-up notifications on Android 8+.
   static const AndroidNotificationChannel _criticalChannel =
       AndroidNotificationChannel(
-    'fueltracks_critical',
+    'fueltracks_critical_v3',
     'Critical Fleet Alerts',
     description: 'SOS, power disconnection and tamper alerts.',
     importance: Importance.max,
     enableVibration: true,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('observation_haki'),
   );
 
   static const AndroidNotificationChannel _theftChannel =
       AndroidNotificationChannel(
-    'fueltracks_theft',
+    'fueltracks_theft_v3',
     'Theft Alarms',
     description: 'Alerts when unauthorized vehicle movement is detected.',
     importance: Importance.max,
     enableVibration: true,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('observation_haki'),
   );
 
   static const AndroidNotificationChannel _generalChannel =
       AndroidNotificationChannel(
-    'fueltracks_alerts',
+    'fueltracks_alerts_v3',
     'Fleet Alerts',
     description: 'Overspeeding, geofence and ignition notifications.',
     importance: Importance.high,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('observation_haki'),
   );
 
   Future<void> initialize() async {
@@ -378,7 +405,7 @@ class PushService {
         body = 'A new $title event has occurred.';
       }
     }
-    final bool isTheft = <String>['theft', 'theft_alarm', 'tamper'].contains(type);
+    final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow']
         .contains(type);
 
@@ -401,6 +428,7 @@ class PushService {
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(body),
+          groupKey: 'fueltracks_alerts',
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
@@ -412,6 +440,26 @@ class PushService {
         ),
       ),
       payload: jsonEncode(data),
+    );
+
+    // Update the group summary notification so they bundle together on Android
+    _local.show(
+      0,
+      'FuelTracker',
+      'New fleet alerts',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          importance: channel.importance,
+          priority: Priority.high,
+          color: const Color(0xFF4F6BFF),
+          icon: '@drawable/ic_notification',
+          groupKey: 'fueltracks_alerts',
+          setAsGroupSummary: true,
+        ),
+      ),
     );
   }
 

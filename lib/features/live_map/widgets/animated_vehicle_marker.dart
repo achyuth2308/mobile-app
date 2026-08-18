@@ -12,7 +12,7 @@ class AnimatedVehicleMarker extends StatefulWidget {
     required this.heading,
     required this.status,
     required this.builder,
-    this.duration = const Duration(milliseconds: 11000),
+    this.duration = const Duration(milliseconds: 1000),
     super.key,
   });
 
@@ -53,23 +53,30 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       const Distance dist = Distance();
       final double distanceMeters = dist(oldWidget.point, widget.point);
       
-      // Snap if jump is massive (e.g. 2km)
-      if (distanceMeters > 2000) {
-        _snap = true;
-      }
-      
-      // Calculate realistic heading from the road trajectory since hardware heading is often stale (0 degrees)
+      // Calculate realistic heading from the road trajectory.
+      // The hardware heading byte from the GPS device is frequently stale (stays 0° for
+      // several packets after a direction change). Always derive from the GPS movement
+      // vector when the vehicle is moving and has moved a meaningful distance.
       if (widget.status == VehicleStatus.moving && distanceMeters > 5) {
+        // Trajectory bearing = direction from previous GPS point to current GPS point.
+        // This is always correct because it is derived from real coordinate movement.
         _targetHeading = dist.bearing(oldWidget.point, widget.point);
+      } else if (distanceMeters <= 1) {
+        // Tiny jitter — keep the last known heading so the arrow doesn't flicker
+        // _targetHeading unchanged intentionally
       } else {
         _targetHeading = widget.heading;
       }
 
       // Record where we were when the new coordinate arrived
       // If animation was already running, capture the current interpolated position!
-      _oldPoint = _snap ? null : _getCurrentInterpolatedPoint(oldWidget.point);
+      _oldPoint = _getCurrentInterpolatedPoint(oldWidget.point);
       
       // Restart the animation for the new segment
+      _controller.duration = widget.duration;
+      _controller.forward(from: 0.0);
+    } else if (oldWidget.heading != widget.heading) {
+      _targetHeading = widget.heading;
       _controller.duration = widget.duration;
       _controller.forward(from: 0.0);
     }

@@ -119,15 +119,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
               ),
             ],
           ),
-          StatefulShellBranch(
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/alerts',
-                builder: (BuildContext c, GoRouterState s) =>
-                    const AlertsScreen(),
-              ),
-            ],
-          ),
+
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(

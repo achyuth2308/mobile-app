@@ -17,6 +17,7 @@ class ReportFilterBar extends ConsumerWidget {
     required this.onGenerate,
     required this.isLoading,
     this.requiresVehicle = false,
+    this.onTypeChanged,
     super.key,
   });
 
@@ -29,6 +30,7 @@ class ReportFilterBar extends ConsumerWidget {
   final VoidCallback onGenerate;
   final bool isLoading;
   final bool requiresVehicle;
+  final ValueChanged<ReportType>? onTypeChanged;
 
   LinearGradient _getGradient(ReportType type) {
     switch (type) {
@@ -108,7 +110,7 @@ class ReportFilterBar extends ConsumerWidget {
               orElse: () => null,
             );
 
-    final bool isTrip = type == ReportType.trip;
+    final bool isTrip = type == ReportType.trip || type == ReportType.manualTrip;
     final String dateText = isTrip
         ? '${Fmt.dateTimeFilter(startDate)}   →   ${Fmt.dateTimeFilter(endDate)}'
         : '${Fmt.dateWeb(startDate)}   →   ${Fmt.dateWeb(endDate)}';
@@ -131,6 +133,42 @@ class ReportFilterBar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          if (isTrip && onTypeChanged != null) ...<Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<ReportType>(
+                  value: type,
+                  isExpanded: true,
+                  icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF64748B)),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF334155),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  items: const <DropdownMenuItem<ReportType>>[
+                    DropdownMenuItem<ReportType>(
+                      value: ReportType.trip,
+                      child: Text('Automated Trips (Ignition)'),
+                    ),
+                    DropdownMenuItem<ReportType>(
+                      value: ReportType.manualTrip,
+                      child: Text('Manual Trips (Routes)'),
+                    ),
+                  ],
+                  onChanged: (ReportType? val) {
+                    if (val != null) onTypeChanged!(val);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           // Vehicle Picker Row
           InkWell(
             onTap: () => _pickVehicle(context, vehicles),

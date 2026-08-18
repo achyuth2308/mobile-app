@@ -173,10 +173,6 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
   }
 
   void _handleForegroundMessage(Map<String, dynamic> data) {
-    // Bump the alerts badge; the socket also delivers `alert:new` when
-    // foregrounded, so the badge is the cheap common denominator.
-    ref.read(unreadAlertsProvider.notifier).state++;
-
     // A push may indicate state we have not seen yet.
     if (ref.read(authProvider).isAuthenticated) {
       unawaited(ref.read(fleetProvider.notifier).load(silent: true));

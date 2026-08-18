@@ -98,7 +98,7 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               child: CustomPaint(
                 size: Size(size, size),
                 painter: _ArrowHeadPainter(
-                  offline: offline,
+                  status: widget.vehicle.status,
                   selected: selected,
                 ),
               ),
@@ -121,9 +121,9 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
 ///         ▼ ▼
 ///
 class _ArrowHeadPainter extends CustomPainter {
-  const _ArrowHeadPainter({required this.offline, required this.selected});
+  const _ArrowHeadPainter({required this.status, required this.selected});
 
-  final bool offline;
+  final VehicleStatus status;
   final bool selected;
 
   @override
@@ -166,12 +166,30 @@ class _ArrowHeadPainter extends CustomPainter {
     rightArrow.lineTo(cx, cy + ah * 0.15); // center notch
     rightArrow.close();
 
-    final Color leftColor = offline 
-        ? const Color(0xFFBDBDBD) 
-        : const Color(0xFF4285F4); // Google Blue Light
-    final Color rightColor = offline 
-        ? const Color(0xFF757575) 
-        : const Color(0xFF1967D2); // Google Blue Dark
+    Color leftColor;
+    Color rightColor;
+
+    switch (status) {
+      case VehicleStatus.moving:
+        leftColor = const Color(0xFF4ADE80); // Light Green
+        rightColor = const Color(0xFF16A34A); // Dark Green
+        break;
+      case VehicleStatus.idle:
+        leftColor = const Color(0xFFFDE047); // Light Yellow
+        rightColor = const Color(0xFFEAB308); // Dark Yellow
+        break;
+      case VehicleStatus.stopped:
+        // User requested "parking means orange color"
+        leftColor = const Color(0xFFFB923C); // Light Orange
+        rightColor = const Color(0xFFEA580C); // Dark Orange
+        break;
+      case VehicleStatus.offline:
+      default:
+        // User requested "stopped measn blue color", mapping offline to blue
+        leftColor = const Color(0xFF60A5FA); // Light Blue
+        rightColor = const Color(0xFF2563EB); // Dark Blue
+        break;
+    }
 
     final Paint leftPaint = Paint()
       ..color = leftColor
@@ -187,7 +205,7 @@ class _ArrowHeadPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ArrowHeadPainter old) =>
-      old.offline != offline || old.selected != selected;
+      old.status != status || old.selected != selected;
 }
 
 class _Label extends StatelessWidget {

@@ -213,6 +213,15 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                 onGenerate: _run,
                 isLoading: _loading,
                 requiresVehicle: _currentType.requiresVehicle,
+                onTypeChanged: (ReportType t) {
+                  if (_currentType == t) return;
+                  setState(() {
+                    _currentType = t;
+                    _result = null;
+                    _error = null;
+                  });
+                  _run();
+                },
               ),
 
               const SizedBox(height: 8),
@@ -442,9 +451,15 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   }
 
   Widget _buildTableForType(ReportType type, ReportResult res) {
+    final Vehicle? selectedVehicle = _vehicleId != null
+        ? ref.read(fleetProvider).vehicles.where((v) => v.id == _vehicleId).firstOrNull
+        : null;
+
     switch (type) {
       case ReportType.trip:
         return TripReportTable(rows: res.rows);
+      case ReportType.manualTrip:
+        return ManualTripReportTable(rows: res.rows);
       case ReportType.distance:
         return DailyDistanceReportTable(rows: res.rows);
       case ReportType.overspeeding:
@@ -466,7 +481,11 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           endDate: _endDate,
         );
       case ReportType.individual:
-        return IndividualReportTable(rows: res.rows);
+        return IndividualReportTable(
+          rows: res.rows,
+          fallbackVehicleName: selectedVehicle?.name,
+          fallbackPlate: selectedVehicle?.registrationNumber ?? selectedVehicle?.plate,
+        );
       case ReportType.consolidated:
         return ConsolidatedReportTable(rows: res.rows);
       default:

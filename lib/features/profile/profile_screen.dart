@@ -181,54 +181,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
 
-          const SizedBox(height: Gap.lg),
 
-          // ── Diagnostics ──────────────────────────────────────────
-          _SettingsGroup(
-            title: 'CONNECTION',
-            children: <Widget>[
-              _StatusRow(
-                label: 'Real-time link',
-                value: switch (socket.valueOrNull) {
-                  SocketStatus.connected => 'Live',
-                  SocketStatus.connecting => 'Connecting…',
-                  SocketStatus.reconnecting => 'Reconnecting…',
-                  SocketStatus.error => 'Error',
-                  _ => 'Disconnected',
-                },
-                color: socket.valueOrNull == SocketStatus.connected
-                    ? AppColors.moving
-                    : AppColors.offline,
-              ),
-              _StatusRow(
-                label: 'Internet',
-                value: ref.watch(isOnlineProvider) ? 'Connected' : 'Offline',
-                color: ref.watch(isOnlineProvider)
-                    ? AppColors.moving
-                    : AppColors.danger,
-              ),
-              _StatusRow(
-                label: 'Last fleet sync',
-                value: ref.watch(fleetProvider).lastSyncedAt == null
-                    ? '—'
-                    : TimeOfDay.fromDateTime(
-                        ref.watch(fleetProvider).lastSyncedAt!,
-                      ).format(context),
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(Gap.lg, 0, Gap.lg, Gap.md),
-                child: Text(
-                  'The live connection closes automatically when the app is in '
-                  'the background to save battery. Alerts still reach you by '
-                  'push notification.',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: Gap.lg),
 
           // ── Legal & support ──────────────────────────────────────
           _SettingsGroup(
@@ -272,20 +225,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 title: 'Sign out',
                 onTap: () => _confirmLogout(context),
               ),
-              // App Store Guideline 5.1.1(v): account deletion must be
-              // initiable from within the app.
-              _SettingsTile(
-                icon: Icons.delete_forever_outlined,
-                title: 'Delete account & data',
-                subtitle: 'Permanently remove your account',
-                danger: true,
-                onTap: () => showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  builder: (_) => const AccountDeletionSheet(),
-                ),
-              ),
+
             ],
           ),
 

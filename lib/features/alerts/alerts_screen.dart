@@ -12,6 +12,7 @@ import '../../core/realtime/socket_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/geocoder.dart';
 import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/alert.dart';
 import '../../providers/core_providers.dart';
@@ -25,7 +26,9 @@ import '../shell/app_shell.dart';
 /// Foreground `alert:new` socket events prepend to the list; while the app is
 /// backgrounded the same events arrive as FCM push instead.
 class AlertsScreen extends ConsumerStatefulWidget {
-  const AlertsScreen({super.key});
+  const AlertsScreen({super.key, required this.vehicleId});
+
+  final String vehicleId;
 
   @override
   ConsumerState<AlertsScreen> createState() => _AlertsScreenState();
@@ -143,42 +146,18 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   }
 
   void _listenToSocket() {
-    _socketSub = ref.read(socketServiceProvider).events$.listen((SocketEvent event) {
+    _socketSub = ref.read(socketServiceProvider).events$.listen((event) {
       if (event.name == 'alert:new' || event.name == 'geofence:event') {
         try {
-          FleetAlert newAlert = FleetAlert.fromJson(event.payload);
-          
-          if (newAlert.vehicleName == null && newAlert.vehicleId != null) {
-            final vehicle = ref.read(fleetProvider).vehicles.where((v) => v.id == newAlert.vehicleId).firstOrNull;
-            if (vehicle != null) {
-              newAlert = newAlert.copyWith(vehicleName: vehicle.name);
-            }
-          }
-          
-          final String type = newAlert.type.toLowerCase();
-
-          final NotificationPreferences prefs = ref.read(notificationPreferencesProvider);
-          final bool isCategoryEnabled = switch (type) {
-            'sos' || 'panic' || 'crash' || 'accident' || 'tow' || 'power_cut' => prefs.sos,
-            'theft' || 'theft_alarm' || 'tamper' => prefs.theft,
-            'overspeed' || 'overspeeding' => prefs.overspeed,
-            'geofence' || 'geofence_enter' || 'geofenceenter' || 'geofence_exit' || 'geofenceexit' => prefs.geofence,
-            'ignition_on' || 'ignition_off' || 'moving' || 'start_moving' || 'stopped' || 'idle' || 'stoppage' => prefs.ignition,
-            'harsh_braking' || 'harsh_acceleration' => prefs.harsh,
-            _ => true,
-          };
-
-          if (!isCategoryEnabled) return;
-
-          if (!mounted) return;
-          if (_matchesFilter(newAlert, _typeFilter)) {
+          final FleetAlert newAlert = FleetAlert.fromJson(event.payload);
+          if (newAlert.vehicleId == widget.vehicleId &&
+              _matchesFilter(newAlert, _typeFilter)) {
+            if (!mounted) return;
             setState(() {
               _alerts.insert(0, newAlert);
             });
           }
-        } catch (e) {
-          debugPrint('Error parsing live socket alert: $e');
-        }
+        } catch (_) {}
       }
     });
   }
@@ -211,6 +190,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
           await ref.read(alertRepositoryProvider).getAlerts(
                 page: _page,
                 type: _typeFilter,
+                vehicleId: widget.vehicleId,
               );
 
       if (!mounted) return;
@@ -221,9 +201,6 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         _loading = false;
         _loadingMore = false;
       });
-
-      // Clear the tab badge once alerts have been seen.
-      ref.read(unreadAlertsProvider.notifier).state = 0;
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -268,9 +245,6 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         _markingRead = false;
       });
 
-      ref.read(unreadAlertsProvider.notifier).state = 0;
-      FlutterLocalNotificationsPlugin().cancelAll();
-
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -298,8 +272,58 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       final int i = _alerts.indexWhere((FleetAlert a) => a.id == alert.id);
       if (i != -1) _alerts[i] = alert.copyWith(isRead: true);
     });
-    final int remainingUnread = _alerts.where((FleetAlert a) => !a.isRead).length;
-    ref.read(unreadAlertsProvider.notifier).state = remainingUnread;
+  }
+
+  Future<void> _confirmClearAll(BuildContext context) async {
+    final bool? proceed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Clear all alerts?'),
+        content: const Text(
+          'This will permanently delete all alerts history for this vehicle. This action cannot be undone.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Clear'),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed == true) {
+      unawaited(HapticFeedback.heavyImpact());
+      try {
+        if (widget.vehicleId.isNotEmpty) {
+          await ref.read(alertRepositoryProvider).clearVehicleAlerts(widget.vehicleId);
+        } else {
+          await ref.read(alertRepositoryProvider).clearAllAlerts();
+        }
+        if (!mounted) return;
+        setState(() {
+          _alerts.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Alerts cleared successfully'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to clear alerts'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -328,7 +352,13 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                 children: <Widget>[
                   Text('Alerts', style: theme.textTheme.headlineMedium),
                   const Spacer(),
-                  if (visibleAlerts.isNotEmpty)
+                  if (visibleAlerts.isNotEmpty) ...<Widget>[
+                    IconButton(
+                      tooltip: 'Clear all alerts',
+                      icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.danger),
+                      onPressed: () => _confirmClearAll(context),
+                    ),
+                    const SizedBox(width: Gap.xs),
                     if (unreadCount > 0)
                       FilledButton.tonalIcon(
                         onPressed: _markingRead ? null : _markAllAsRead,
@@ -371,6 +401,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                           ],
                         ),
                       ),
+                  ],
                 ],
               ),
             ),
@@ -507,10 +538,34 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
 
       if (index < cursor + entry.value.length) {
         final FleetAlert alert = entry.value[index - cursor];
-        return AlertTile(
-          alert: alert,
-          onTap: () => _openAlert(alert),
-          onMarkRead: alert.isRead ? null : () => _markSingleAsRead(alert),
+        return Dismissible(
+          key: Key(alert.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: AppColors.danger,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: Gap.lg),
+            child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+          ),
+          onDismissed: (direction) {
+            final String alertId = alert.id;
+            setState(() {
+              _alerts.removeWhere((a) => a.id == alertId);
+            });
+            ref.read(alertRepositoryProvider).deleteAlert(alertId);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Alert deleted'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          },
+          child: AlertTile(
+            alert: alert,
+            onTap: () => _openAlert(alert),
+            onMarkRead: alert.isRead ? null : () => _markSingleAsRead(alert),
+          ),
         );
       }
       cursor += entry.value.length;
@@ -525,17 +580,16 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   void _openAlert(FleetAlert alert) {
     if (!alert.isRead) {
       ref.read(alertRepositoryProvider).markAsRead(alert.id);
-      setState(() {
-        final int i = _alerts.indexWhere((FleetAlert a) => a.id == alert.id);
-        if (i != -1) _alerts[i] = alert.copyWith(isRead: true);
-      });
-      final int remainingUnread = _alerts.where((FleetAlert a) => !a.isRead).length;
-      ref.read(unreadAlertsProvider.notifier).state = remainingUnread;
+      final int index = _alerts.indexWhere((a) => a.id == alert.id);
+      if (index != -1) {
+        final FleetAlert updated = alert.copyWith(isRead: true);
+        setState(() {
+          _alerts[index] = updated;
+        });
+      }
     }
 
-    if (alert.vehicleId != null) {
-      context.push('/vehicle/${alert.vehicleId}');
-    }
+    // We are already on the Vehicle Detail Screen, no need to push a new route.
   }
 
   Map<String, List<FleetAlert>> _groupByDay(List<FleetAlert> alerts) {
@@ -581,6 +635,62 @@ class _DayHeader extends StatelessWidget {
               ),
         ),
       );
+}
+
+class _AddressText extends StatefulWidget {
+  const _AddressText(this.alert);
+  final FleetAlert alert;
+  @override
+  State<_AddressText> createState() => _AddressTextState();
+}
+
+class _AddressTextState extends State<_AddressText> {
+  String? _address;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveAddress();
+  }
+  
+  void _resolveAddress() {
+    if (widget.alert.address != null) {
+      _address = widget.alert.address;
+    } else if (widget.alert.hasLocation) {
+      Geocoder.getAddress(widget.alert.latitude!, widget.alert.longitude!)
+          .then((String addr) {
+        if (mounted) setState(() => _address = addr);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_address == null) return const SizedBox.shrink();
+    final ThemeData theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(top: 1.5),
+            child: Icon(Icons.location_on_rounded, size: 12, color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              _address!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                letterSpacing: 0,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class AlertTile extends StatelessWidget {
@@ -719,12 +829,13 @@ class AlertTile extends StatelessWidget {
                               color: theme.colorScheme.onSurfaceVariant),
                           const SizedBox(width: 4),
                           Text(
-                            Fmt.relative(alert.createdAt),
+                            Fmt.full(alert.createdAt),
                             style: theme.textTheme.labelSmall
                                 ?.copyWith(letterSpacing: 0),
                           ),
                         ],
                       ),
+                      _AddressText(alert),
                     ],
                   ),
                 ),

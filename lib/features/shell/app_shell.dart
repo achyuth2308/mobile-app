@@ -9,6 +9,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../data/models/alert.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import '../../core/utils/formatters.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
 
@@ -106,9 +107,15 @@ class _AppShellState extends ConsumerState<AppShell> {
           if (!enabled) return;
 
           final String title = newAlert.title;
-          final String msg = newAlert.vehicleName != null
+          String msg = newAlert.vehicleName != null
               ? '${newAlert.vehicleName} - ${newAlert.message}'
               : newAlert.message;
+
+          final String timeStr = Fmt.full(newAlert.createdAt);
+          msg += '\n\nTime: $timeStr';
+          if (newAlert.address != null) {
+            msg += '\nLoc: ${newAlert.address}';
+          }
 
           final bool isTheft = <String>['theft', 'theft_alarm', 'tamper'].contains(newAlert.type);
           final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(newAlert.type);
@@ -200,8 +207,6 @@ class _FloatingNavBar extends StatelessWidget {
   static const List<_NavItem> _items = <_NavItem>[
     _NavItem('Fleet', Icons.dashboard_outlined, Icons.dashboard_rounded),
     _NavItem('Live Map', Icons.map_outlined, Icons.map_rounded),
-    _NavItem('Alerts', Icons.notifications_none_rounded,
-        Icons.notifications_rounded),
     _NavItem('Reports', Icons.insights_outlined, Icons.insights_rounded),
     _NavItem('Trips', Icons.route_outlined, Icons.route_rounded),
     _NavItem('Account', Icons.person_outline_rounded, Icons.person_rounded),
@@ -259,15 +264,13 @@ class _FloatingNavBar extends StatelessWidget {
                             : Colors.transparent,
                         borderRadius: Corners.rPill,
                       ),
-                      child: i == 2
-                          ? _AlertsIcon(selected: selected, item: item)
-                          : Icon(
-                              selected ? item.activeIcon : item.icon,
-                              size: 22,
-                              color: selected
-                                  ? scheme.primary
-                                  : scheme.onSurfaceVariant,
-                            ),
+                      child: Icon(
+                        selected ? item.activeIcon : item.icon,
+                        size: 22,
+                        color: selected
+                            ? scheme.primary
+                            : scheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     AnimatedDefaultTextStyle(
@@ -293,42 +296,9 @@ class _FloatingNavBar extends StatelessWidget {
   }
 }
 
-/// Alerts tab icon with an unread badge.
-class _AlertsIcon extends ConsumerWidget {
-  const _AlertsIcon({required this.selected, required this.item});
-
-  final bool selected;
-  final _NavItem item;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final int unread = ref.watch(unreadAlertsProvider);
-
-    final Widget icon = Icon(
-      selected ? item.activeIcon : item.icon,
-      size: 22,
-      color: selected ? scheme.primary : scheme.onSurfaceVariant,
-    );
-
-    if (unread == 0) return icon;
-
-    return Badge(
-      label: Text(unread > 99 ? '99+' : '$unread'),
-      backgroundColor: scheme.error,
-      textColor: scheme.onError,
-      child: icon,
-    );
-  }
-}
-
 class _NavItem {
   const _NavItem(this.label, this.icon, this.activeIcon);
   final String label;
   final IconData icon;
   final IconData activeIcon;
 }
-
-/// Unread badge count, refreshed on alert screen visits and socket alerts.
-final StateProvider<int> unreadAlertsProvider =
-    StateProvider<int>((Ref ref) => 0);

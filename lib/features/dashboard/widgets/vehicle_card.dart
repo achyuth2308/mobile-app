@@ -157,7 +157,7 @@ class VehicleCard extends StatelessWidget {
                               const SizedBox(height: 12),
                               _MetricItem(
                                 label: 'Battery',
-                                value: vehicle.batteryLevel != null ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V' : 'N/A',
+                                value: (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0) ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V' : 'N/A',
                                 dotColor: Colors.orange,
                               ),
                             ],
