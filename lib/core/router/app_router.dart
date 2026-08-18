@@ -125,7 +125,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
               GoRoute(
                 path: '/reports',
                 builder: (BuildContext c, GoRouterState s) =>
-                    const ReportsHubScreen(),
+                    ReportsHubScreen(
+                  initialVehicleId: s.uri.queryParameters['vehicle'],
+                ),
                 routes: <RouteBase>[
                   GoRoute(
                     path: ':type',

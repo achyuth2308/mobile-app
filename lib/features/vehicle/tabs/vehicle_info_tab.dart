@@ -90,7 +90,7 @@ class VehicleInfoTab extends ConsumerWidget {
         const SizedBox(height: Gap.xxl),
 
         OutlinedButton.icon(
-          onPressed: () => context.push('/reports?vehicle=${v.id}'),
+          onPressed: () => context.go('/reports?vehicle=${v.id}'),
           icon: const Icon(Icons.insights_rounded, size: 18),
           label: const Text('Run a report for this vehicle'),
         ),
