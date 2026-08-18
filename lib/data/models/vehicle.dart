@@ -101,23 +101,48 @@ class Vehicle extends Equatable {
   /// Whether the engine is currently cut via relay command.
   final bool isImmobilized;
 
-  /// Infers the correct type for images based on common vehicle names if the backend defaults to 'car'.
   String get displayType {
+    final String lowerType = type.toLowerCase().trim();
     final String lowerName = name.toLowerCase();
-    // Default all unknown/generic car types to truck per user request
-    if (type == 'car' || type.isEmpty) {
-      if (lowerName.contains('activa') || lowerName.contains('scoot') || lowerName.contains('bike') || lowerName.contains('motor')) {
-        return 'bike';
-      }
-      if (lowerName.contains('bus')) {
-        return 'bus';
-      }
+
+    // 1. Explicitly check type field first and map to available assets
+    if (lowerType == 'car' || lowerType == 'taxi' || lowerType == 'cab') {
+      return 'car';
+    }
+    if (lowerType == 'tipper' || lowerType == 'dumper') {
+      return 'tipper';
+    }
+    if (lowerType == 'tractor' || lowerType == 'jcb' || lowerType == 'harvester') {
+      return 'tractor';
+    }
+    if (lowerType == 'bike' ||
+        lowerType == 'scooter' ||
+        lowerType == 'motorcycle' ||
+        lowerType == 'scooty' ||
+        lowerType == 'two-wheeler') {
+      return 'bike';
+    }
+    if (lowerType == 'truck' || lowerType == 'lorry' || lowerType == 'trailer' || lowerType == 'container') {
       return 'truck';
     }
-    // Map backend types to our available assets if needed
-    if (type == 'scooter' || type == 'motorcycle' || type == 'scooty') return 'bike';
-    if (type == 'car') return 'truck';
-    return type;
+
+    // 2. Next, check name clues if type is generic/empty
+    if (lowerName.contains('tipper')) return 'tipper';
+    if (lowerName.contains('tractor') || lowerName.contains('jcb')) return 'tractor';
+    if (lowerName.contains('car')) return 'car';
+    if (lowerName.contains('bike') ||
+        lowerName.contains('activa') ||
+        lowerName.contains('scoot') ||
+        lowerName.contains('motorcycle') ||
+        lowerName.contains('motor')) {
+      return 'bike';
+    }
+    if (lowerName.contains('truck') || lowerName.contains('dumper') || lowerName.contains('lorry')) {
+      return 'truck';
+    }
+
+    // 3. Fallback to truck if type is completely unknown or empty
+    return 'truck';
   }
 
   bool get hasLocation =>

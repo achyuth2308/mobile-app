@@ -96,8 +96,17 @@ class NotificationPreferencesSheet extends ConsumerWidget {
             
             const SizedBox(height: Gap.xl),
             FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Done'),
+              onPressed: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Preferences saved successfully!'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: const Text('Save Preferences'),
             ),
           ],
         ),

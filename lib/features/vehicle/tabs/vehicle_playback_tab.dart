@@ -668,6 +668,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final TimeOfDay? time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_range.start),
+      initialEntryMode: TimePickerEntryMode.input,
     );
     if (time == null) return;
 
@@ -699,6 +700,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final TimeOfDay? time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_range.end),
+      initialEntryMode: TimePickerEntryMode.input,
     );
     if (time == null) return;
 

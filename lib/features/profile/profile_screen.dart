@@ -130,6 +130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   context: context,
                   isScrollControlled: true,
                   useSafeArea: true,
+                  useRootNavigator: true,
                   builder: (_) => const NotificationPreferencesSheet(),
                 ),
               ),

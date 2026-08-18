@@ -691,6 +691,7 @@ class _DateTimeRangePickerSheetState extends State<_DateTimeRangePickerSheet> {
     final TimeOfDay? pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(current),
+      initialEntryMode: TimePickerEntryMode.input,
     );
     if (pickedTime == null || !mounted) return;
 
