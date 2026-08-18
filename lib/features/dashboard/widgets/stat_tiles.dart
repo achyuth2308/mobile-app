@@ -30,8 +30,8 @@ class FleetOverviewCard extends ConsumerWidget {
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: Corners.rXl,
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFEFF3FA),
-          width: 1.5,
+          color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+          width: 1.6,
         ),
         boxShadow: isDark
             ? null
@@ -324,8 +324,8 @@ class _StatusTile extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? color
-                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-            width: selected ? 1.5 : 1,
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            width: selected ? 1.8 : 1.2,
           ),
           boxShadow: selected
               ? [
