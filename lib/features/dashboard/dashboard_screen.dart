@@ -11,7 +11,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
-import '../../shared/widgets/brand_mark.dart';
 import '../../shared/widgets/connectivity_banner.dart';
 import 'widgets/stat_tiles.dart';
 import 'widgets/vehicle_card.dart';
@@ -61,27 +60,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // ── Header ─────────────────────────────────────────────
             SliverAppBar(
               pinned: true,
-              expandedHeight: 120,
-              collapsedHeight: 62,
+              expandedHeight: 90,
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.lg,
               flexibleSpace: FlexibleSpaceBar(
-                titlePadding:
-                    const EdgeInsets.fromLTRB(Gap.lg, 0, Gap.lg, 12),
-                title: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const BrandMark(size: 26),
-                    const SizedBox(width: Gap.sm),
-                    Text(
-                      'FuelTracks',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontSize: 15),
-                    ),
-                  ],
-                ),
-                expandedTitleScale: 1.0,
                 background: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
