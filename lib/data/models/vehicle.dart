@@ -416,7 +416,7 @@ class Vehicle extends Equatable {
         'org',
         'tenantId',
       ]),
-      type: asString(json, <String>['type', 'vehicleType', 'category'],
+      type: asString(json, <String>['type', 'model', 'vehicleType', 'category'],
               fallback: 'car')
           .toLowerCase(),
       driverName: asStringOrNull(json, <String>[
