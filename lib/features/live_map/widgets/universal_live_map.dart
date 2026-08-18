@@ -52,6 +52,7 @@ class UniversalLiveMap extends StatelessWidget {
                 point: LatLng(v.latitude!, v.longitude!),
                 heading: v.heading ?? 0.0,
                 status: v.status,
+                speed: v.speed ?? 0.0,
                 builder: (BuildContext context, double animatedHeading) => VehicleMarkerPin(
                   vehicle: v,
                   selected: v.id == selectedId,
