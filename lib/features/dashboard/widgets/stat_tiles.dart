@@ -22,20 +22,26 @@ class FleetOverviewCard extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final FleetStats stats = ref.watch(fleetStatsProvider);
     final VehicleStatus? active = ref.watch(fleetFilterProvider);
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(Gap.lg),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: Corners.rXl,
-        border: Border.all(color: Colors.grey.shade200, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFEFF3FA),
+          width: 1.5,
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,9 +55,12 @@ class FleetOverviewCard extends ConsumerWidget {
                   children: <Widget>[
                     Text(
                       'TOTAL FLEET',
-                      style: AppTypography.eyebrow(
-                        Colors.grey.shade600,
-                      ).copyWith(letterSpacing: 2.0),
+                      style: TextStyle(
+                        fontSize: 11,
+                        letterSpacing: 2.0,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF8B92A2),
+                      ),
                     ),
                     const SizedBox(height: Gap.sm),
                     Row(
@@ -60,19 +69,21 @@ class FleetOverviewCard extends ConsumerWidget {
                       children: <Widget>[
                         Text(
                           '${stats.total}',
-                          style: AppTypography.metric(
-                            size: 36,
-                            color: Colors.grey.shade900,
-                          ).copyWith(fontWeight: FontWeight.w800),
+                          style: TextStyle(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF1E2432),
+                          ),
                         ),
                         const SizedBox(width: Gap.xs),
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 5),
+                          padding: const EdgeInsets.only(bottom: 6),
                           child: Text(
                             stats.total == 1 ? 'vehicle' : 'vehicles',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w500,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF8B92A2),
                             ),
                           ),
                         ),
@@ -81,7 +92,11 @@ class FleetOverviewCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              _OnlineRing(percent: stats.onlinePercent, online: stats.online),
+              _OnlineRing(
+                percent: stats.onlinePercent, 
+                online: stats.online,
+                isDark: isDark,
+              ),
             ],
           ),
           const SizedBox(height: Gap.md),
@@ -95,9 +110,10 @@ class FleetOverviewCard extends ConsumerWidget {
                   label: 'Moving',
                   count: stats.moving,
                   color: AppColors.moving,
-                  icon: Icons.navigation_rounded,
+                  icon: Icons.arrow_upward_rounded,
                   selected: active == VehicleStatus.moving,
                   onTap: () => _toggle(ref, VehicleStatus.moving),
+                  isDark: isDark,
                 ),
               ),
               const SizedBox(width: Gap.sm),
@@ -106,9 +122,10 @@ class FleetOverviewCard extends ConsumerWidget {
                   label: 'Idle',
                   count: stats.idle,
                   color: AppColors.idle,
-                  icon: Icons.hourglass_bottom_rounded,
+                  icon: Icons.hourglass_empty_rounded,
                   selected: active == VehicleStatus.idle,
                   onTap: () => _toggle(ref, VehicleStatus.idle),
+                  isDark: isDark,
                 ),
               ),
               const SizedBox(width: Gap.sm),
@@ -120,6 +137,7 @@ class FleetOverviewCard extends ConsumerWidget {
                   icon: Icons.local_parking_rounded,
                   selected: active == VehicleStatus.stopped,
                   onTap: () => _toggle(ref, VehicleStatus.stopped),
+                  isDark: isDark,
                 ),
               ),
               const SizedBox(width: Gap.sm),
@@ -131,6 +149,7 @@ class FleetOverviewCard extends ConsumerWidget {
                   icon: Icons.cloud_off_rounded,
                   selected: active == VehicleStatus.offline,
                   onTap: () => _toggle(ref, VehicleStatus.offline),
+                  isDark: isDark,
                 ),
               ),
             ],
@@ -195,10 +214,15 @@ class _CompositionBar extends StatelessWidget {
 }
 
 class _OnlineRing extends StatelessWidget {
-  const _OnlineRing({required this.percent, required this.online});
+  const _OnlineRing({
+    required this.percent, 
+    required this.online,
+    required this.isDark,
+  });
 
   final double percent;
   final int online;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +237,7 @@ class _OnlineRing extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.moving.withOpacity(0.3 * percent),
+                  color: const Color(0xFF10B981).withOpacity(isDark ? 0.15 : 0.08),
                   blurRadius: 15,
                   spreadRadius: 2,
                 ),
@@ -225,16 +249,15 @@ class _OnlineRing extends StatelessWidget {
             height: 76,
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 0, end: percent),
-              duration: Motion.slow,
-              curve: Motion.emphasized,
+              duration: const Duration(milliseconds: 1200),
+              curve: Curves.fastOutSlowIn,
               builder: (BuildContext _, double v, Widget? __) =>
                   CircularProgressIndicator(
                 value: v,
                 strokeWidth: 6,
                 strokeCap: StrokeCap.round,
-                backgroundColor: Colors.grey.shade100,
-                valueColor:
-                    const AlwaysStoppedAnimation<Color>(AppColors.moving),
+                backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
               ),
             ),
           ),
@@ -243,17 +266,18 @@ class _OnlineRing extends StatelessWidget {
             children: <Widget>[
               Text(
                 '${(percent * 100).round()}%',
-                style: AppTypography.metric(
-                  size: 18,
-                  color: Colors.grey.shade900,
-                ).copyWith(fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : const Color(0xFF1E2432),
+                ),
               ),
               const Text(
                 'online',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF10B981),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -272,6 +296,7 @@ class _StatusTile extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    required this.isDark,
   });
 
   final String label;
@@ -280,6 +305,7 @@ class _StatusTile extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -288,25 +314,25 @@ class _StatusTile extends StatelessWidget {
       selected: selected,
       label: '$label, $count vehicles',
       child: AnimatedContainer(
-        duration: Motion.fast,
-        curve: Motion.emphasized,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: selected
-              ? color.withOpacity(0.12)
-              : Colors.grey.shade50,
+              ? color.withOpacity(isDark ? 0.15 : 0.08)
+              : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
           borderRadius: Corners.rMd,
           border: Border.all(
             color: selected
-                ? color.withOpacity(0.4)
-                : Colors.grey.shade200,
+                ? color
+                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
             width: selected ? 1.5 : 1,
           ),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: color.withOpacity(0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   )
                 ]
               : null,
@@ -322,14 +348,19 @@ class _StatusTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
               child: Column(
                 children: <Widget>[
-                  Icon(icon, size: 20, color: selected ? color : color.withOpacity(0.8)),
+                  Icon(
+                    icon, 
+                    size: 20, 
+                    color: selected ? color : (isDark ? color.withOpacity(0.8) : color),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     '$count',
-                    style: AppTypography.metric(
-                      size: 20,
-                      color: Colors.grey.shade900,
-                    ).copyWith(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1E2432),
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -337,8 +368,8 @@ class _StatusTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       letterSpacing: 0.2,
-                      color: selected ? color : Colors.grey.shade600,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: selected ? color : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                 ],
