@@ -217,33 +217,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           AppAssetsB64.logoIcon,
           height: 70,
         ),
-        const SizedBox(height: 14),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'FUEL',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFE63946),
-                letterSpacing: -0.01 * 32,
-              ),
-            ),
-            SizedBox(width: 8),
-            Text(
-              'TRACKS',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0084FF),
-                letterSpacing: -0.01 * 32,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

@@ -141,34 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           AppAssetsB64.logoIcon,
           height: 80,
         ),
-        const SizedBox(height: 16),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'FUEL',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 36,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFE63946),
-                letterSpacing: -0.01 * 36,
-              ),
-            ),
-            SizedBox(width: 8),
-            Text(
-              'TRACKS',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 36,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0084FF),
-                letterSpacing: -0.01 * 36,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 12),
         Text(
           'FUEL MONITORING NOW ONLINE.',
           style: TextStyle(
