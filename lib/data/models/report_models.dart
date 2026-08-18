@@ -291,27 +291,34 @@ class ReportResult extends Equatable {
     ReportSummary summary = const ReportSummary();
 
     if (payload is Map<String, dynamic>) {
-      final dynamic dataObj = payload['data'] ??
-          payload['rows'] ??
-          payload['results'] ??
-          payload['records'] ??
-          payload['trips'] ??
-          payload['items'] ??
-          payload;
+      final bool isIndividual = payload.containsKey('vehicle') ||
+          payload.containsKey('activity') ||
+          payload.containsKey('summary');
+
+      final dynamic dataObj = isIndividual
+          ? payload
+          : (payload['data'] ??
+              payload['rows'] ??
+              payload['results'] ??
+              payload['records'] ??
+              payload['trips'] ??
+              payload['items'] ??
+              payload);
 
       if (dataObj is List) {
         raw = asMapList(dataObj);
-      } else if (dataObj is Map<String, dynamic>) {
+      } else if (dataObj is Map<dynamic, dynamic> || dataObj is Map<String, dynamic>) {
+        final Map<String, dynamic> dataMap = Map<String, dynamic>.from(dataObj as Map);
         // Check for Individual report payload with nested vehicle, activity, summary
-        if (dataObj.containsKey('vehicle') ||
-            dataObj.containsKey('activity') ||
-            dataObj.containsKey('summary')) {
-          final Map<String, dynamic> v = asMap(dataObj, <String>['vehicle']);
-          final Map<String, dynamic> a = asMap(dataObj, <String>['activity']);
-          final Map<String, dynamic> s = asMap(dataObj, <String>['summary']);
-          final dynamic trips = dataObj['trips'];
-          final dynamic stoppages = dataObj['stoppages'];
-          final dynamic overspeeding = dataObj['overspeeding'];
+        if (dataMap.containsKey('vehicle') ||
+            dataMap.containsKey('activity') ||
+            dataMap.containsKey('summary')) {
+          final Map<String, dynamic> v = asMap(dataMap, <String>['vehicle']);
+          final Map<String, dynamic> a = asMap(dataMap, <String>['activity']);
+          final Map<String, dynamic> s = asMap(dataMap, <String>['summary']);
+          final dynamic trips = dataMap['trips'];
+          final dynamic stoppages = dataMap['stoppages'];
+          final dynamic overspeeding = dataMap['overspeeding'];
 
           final Map<String, dynamic> singleRow = <String, dynamic>{
             'vehicle_name': v['name'] ?? v['registrationNumber'] ?? '-',
@@ -326,7 +333,7 @@ class ReportResult extends Equatable {
           };
           raw = <Map<String, dynamic>>[singleRow];
         } else {
-          raw = asMapList(dataObj);
+          raw = asMapList(dataMap);
         }
       } else {
         raw = asMapList(payload);
