@@ -32,6 +32,7 @@ class VehicleCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
+    final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
     final Widget content = Padding(
       padding: const EdgeInsets.all(16.0),
@@ -140,80 +141,166 @@ class VehicleCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
 
-                    // Metrics Grid (3x2)
+                    // Metrics Grid (3x2 or 2x3 depending on screen size)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Col 1
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _MetricItem(
-                                label: 'Today km',
-                                value: '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
-                                dotColor: const Color(0xFFE91E63), // Pink
+                      children: use2Columns
+                          ? [
+                              // Responsive Column 1
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _MetricItem(
+                                      label: 'Today km',
+                                      value: '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
+                                      dotColor: const Color(0xFFE91E63), // Pink
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MetricItem(
+                                      label: 'Speed',
+                                      value: '${vehicle.speed.round()} km/h',
+                                      dotColor: const Color(0xFF4CAF50), // Green
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MetricItem(
+                                      label: 'Battery',
+                                      value: (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0)
+                                          ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V'
+                                          : 'N/A',
+                                      dotColor: Colors.orange,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 12),
-                              _MetricItem(
-                                label: 'Battery',
-                                value: (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0) ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V' : 'N/A',
-                                dotColor: Colors.orange,
+                              const SizedBox(width: 8),
+                              // Responsive Column 2
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _MetricItem(
+                                      label: 'Odometer',
+                                      value: vehicle.odometer != null
+                                          ? '${vehicle.odometer!.toStringAsFixed(0)} km'
+                                          : 'N/A',
+                                      dotColor: Colors.cyan,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MetricItem(
+                                      label: 'Since',
+                                      value: vehicle.lastPacketAt != null
+                                          ? Fmt.relative(vehicle.lastPacketAt!).replaceAll(' ago', '')
+                                          : '-',
+                                      dotColor: const Color(0xFF9C27B0), // Purple
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        const Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Colors.green),
+                                        Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
+                                            Text(
+                                              '${vehicle.satellites ?? 0}',
+                                              style: const TextStyle(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ]
+                          : [
+                              // Standard Column 1
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _MetricItem(
+                                      label: 'Today km',
+                                      value: '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
+                                      dotColor: const Color(0xFFE91E63), // Pink
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MetricItem(
+                                      label: 'Battery',
+                                      value: (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0)
+                                          ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V'
+                                          : 'N/A',
+                                      dotColor: Colors.orange,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Standard Column 2
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _MetricItem(
+                                      label: 'Speed',
+                                      value: '${vehicle.speed.round()} km/h',
+                                      dotColor: const Color(0xFF4CAF50), // Green
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MetricItem(
+                                      label: 'Since',
+                                      value: vehicle.lastPacketAt != null
+                                          ? Fmt.relative(vehicle.lastPacketAt!).replaceAll(' ago', '')
+                                          : '-',
+                                      dotColor: const Color(0xFF9C27B0), // Purple
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Standard Column 3
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _MetricItem(
+                                      label: 'Odometer',
+                                      value: vehicle.odometer != null
+                                          ? '${vehicle.odometer!.toStringAsFixed(0)} km'
+                                          : 'N/A',
+                                      dotColor: Colors.cyan,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        const Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Colors.green),
+                                        Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
+                                            Text(
+                                              '${vehicle.satellites ?? 0}',
+                                              style: const TextStyle(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
-                          ),
-                        ),
-                        // Col 2
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _MetricItem(
-                                label: 'Speed',
-                                value: '${vehicle.speed.round()} km/h',
-                                dotColor: const Color(0xFF4CAF50), // Green
-                              ),
-                              const SizedBox(height: 12),
-                              _MetricItem(
-                                label: 'Since',
-                                value: vehicle.lastPacketAt != null ? Fmt.relative(vehicle.lastPacketAt!).replaceAll(' ago', '') : '-',
-                                dotColor: const Color(0xFF9C27B0), // Purple
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Col 3
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _MetricItem(
-                                label: 'Odometer',
-                                value: vehicle.odometer != null ? '${vehicle.odometer!.toStringAsFixed(0)} km' : 'N/A',
-                                dotColor: Colors.cyan,
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  const Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Colors.green),
-                                  Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
-                                      Text(
-                                        '${vehicle.satellites ?? 0}',
-                                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),

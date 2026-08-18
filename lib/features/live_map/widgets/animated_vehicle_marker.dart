@@ -68,8 +68,8 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
         _targetHeading = widget.heading;
       }
 
-      // Record where we were when the new coordinate arrived
-      _oldPoint = _getAnimatedPoint();
+      // Record where we were when the new coordinate arrived relative to the OLD target point
+      _oldPoint = _getAnimatedPoint(oldWidget.point);
       _lastUpdateTime = DateTime.now();
       
       _controller.forward(from: 0.0);
@@ -85,8 +85,8 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     super.dispose();
   }
 
-  LatLng _getAnimatedPoint() {
-    if (_snap || _oldPoint == null || _lastUpdateTime == null) return widget.point;
+  LatLng _getAnimatedPoint(LatLng targetPoint) {
+    if (_snap || _oldPoint == null || _lastUpdateTime == null) return targetPoint;
     
     final double elapsedMs = DateTime.now().difference(_lastUpdateTime!).inMilliseconds.toDouble();
     final double fastDurationMs = widget.duration.inMilliseconds.toDouble();
@@ -94,8 +94,8 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     if (elapsedMs <= fastDurationMs) {
       // 1. Fast transition phase (first 1 second)
       final double t = elapsedMs / fastDurationMs;
-      final double lat = _oldPoint!.latitude + (widget.point.latitude - _oldPoint!.latitude) * t;
-      final double lng = _oldPoint!.longitude + (widget.point.longitude - _oldPoint!.longitude) * t;
+      final double lat = _oldPoint!.latitude + (targetPoint.latitude - _oldPoint!.latitude) * t;
+      final double lng = _oldPoint!.longitude + (targetPoint.longitude - _oldPoint!.longitude) * t;
       return LatLng(lat, lng);
     } else {
       // 2. Slow drift/creep phase (after 1 second)
@@ -103,20 +103,19 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       if (widget.status == VehicleStatus.moving) {
         final double driftSeconds = (elapsedMs - fastDurationMs) / 1000.0;
         
-        // Drift speed: scale down the actual speed slightly for a smooth map drift, or default to 2.5 m/s.
-        // widget.speed is in km/h. Convert to m/s:
-        final double speedMps = widget.speed / 3.6;
-        final double driftSpeed = speedMps > 0 ? (speedMps * 0.7) : 2.5; // Drift at 70% of speed, or 2.5 m/s min
+        // Drift speed: exactly 0.5 km/h as requested!
+        // 0.5 km/h in m/s = 0.5 / 3.6 = 0.1388 m/s.
+        const double driftSpeed = 0.5 / 3.6;
         
         final double rad = _targetHeading * math.pi / 180.0;
         final double driftMeters = driftSpeed * driftSeconds;
         
         final double dLat = driftMeters * math.cos(rad) / 111111.0;
-        final double dLng = driftMeters * math.sin(rad) / (111111.0 * math.cos(widget.point.latitude * math.pi / 180.0));
+        final double dLng = driftMeters * math.sin(rad) / (111111.0 * math.cos(targetPoint.latitude * math.pi / 180.0));
         
-        return LatLng(widget.point.latitude + dLat, widget.point.longitude + dLng);
+        return LatLng(targetPoint.latitude + dLat, targetPoint.longitude + dLng);
       }
-      return widget.point;
+      return targetPoint;
     }
   }
 
@@ -127,7 +126,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     return AnimatedBuilder(
       animation: _animation,
       builder: (BuildContext context, Widget? child) {
-        final LatLng currentLatLng = _getAnimatedPoint();
+        final LatLng currentLatLng = _getAnimatedPoint(widget.point);
         
         final math.Point<double> targetPos = camera.latLngToScreenPoint(widget.point);
         final math.Point<double> currentPos = camera.latLngToScreenPoint(currentLatLng);

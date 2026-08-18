@@ -103,8 +103,8 @@ class TelemetryGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: cells.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 110,
             mainAxisSpacing: Gap.sm,
             crossAxisSpacing: Gap.sm,
             childAspectRatio: 0.98,
