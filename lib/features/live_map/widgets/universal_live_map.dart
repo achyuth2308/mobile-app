@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../data/models/report_models.dart';
+import '../../../data/models/trip.dart';
 import '../../../data/models/vehicle.dart';
-import 'map_tiles.dart';
 import 'animated_vehicle_marker.dart';
+import 'map_tiles.dart';
 import 'vehicle_marker.dart';
 
 class UniversalLiveMap extends StatelessWidget {
@@ -21,6 +23,9 @@ class UniversalLiveMap extends StatelessWidget {
     required this.onTapMap,
     required this.onSelectVehicle,
     this.pendingFocusId,
+    this.route = const [],
+    this.stoppages = const [],
+    this.onTapStoppage,
   });
 
   final MapController mapController;
@@ -34,6 +39,9 @@ class UniversalLiveMap extends StatelessWidget {
   final ValueChanged<bool> onUserInteracting;
   final VoidCallback onTapMap;
   final ValueChanged<Vehicle> onSelectVehicle;
+  final List<TrackPoint> route;
+  final List<ReportRow> stoppages;
+  final void Function(ReportRow, int)? onTapStoppage;
 
   List<Marker> _buildMarkers() {
     return vehicles
@@ -71,6 +79,21 @@ class UniversalLiveMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final List<Marker> markers = _buildMarkers();
+    
+    final String? activeId = selectedId ?? followingId;
+    final Vehicle? activeVehicle = activeId != null
+        ? vehicles.cast<Vehicle?>().firstWhere((v) => v?.id == activeId, orElse: () => null)
+        : null;
+
+    final List<LatLng> polylinePoints = route
+        .where((p) => p.latitude != null && p.longitude != null)
+        .map((p) => LatLng(p.latitude!, p.longitude!))
+        .toList();
+
+    // Connect the historical trail to the vehicle's current live location
+    if (activeVehicle != null && activeVehicle.hasLocation && polylinePoints.isNotEmpty) {
+      polylinePoints.add(LatLng(activeVehicle.latitude!, activeVehicle.longitude!));
+    }
 
     return Stack(
       children: <Widget>[
@@ -92,6 +115,52 @@ class UniversalLiveMap extends StatelessWidget {
             ),
             children: <Widget>[
               buildTileLayer(style),
+              if (route.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: polylinePoints,
+                      color: Colors.blue.withOpacity(0.8),
+                      strokeWidth: 4.0,
+                    ),
+                  ],
+                ),
+              if (stoppages.isNotEmpty)
+                MarkerLayer(
+                  markers: List.generate(stoppages.length, (index) {
+                    final stop = stoppages[index];
+                    final lat = stop.startLat ?? stop.endLat;
+                    final lng = stop.startLng ?? stop.endLng;
+                    if (lat == null || lng == null) return null;
+                    return Marker(
+                      point: LatLng(lat, lng),
+                      width: 32,
+                      height: 32,
+                      child: GestureDetector(
+                        onTap: () {
+                          if (onTapStoppage != null) {
+                            onTapStoppage!(stop, index + 1);
+                          }
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2)),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).whereType<Marker>().toList(),
+                ),
               if (markers.isNotEmpty)
                 MarkerLayer(markers: markers),
             ],

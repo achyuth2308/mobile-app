@@ -14,10 +14,13 @@ import 'widgets/map_tiles.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/models/vehicle.dart';
+import '../../data/models/report_models.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/glass_card.dart';
+import 'providers/live_map_providers.dart';
+import 'widgets/stoppage_detail_card.dart';
 import 'widgets/vehicle_peek_sheet.dart';
 import 'widgets/universal_live_map.dart';
 import 'widgets/navigation_hud.dart';
@@ -169,6 +172,25 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     });
   }
 
+  void _showStoppageCard(ReportRow stoppage, int stopNumber) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext ctx) => Padding(
+        padding: const EdgeInsets.only(top: kToolbarHeight),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: StoppageDetailCard(
+            stoppage: stoppage,
+            stopNumber: stopNumber,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showMapStylePicker() {
     showModalBottomSheet(
       context: context,
@@ -265,6 +287,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               orElse: () => null,
             );
 
+    final String activeId = _selectedId ?? _followingId ?? '';
+    final AsyncValue<VehicleDailyData> dailyDataAsync =
+        ref.watch(vehicleDailyHistoryProvider(activeId));
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Stack(
@@ -296,6 +322,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               if (_selectedId != null) setState(() => _selectedId = null);
             },
             onSelectVehicle: _selectVehicle,
+            route: dailyDataAsync.valueOrNull?.route ?? [],
+            stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
+            onTapStoppage: _showStoppageCard,
           ),
 
           // Legibility scrim behind the top controls.
