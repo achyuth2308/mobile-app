@@ -65,6 +65,12 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="fueltracks"/>
             </intent-filter>
+
+            <!-- Required for flutter_local_notifications to launch the app -->
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!-- Maps need no API key: tiles are served from OpenStreetMap
@@ -75,7 +81,7 @@
              Socket.io connection is intentionally torn down in background. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="fueltracks_alerts"/>
+            android:value="fueltracks_alerts_v3"/>
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification"/>

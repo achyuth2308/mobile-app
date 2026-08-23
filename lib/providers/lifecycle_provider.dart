@@ -77,10 +77,10 @@ class _AppLifecycleObserverState extends ConsumerState<AppLifecycleObserver>
     if (_backgroundedAt != null) return;
     _backgroundedAt = DateTime.now();
 
-    debugPrint('[lifecycle] → background: suspending socket');
-    ref.read(socketServiceProvider).pauseForBackground();
-    // Do NOT clear vehicles — we keep them in memory so the list
-    // stays visible while the REST re-sync runs on foreground resume.
+    debugPrint('[lifecycle] → background: keeping socket alive (user requested)');
+    // We intentionally leave the socket connected in the background so it 
+    // continues receiving real-time alerts.
+    // ref.read(socketServiceProvider).pauseForBackground();
   }
 
   Future<void> _onForeground() async {
