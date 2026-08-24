@@ -122,15 +122,15 @@ class _AppShellState extends ConsumerState<AppShell> {
           final bool isRoute = <String>['route_deviation', 'trip_started', 'trip_ended'].contains(newAlert.type);
           
           final String channelId = isTheft
-              ? 'fueltracks_theft'
-              : (isCritical ? 'fueltracks_critical' : (isRoute ? 'fueltracks_route' : 'fueltracks_alerts'));
+              ? 'fueltracks_theft_v3'
+              : (isCritical ? 'fueltracks_critical_v3' : 'fueltracks_alerts_v3');
           final String channelName = isTheft
               ? 'Theft Alarms'
               : (isCritical ? 'Critical Fleet Alerts' : (isRoute ? 'Route & Trip Alerts' : 'Fleet Alerts'));
 
           final local = FlutterLocalNotificationsPlugin();
           local.show(
-            newAlert.hashCode,
+            newAlert.id.hashCode,
             title,
             msg,
             NotificationDetails(

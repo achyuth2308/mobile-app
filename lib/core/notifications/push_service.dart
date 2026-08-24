@@ -413,8 +413,9 @@ class PushService {
         ? _theftChannel
         : (isCritical ? _criticalChannel : _generalChannel);
 
+    final int notifId = data['alertId'] != null ? data['alertId'].hashCode : message.hashCode;
     _local.show(
-      message.hashCode,
+      notifId,
       title,
       body,
       NotificationDetails(
