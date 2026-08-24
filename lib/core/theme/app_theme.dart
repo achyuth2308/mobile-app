@@ -148,7 +148,7 @@ class AppTheme {
         iconTheme: IconThemeData(color: scheme.onSurface, size: 22),
       ),
 
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: scheme.surfaceContainer,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -255,7 +255,7 @@ class AppTheme {
         clipBehavior: Clip.antiAlias,
       ),
 
-      dialogTheme: DialogThemeData(
+      dialogTheme: DialogTheme(
         backgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -308,7 +308,7 @@ class AppTheme {
         ),
       ),
 
-      tabBarTheme: TabBarThemeData(
+      tabBarTheme: TabBarTheme(
         labelColor: scheme.primary,
         unselectedLabelColor: scheme.onSurfaceVariant,
         labelStyle: text.labelLarge,
