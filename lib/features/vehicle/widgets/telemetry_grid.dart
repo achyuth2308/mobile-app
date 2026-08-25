@@ -61,7 +61,7 @@ class TelemetryGrid extends StatelessWidget {
           icon: Icons.local_gas_station_rounded,
           label: 'Fuel',
           value: vehicle.fuelLevel!.round().toString(),
-          unit: '%',
+          unit: vehicle.fuelLevel! > 100 ? 'L' : '%',
           color: vehicle.fuelLevel! < 15 ? AppColors.danger : null,
         ),
       if (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0)

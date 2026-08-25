@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -288,6 +290,23 @@ class PushService {
     }
 
     _tokenSub = _fcm.onTokenRefresh.listen(_onTokenRefresh);
+
+    // Request battery optimization exemption on Android so Doze mode
+    // does not throttle FCM delivery after the screen is off for >10 minutes.
+    if (Platform.isAndroid) {
+      try {
+        const MethodChannel _batteryChannel =
+            MethodChannel('com.fueltracks.app/battery');
+        final bool isIgnoring = await _batteryChannel
+            .invokeMethod<bool>('isIgnoringBatteryOptimizations') ?? false;
+        if (!isIgnoring) {
+          await _batteryChannel.invokeMethod('requestIgnoreBatteryOptimizations');
+        }
+      } catch (_) {
+        // Non-fatal — FCM high-priority will still deliver most notifications
+        // even without the exemption on newer Android versions.
+      }
+    }
   }
 
   Future<void> _setupLocalNotifications() async {
