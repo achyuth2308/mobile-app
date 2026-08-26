@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -481,66 +481,47 @@ class _MessageBubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
-    // The bubble body occupies the top 75% of the height, tail in bottom 25%.
-    final double bubbleH = h * 0.73;
-    final double r = bubbleH * 0.32; // corner radius
+    final double bubbleH = h * 0.72;
+    final double r = bubbleH * 0.28;
 
-    final ui.Path bubble = ui.Path();
-    // Top-left corner
-    bubble.moveTo(r, 0);
-    // Top edge → top-right
-    bubble.lineTo(w - r, 0);
-    bubble.arcToPoint(Offset(w, r), radius: Radius.circular(r));
-    // Right edge → bottom-right
-    bubble.lineTo(w, bubbleH - r);
-    bubble.arcToPoint(Offset(w - r, bubbleH), radius: Radius.circular(r));
-    // Bottom edge → tail start (slightly right of center)
-    bubble.lineTo(w * 0.55, bubbleH);
-    // Tail pointing down-left
-    bubble.lineTo(w * 0.28, h);
-    bubble.lineTo(w * 0.30, bubbleH);
-    // Continue bottom edge → bottom-left
-    bubble.lineTo(r, bubbleH);
-    bubble.arcToPoint(Offset(0, bubbleH - r), radius: Radius.circular(r));
-    // Left edge → top-left
-    bubble.lineTo(0, r);
-    bubble.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
-    bubble.close();
+    final RRect body = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, w, bubbleH),
+      Radius.circular(r),
+    );
 
-    // ── Shadow ──────────────────────────────────────────────────────────
-    canvas.drawShadow(bubble, Colors.black.withOpacity(0.25), 4, true);
+    final ui.Path tail = ui.Path()
+      ..moveTo(w * 0.28, bubbleH - 1)
+      ..lineTo(w * 0.16, h)
+      ..lineTo(w * 0.50, bubbleH - 1)
+      ..close();
 
-    // ── Light red fill ───────────────────────────────────────────────────
     final Paint fill = Paint()
-      ..color = const Color(0xFFFF6B6B) // light red
+      ..color = const Color(0xFFFF6B6B)
       ..style = PaintingStyle.fill;
-    canvas.drawPath(bubble, fill);
 
-    // ── White border ─────────────────────────────────────────────────────
+    canvas.drawRRect(body, fill);
+    canvas.drawPath(tail, fill);
+
     final Paint border = Paint()
       ..color = Colors.white.withOpacity(0.80)
-      ..strokeWidth = 1.8
+      ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
-    canvas.drawPath(bubble, border);
+    canvas.drawRRect(body, border);
 
-    // ── Number text centered in the bubble ───────────────────────────────
     final TextPainter tp = TextPainter(
       text: TextSpan(
         text: '$number',
         style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: number > 9 ? 12.0 : 14.0,
+          fontSize: number > 9 ? 11.5 : 13.5,
           height: 1.0,
         ),
       ),
       textDirection: TextDirection.ltr,
     );
     tp.layout();
-    tp.paint(
-      canvas,
-      Offset((w - tp.width) / 2, (bubbleH - tp.height) / 2),
-    );
+    tp.paint(canvas, Offset((w - tp.width) / 2, (bubbleH - tp.height) / 2));
   }
 
   @override
