@@ -355,7 +355,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     final polylineData = _buildBasePolylines(activeId);
     final List<List<LatLng>> basePolylineSegments = polylineData.baseSegments;
     final List<List<LatLng>> estimatedGapSegments = polylineData.estimatedGaps;
-    final List<ReportRow> filteredStoppages = widget.stoppages.where((stop) => (stop.durationSecVal ?? 0) >= 120).toList();
+    final List<ReportRow> filteredStoppages = widget.stoppages.where((stop) => (stop.durationSecVal ?? 0) >= 300).toList();
 
     return Stack(
       children: <Widget>[
@@ -396,7 +396,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     return Polyline(
                       points: segment,
                       color: const Color(0xFFFFB74D), // Light Orange
-                      strokeWidth: 2.0, // Thin 2px width
+                      strokeWidth: 4.0, // 4px thickness
                       strokeJoin: StrokeJoin.round,
                       strokeCap: StrokeCap.round,
                     );
