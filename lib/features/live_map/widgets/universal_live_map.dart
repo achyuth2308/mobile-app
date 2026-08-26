@@ -412,40 +412,18 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     if (lat == null || lng == null) return null;
                     return Marker(
                       point: LatLng(lat, lng),
-                      width: 28,
-                      height: 28,
-                      alignment: Alignment.center,
+                      width: 40,
+                      height: 44,
+                      alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         onTap: () {
                           if (widget.onTapStoppage != null) {
                             widget.onTapStoppage!(stop, index + 1);
                           }
                         },
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                              height: 1.0,
-                            ),
-                          ),
+                        child: CustomPaint(
+                          size: const Size(40, 44),
+                          painter: _MessageBubblePainter(number: index + 1),
                         ),
                       ),
                     );
@@ -491,3 +469,80 @@ class _MapPinClipper extends CustomClipper<ui.Path> {
   bool shouldReclip(covariant CustomClipper<ui.Path> oldClipper) => false;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  SPEECH / MESSAGE BUBBLE PAINTER — for stoppage markers
+//  Light red rounded bubble with a small tail at bottom-left, number inside.
+// ─────────────────────────────────────────────────────────────────────────────
+class _MessageBubblePainter extends CustomPainter {
+  final int number;
+  const _MessageBubblePainter({required this.number});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    // The bubble body occupies the top 75% of the height, tail in bottom 25%.
+    final double bubbleH = h * 0.73;
+    final double r = bubbleH * 0.32; // corner radius
+
+    final ui.Path bubble = ui.Path();
+    // Top-left corner
+    bubble.moveTo(r, 0);
+    // Top edge → top-right
+    bubble.lineTo(w - r, 0);
+    bubble.arcToPoint(Offset(w, r), radius: Radius.circular(r));
+    // Right edge → bottom-right
+    bubble.lineTo(w, bubbleH - r);
+    bubble.arcToPoint(Offset(w - r, bubbleH), radius: Radius.circular(r));
+    // Bottom edge → tail start (slightly right of center)
+    bubble.lineTo(w * 0.55, bubbleH);
+    // Tail pointing down-left
+    bubble.lineTo(w * 0.28, h);
+    bubble.lineTo(w * 0.30, bubbleH);
+    // Continue bottom edge → bottom-left
+    bubble.lineTo(r, bubbleH);
+    bubble.arcToPoint(Offset(0, bubbleH - r), radius: Radius.circular(r));
+    // Left edge → top-left
+    bubble.lineTo(0, r);
+    bubble.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
+    bubble.close();
+
+    // ── Shadow ──────────────────────────────────────────────────────────
+    canvas.drawShadow(bubble, Colors.black.withOpacity(0.25), 4, true);
+
+    // ── Light red fill ───────────────────────────────────────────────────
+    final Paint fill = Paint()
+      ..color = const Color(0xFFFF6B6B) // light red
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(bubble, fill);
+
+    // ── White border ─────────────────────────────────────────────────────
+    final Paint border = Paint()
+      ..color = Colors.white.withOpacity(0.80)
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(bubble, border);
+
+    // ── Number text centered in the bubble ───────────────────────────────
+    final TextPainter tp = TextPainter(
+      text: TextSpan(
+        text: '$number',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: number > 9 ? 12.0 : 14.0,
+          height: 1.0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(
+      canvas,
+      Offset((w - tp.width) / 2, (bubbleH - tp.height) / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MessageBubblePainter old) => old.number != number;
+}
