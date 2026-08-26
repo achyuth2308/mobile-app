@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_map/flutter_map.dart';
@@ -466,12 +467,12 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   }
 }
 
-class _MapPinClipper extends CustomClipper<Path> {
+class _MapPinClipper extends CustomClipper<ui.Path> {
   @override
-  Path getClip(Size size) {
+  ui.Path getClip(Size size) {
     final double w = size.width;
     final double h = size.height;
-    final Path path = Path();
+    final ui.Path path = ui.Path();
     
     // Circle centered at (w/2, w/2) with radius w/2
     final double r = w / 2;
@@ -494,6 +495,6 @@ class _MapPinClipper extends CustomClipper<Path> {
   }
 
   @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+  bool shouldReclip(covariant CustomClipper<ui.Path> oldClipper) => false;
 }
 
