@@ -4,25 +4,28 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../data/models/vehicle.dart';
 
-/// A wrapper widget for flutter_map markers that animates smooth movement 
-/// between coordinate updates using an explicit AnimationController.
+/// Smoothly interpolates a vehicle marker between GPS updates.
+/// NO extrapolation / drift — the marker stops exactly at the last known
+/// position once the animation completes, which keeps it on the road.
 class AnimatedVehicleMarker extends StatefulWidget {
-  const AnimatedVehicleMarker({
-    required this.point,
-    required this.heading,
-    required this.status,
-    required this.speed,
-    required this.builder,
-    this.duration = const Duration(milliseconds: 1000),
-    super.key,
-  });
-
   final LatLng point;
   final double heading;
   final VehicleStatus status;
   final double speed;
   final Widget Function(BuildContext context, double heading) builder;
   final Duration duration;
+  final ValueNotifier<LatLng?>? visualPositionNotifier;
+
+  const AnimatedVehicleMarker({
+    required this.point,
+    required this.heading,
+    required this.status,
+    required this.speed,
+    required this.builder,
+    this.duration = const Duration(milliseconds: 800),
+    this.visualPositionNotifier,
+    super.key,
+  });
 
   @override
   State<AnimatedVehicleMarker> createState() => _AnimatedVehicleMarkerState();
@@ -31,107 +34,115 @@ class AnimatedVehicleMarker extends StatefulWidget {
 class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _animation;
+  late Animation<double> _curve;
 
-  LatLng? _oldPoint;
+  LatLng _fromPoint = const LatLng(0, 0);
+  LatLng _toPoint = const LatLng(0, 0);
   double _targetHeading = 0.0;
-  bool _snap = false;
-  DateTime? _lastUpdateTime;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
+    _fromPoint = widget.point;
+    _toPoint = widget.point;
     _targetHeading = widget.heading;
-    _lastUpdateTime = DateTime.now();
-    // Use a long duration (30 seconds) so the controller keeps ticking and rebuilding the marker
-    // for drift/extrapolation after the first 1-second fast transition.
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 30));
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.linear);
+    _initialized = true;
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    );
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+
+    _controller.addListener(_onAnimationTick);
+  }
+
+  void _onAnimationTick() {
+    if (widget.visualPositionNotifier != null) {
+      widget.visualPositionNotifier!.value = _interpolatedPoint;
+    }
+    // We only need the AnimatedBuilder below to rebuild — so no setState here.
+    // The AnimatedBuilder listens to _controller directly.
   }
 
   @override
   void didUpdateWidget(AnimatedVehicleMarker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
+    if (!_initialized) return;
+
     if (oldWidget.point != widget.point) {
-      _snap = false;
-      
       const Distance dist = Distance();
-      final double distanceMeters = dist(oldWidget.point, widget.point);
-      
-      // Calculate realistic heading from the road trajectory.
-      if (widget.status == VehicleStatus.moving && distanceMeters > 5) {
-        _targetHeading = dist.bearing(oldWidget.point, widget.point);
-      } else if (distanceMeters <= 1) {
-        // Tiny jitter — keep the last known heading so the arrow doesn't flicker
+      final double meters = dist(oldWidget.point, widget.point);
+
+      // Snap for impossibly large jumps (teleport / bad data > 2 km)
+      if (meters > 2000) {
+        _fromPoint = widget.point;
+        _toPoint = widget.point;
+        _targetHeading = widget.heading;
+        widget.visualPositionNotifier?.value = widget.point;
+        _controller.stop();
+        return;
+      }
+
+      // Start new interpolation from wherever we currently are visually
+      _fromPoint = _interpolatedPoint;
+      _toPoint = widget.point;
+
+      // Derive heading from actual movement vector when vehicle is moving
+      if (widget.status == VehicleStatus.moving && meters > 5) {
+        _targetHeading = dist.bearing(_fromPoint, _toPoint);
+      } else if (meters <= 2) {
+        // Micro-jitter — keep existing heading
       } else {
         _targetHeading = widget.heading;
       }
 
-      // Record where we were when the new coordinate arrived relative to the OLD target point
-      _oldPoint = _getAnimatedPoint(oldWidget.point);
-      _lastUpdateTime = DateTime.now();
-      
+      // Scale animation duration proportionally to distance (min 400ms, max 1200ms)
+      final int ms = (meters * 30).clamp(400, 1200).toInt();
+      _controller.duration = Duration(milliseconds: ms);
       _controller.forward(from: 0.0);
     } else if (oldWidget.heading != widget.heading) {
       _targetHeading = widget.heading;
-      _controller.forward(from: 0.0);
     }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onAnimationTick);
     _controller.dispose();
     super.dispose();
   }
 
-  LatLng _getAnimatedPoint(LatLng targetPoint) {
-    if (_snap || _oldPoint == null || _lastUpdateTime == null) return targetPoint;
-    
-    final double elapsedMs = DateTime.now().difference(_lastUpdateTime!).inMilliseconds.toDouble();
-    final double fastDurationMs = widget.duration.inMilliseconds.toDouble();
-    
-    if (elapsedMs <= fastDurationMs) {
-      // 1. Fast transition phase (first 1 second)
-      final double t = elapsedMs / fastDurationMs;
-      final double lat = _oldPoint!.latitude + (targetPoint.latitude - _oldPoint!.latitude) * t;
-      final double lng = _oldPoint!.longitude + (targetPoint.longitude - _oldPoint!.longitude) * t;
-      return LatLng(lat, lng);
-    } else {
-      // 2. Slow drift/creep phase (after 1 second)
-      // Only drift if the vehicle status is moving
-      if (widget.status == VehicleStatus.moving) {
-        final double driftSeconds = (elapsedMs - fastDurationMs) / 1000.0;
-        
-        // Drift speed: exactly 0.5 km/h as requested!
-        // 0.5 km/h in m/s = 0.5 / 3.6 = 0.1388 m/s.
-        const double driftSpeed = 0.5 / 3.6;
-        
-        final double rad = _targetHeading * math.pi / 180.0;
-        final double driftMeters = driftSpeed * driftSeconds;
-        
-        final double dLat = driftMeters * math.cos(rad) / 111111.0;
-        final double dLng = driftMeters * math.sin(rad) / (111111.0 * math.cos(targetPoint.latitude * math.pi / 180.0));
-        
-        return LatLng(targetPoint.latitude + dLat, targetPoint.longitude + dLng);
-      }
-      return targetPoint;
-    }
+  LatLng get _interpolatedPoint {
+    final double t = _curve.value;
+    final double lat = _fromPoint.latitude + (_toPoint.latitude - _fromPoint.latitude) * t;
+    final double lng = _fromPoint.longitude + (_toPoint.longitude - _fromPoint.longitude) * t;
+    return LatLng(lat, lng);
   }
 
   @override
   Widget build(BuildContext context) {
     final MapCamera camera = MapCamera.of(context);
-    
+
     return AnimatedBuilder(
-      animation: _animation,
+      animation: _controller,
       builder: (BuildContext context, Widget? child) {
-        final LatLng currentLatLng = _getAnimatedPoint(widget.point);
-        
-        final math.Point<double> targetPos = camera.latLngToScreenPoint(widget.point);
-        final math.Point<double> currentPos = camera.latLngToScreenPoint(currentLatLng);
-        
-        final Offset offset = Offset(currentPos.x - targetPos.x, currentPos.y - targetPos.y);
+        final LatLng current = _interpolatedPoint;
+
+        // Notify the polyline listener every frame
+        if (widget.visualPositionNotifier != null) {
+          widget.visualPositionNotifier!.value = current;
+        }
+
+        final math.Point<double> targetPos = camera.latLngToScreenPoint(_toPoint);
+        final math.Point<double> currentPos = camera.latLngToScreenPoint(current);
+
+        final Offset offset = Offset(
+          currentPos.x - targetPos.x,
+          currentPos.y - targetPos.y,
+        );
 
         return Transform.translate(
           offset: offset,

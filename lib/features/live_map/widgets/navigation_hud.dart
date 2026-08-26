@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/vehicle.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/live_address.dart';
 import 'dart:math' as math;
 
 class NavigationHUD extends StatelessWidget {
@@ -12,134 +13,129 @@ class NavigationHUD extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned(
       left: 16,
-      top: 100, // Below the top blue pill
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      right: 16,
+      bottom: 96, // Positioned safely above standard bottom nav bars
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E1020).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left side: Speedometer and Fuel
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SmallSpeedometerWidget(vehicle: vehicle),
+                const SizedBox(height: 12),
+                _FuelLevelWidget(vehicle: vehicle),
+              ],
+            ),
+            const SizedBox(width: 20),
+            // Right side: Status, Direction, Address
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _StatusWidget(vehicle: vehicle),
+                      const Spacer(),
+                      _DirectionWidget(vehicle: vehicle),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'LOCATION',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  LiveAddress(
+                    vehicle: vehicle,
+                    max: 100,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmallSpeedometerWidget extends StatelessWidget {
+  const _SmallSpeedometerWidget({required this.vehicle});
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 60,
+      height: 60,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          _SpeedometerWidget(vehicle: vehicle),
-          const SizedBox(height: 16),
-          _NavigationStatsWidget(vehicle: vehicle),
+          CustomPaint(
+            size: const Size(60, 60),
+            painter: _SmallSpeedGaugePainter(speed: vehicle.speed),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${vehicle.speed.toInt()}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
+                ),
+              ),
+              const Text(
+                'km/h',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 8,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _SpeedometerWidget extends StatelessWidget {
-  const _SpeedometerWidget({required this.vehicle});
-
-  final Vehicle vehicle;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = AppColors.forStatus(vehicle.status.key);
-    final String statusLabel = vehicle.status.key[0].toUpperCase() +
-        vehicle.status.key.substring(1);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 140,
-          height: 140,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E1020),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 16,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Gauge arcs + ticks
-              CustomPaint(
-                size: const Size(130, 130),
-                painter: _SpeedGaugePainter(speed: vehicle.speed),
-              ),
-              // Speed text
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 10),
-                  Text(
-                    '${vehicle.speed.toInt()}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 38,
-                      fontWeight: FontWeight.bold,
-                      height: 1.0,
-                    ),
-                  ),
-                  const Text(
-                    'km/h',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 11,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        // Status pill — below the circle like in the screenshot
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E1020),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.4),
-                blurRadius: 8,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                statusLabel,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SpeedGaugePainter extends CustomPainter {
-  _SpeedGaugePainter({required this.speed});
+class _SmallSpeedGaugePainter extends CustomPainter {
+  _SmallSpeedGaugePainter({required this.speed});
   final double speed;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 6;
+    final radius = size.width / 2 - 4;
 
-    // Arc spans from 135° (bottom-left) sweeping 270° to bottom-right
     const double startDeg = 135;
     const double sweepDeg = 270;
     final double startRad = startDeg * math.pi / 180;
@@ -147,16 +143,16 @@ class _SpeedGaugePainter extends CustomPainter {
 
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // ── Background track ──────────────────────────────────────────
+    // Background track
     canvas.drawArc(
       rect,
       startRad,
       sweepRad,
       false,
       Paint()
-        ..color = Colors.white.withOpacity(0.08)
+        ..color = Colors.white.withOpacity(0.1)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 11
+        ..strokeWidth = 5
         ..strokeCap = StrokeCap.round,
     );
 
@@ -164,10 +160,7 @@ class _SpeedGaugePainter extends CustomPainter {
     final double normalised = (speed.clamp(0.0, maxSpeed) / maxSpeed);
     final double activeSweep = sweepRad * normalised;
 
-    // ── Red segment (above 120 km/h, i.e. 60%+) ──────────────────
-    // First draw full blue arc, then overpaint red portion if needed.
     if (activeSweep > 0) {
-      // Blue arc (0–100%)
       final double blueEnd = activeSweep.clamp(0, sweepRad * 0.6);
       if (blueEnd > 0) {
         canvas.drawArc(
@@ -178,11 +171,10 @@ class _SpeedGaugePainter extends CustomPainter {
           Paint()
             ..color = const Color(0xFF5C8DFF)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 11
+            ..strokeWidth = 5
             ..strokeCap = StrokeCap.round,
         );
       }
-      // Red arc (60–100% of gauge = 120–200 km/h)
       if (normalised > 0.6) {
         final double redStart = startRad + sweepRad * 0.6;
         final double redSweep = activeSweep - sweepRad * 0.6;
@@ -194,67 +186,97 @@ class _SpeedGaugePainter extends CustomPainter {
           Paint()
             ..color = const Color(0xFFFF3B30)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 11
+            ..strokeWidth = 5
             ..strokeCap = StrokeCap.round,
         );
-      }
-    }
-
-    // ── Tick marks + labels ───────────────────────────────────────
-    const List<double> labelSpeeds = [0, 40, 80, 120, 160, 200];
-    final double shortTickRadius = radius - 12;
-    final double labelRadius = radius - 22;
-
-    for (double s = 0; s <= maxSpeed; s += 20) {
-      final double angle =
-          startRad + (s / maxSpeed) * sweepRad;
-      final bool isMajor = labelSpeeds.contains(s);
-      final double innerR = isMajor ? shortTickRadius - 4 : shortTickRadius;
-
-      canvas.drawLine(
-        Offset(center.dx + math.cos(angle) * (radius + 3),
-            center.dy + math.sin(angle) * (radius + 3)),
-        Offset(center.dx + math.cos(angle) * innerR,
-            center.dy + math.sin(angle) * innerR),
-        Paint()
-          ..color = Colors.white.withOpacity(isMajor ? 0.7 : 0.3)
-          ..strokeWidth = isMajor ? 1.8 : 1.0
-          ..strokeCap = StrokeCap.round,
-      );
-
-      if (isMajor) {
-        final tp = TextPainter(
-          text: TextSpan(
-            text: s.toInt().toString(),
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
-              fontSize: 7.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        final dx = center.dx + math.cos(angle) * labelRadius - tp.width / 2;
-        final dy = center.dy + math.sin(angle) * labelRadius - tp.height / 2;
-        tp.paint(canvas, Offset(dx, dy));
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SpeedGaugePainter old) => old.speed != speed;
+  bool shouldRepaint(covariant _SmallSpeedGaugePainter old) => old.speed != speed;
 }
 
-class _NavigationStatsWidget extends StatelessWidget {
-  const _NavigationStatsWidget({required this.vehicle});
-  
+class _FuelLevelWidget extends StatelessWidget {
+  const _FuelLevelWidget({required this.vehicle});
   final Vehicle vehicle;
 
   @override
   Widget build(BuildContext context) {
+    final double fuel = vehicle.fuelLevel ?? 0.0;
+    final bool hasFuel = vehicle.fuelLevel != null;
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.local_gas_station_rounded,
+          color: hasFuel ? (fuel > 20 ? Colors.greenAccent : Colors.redAccent) : Colors.white54,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          hasFuel ? '${fuel.toInt()}%' : 'N/A',
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusWidget extends StatelessWidget {
+  const _StatusWidget({required this.vehicle});
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = AppColors.forStatus(vehicle.status.key);
     final String statusLabel = vehicle.status.key[0].toUpperCase() +
         vehicle.status.key.substring(1);
-    // Determine direction from heading
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: statusColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            statusLabel,
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DirectionWidget extends StatelessWidget {
+  const _DirectionWidget({required this.vehicle});
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
     String direction = 'N';
     final h = vehicle.heading % 360;
     if (h >= 337.5 || h < 22.5) direction = 'N';
@@ -266,95 +288,17 @@ class _NavigationStatsWidget extends StatelessWidget {
     else if (h >= 247.5 && h < 292.5) direction = 'W';
     else if (h >= 292.5 && h < 337.5) direction = 'NW';
 
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E1020),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 12,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _StatRow(
-            icon: Icons.route_outlined,
-            value: '${(vehicle.todayDistanceKm ?? 0).toStringAsFixed(1)} km',
-            label: 'Distance',
-          ),
-          const SizedBox(height: 12),
-          _StatRow(
-            icon: Icons.directions_car_outlined,
-            value: '${(vehicle.odometer ?? 0).toStringAsFixed(1)} km',
-            label: 'Odometer',
-          ),
-          const SizedBox(height: 12),
-          _StatRow(
-            icon: Icons.info_outline,
-            value: statusLabel,
-            label: 'Status',
-          ),
-          const SizedBox(height: 12),
-          _StatRow(
-            icon: Icons.navigation_outlined,
-            value: direction,
-            label: 'Direction',
-          ),
-          const SizedBox(height: 12),
-          _StatRow(
-            icon: Icons.place_outlined,
-            value: vehicle.address ?? (vehicle.hasLocation ? '${vehicle.latitude!.toStringAsFixed(5)}, ${vehicle.longitude!.toStringAsFixed(5)}' : 'Unknown'),
-            label: 'Location',
-            maxLines: 2,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatRow extends StatelessWidget {
-  const _StatRow({required this.icon, required this.value, required this.label, this.maxLines = 1});
-
-  final IconData icon;
-  final String value;
-  final String label;
-  final int maxLines;
-
-  @override
-  Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white70, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                maxLines: maxLines,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 9,
-                ),
-              ),
-            ],
+        const Icon(Icons.explore_outlined, color: Colors.white54, size: 16),
+        const SizedBox(width: 4),
+        Text(
+          direction,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],

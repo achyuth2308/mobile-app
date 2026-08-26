@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../data/models/report_models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/geocoder.dart';
 
 class StoppageDetailCard extends StatelessWidget {
   const StoppageDetailCard({
@@ -116,8 +116,10 @@ class StoppageDetailCard extends StatelessWidget {
                 Icon(Icons.location_on, color: theme.colorScheme.onSurfaceVariant, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    address,
+                  child: _ResolvedAddressText(
+                    latitude: stoppage.startLat ?? stoppage.endLat,
+                    longitude: stoppage.startLng ?? stoppage.endLng,
+                    fallbackAddress: address,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface,
                     ),
@@ -165,3 +167,62 @@ class StoppageDetailCard extends StatelessWidget {
     );
   }
 }
+
+class _ResolvedAddressText extends StatefulWidget {
+  const _ResolvedAddressText({
+    required this.latitude,
+    required this.longitude,
+    required this.fallbackAddress,
+    this.style,
+  });
+
+  final double? latitude;
+  final double? longitude;
+  final String fallbackAddress;
+  final TextStyle? style;
+
+  @override
+  State<_ResolvedAddressText> createState() => _ResolvedAddressTextState();
+}
+
+class _ResolvedAddressTextState extends State<_ResolvedAddressText> {
+  String? _resolvedAddress;
+  bool _isResolving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  void _resolve() {
+    if (widget.fallbackAddress != 'Unknown Location' && widget.fallbackAddress.isNotEmpty) {
+      _resolvedAddress = widget.fallbackAddress;
+      return;
+    }
+
+    if (widget.latitude == null || widget.longitude == null) {
+      _resolvedAddress = 'Location unavailable';
+      return;
+    }
+
+    _isResolving = true;
+    Geocoder.getAddress(widget.latitude!, widget.longitude!).then((addr) {
+      if (mounted) {
+        setState(() {
+          _resolvedAddress = addr;
+          _isResolving = false;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _resolvedAddress ?? (_isResolving ? 'Resolving address...' : 'Unknown Location'),
+      style: widget.style,
+    );
+  }
+}
+

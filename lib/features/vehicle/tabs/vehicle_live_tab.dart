@@ -117,10 +117,13 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                                 width: 60,
                                 height: 52,
                                 alignment: Alignment.center,
-                                child: VehicleMarkerPin(
-                                  vehicle: vehicle,
-                                  selected: true,
-                                  useSprite: true,
+                                child: GestureDetector(
+                                  onTap: () => context.go('/map?focus=${vehicle.id}'),
+                                  child: VehicleMarkerPin(
+                                    vehicle: vehicle,
+                                    selected: true,
+                                    useSprite: true,
+                                  ),
                                 ),
                               ),
                             ],

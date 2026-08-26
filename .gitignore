@@ -32,5 +32,8 @@ google-services.json
 GoogleService-Info.plist
 lib/firebase_options.dart
 *.env
+*.jks
 f u e l t r a c k s 1 - f i r e b a s e - a d m i n s d k - f b s v c - c c f 1 3 9 2 3 e 4 . j s o n  
 build_garbage/
+*.log
+android/.kotlin/

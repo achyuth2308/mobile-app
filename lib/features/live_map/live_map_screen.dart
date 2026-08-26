@@ -361,8 +361,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
           if (following != null) NavigationHUD(vehicle: following),
 
           Positioned(
+            top: MediaQuery.paddingOf(context).top + 70,
             right: Gap.lg,
-            bottom: Gap.navClearance + Gap.sm,
             child: Column(
               children: <Widget>[
                 _MapButton(
