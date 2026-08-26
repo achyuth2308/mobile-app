@@ -97,12 +97,12 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
       case VehicleStatus.moving:
         return const Color(0xFF22C55E);   // green
       case VehicleStatus.idle:
-        return const Color(0xFFF97316);   // orange
+        return const Color(0xFFEAB308);   // yellow
       case VehicleStatus.stopped:
-        return const Color(0xFFEF4444);   // red
+        return const Color(0xFFF97316);   // orange (parked)
       case VehicleStatus.offline:
       default:
-        return const Color(0xFF94A3B8);   // gray
+        return const Color(0xFFEF4444);   // red
     }
   }
 
@@ -204,14 +204,14 @@ class _CompactVehiclePainter extends CustomPainter {
   Color get _bodyColor {
     switch (status) {
       case VehicleStatus.moving:
-        return const Color(0xFF15803D);
+        return const Color(0xFF15803D);   // green
       case VehicleStatus.idle:
-        return const Color(0xFFC2410C);
+        return const Color(0xFFA16207);   // dark yellow
       case VehicleStatus.stopped:
-        return const Color(0xFFB91C1C);
+        return const Color(0xFFC2410C);   // dark orange (parked)
       case VehicleStatus.offline:
       default:
-        return const Color(0xFF475569);
+        return const Color(0xFFB91C1C);   // dark red
     }
   }
 
