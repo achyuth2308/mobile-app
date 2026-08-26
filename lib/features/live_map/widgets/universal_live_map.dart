@@ -395,8 +395,8 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                   polylines: basePolylineSegments.map((segment) {
                     return Polyline(
                       points: segment,
-                      color: Colors.blue.withOpacity(0.85),
-                      strokeWidth: 4.0,
+                      color: const Color(0xFFF97316), // Premium Orange
+                      strokeWidth: 6.0, // Thicker
                       strokeJoin: StrokeJoin.round,
                       strokeCap: StrokeCap.round,
                     );
