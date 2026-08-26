@@ -107,6 +107,46 @@ class ReportRepository {
       cancelToken: cancelToken,
     );
 
+    // Fallback: If fleet-wide consolidated report is empty, synthesize it by running in parallel for all vehicles.
+    if (type == ReportType.consolidated && vehicleId == null && singleRes.rows.isEmpty && vehicles.isNotEmpty) {
+      final List<ReportResult> results = (await Future.wait(
+        vehicles.map((Vehicle v) async {
+          try {
+            final ReportResult res = await _fetch(
+              type: type,
+              start: start,
+              end: end,
+              vehicleId: v.id,
+              vehicle: v,
+              cancelToken: cancelToken,
+            );
+            return await _enrichResult(
+              res: res,
+              type: type,
+              vehicle: v,
+              id: v.id,
+              start: start,
+              end: end,
+              cancelToken: cancelToken,
+            );
+          } catch (err) {
+            debugPrint('FETCH FAILED FOR VEHICLE ${v.id} (consolidated fallback): $err');
+            return ReportResult(rows: const <ReportRow>[], summary: const ReportSummary());
+          }
+        }),
+      ));
+      final List<ReportRow> merged =
+          results.expand((ReportResult r) => r.rows).toList();
+      
+      final Map<String, ReportRow> uniqueMap = <String, ReportRow>{};
+      for (final ReportRow r in merged) {
+        final String key = '${r.vehicleName ?? r.vehicleId ?? ""}_${r.plate ?? ""}_${r.date ?? ""}';
+        uniqueMap[key] = r;
+      }
+      final List<ReportRow> deduplicated = uniqueMap.values.toList();
+      return ReportResult(rows: deduplicated, summary: ReportSummary.fromRows(deduplicated));
+    }
+
     return await _enrichResult(
       res: singleRes,
       type: type,
