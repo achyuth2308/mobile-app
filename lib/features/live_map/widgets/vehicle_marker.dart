@@ -6,9 +6,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../data/models/vehicle.dart';
 
-/// ─────────────────────────────────────────────────────────────────────
-///  VEHICLE MARKER — bold arrowhead, premium Google Maps style
-/// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  VEHICLE MARKER — Premium 3D top-view fleet tracker style
+//  • Rotates to match bearing/heading
+//  • Status accent glow (moving=green, idle=amber, stopped=red, offline=gray)
+//  • Selected vehicle has a bright blue pulsing ring
+// ─────────────────────────────────────────────────────────────────────────────
 class VehicleMarkerPin extends StatefulWidget {
   const VehicleMarkerPin({
     required this.vehicle,
@@ -30,15 +33,21 @@ class VehicleMarkerPin extends StatefulWidget {
 }
 
 class _VehicleMarkerPinState extends State<VehicleMarkerPin>
-    with SingleTickerProviderStateMixin {
-  // Smooth rotation via animation
+    with TickerProviderStateMixin {
+  // Smooth rotation
   late AnimationController _rotController;
   late Animation<double> _rotation;
   double _lastHeading = 0;
 
+  // Pulsing ring for selected vehicle
+  late AnimationController _pulseController;
+  late Animation<double> _pulseScale;
+  late Animation<double> _pulseOpacity;
+
   @override
   void initState() {
     super.initState();
+
     _lastHeading = (widget.headingOverride ?? widget.vehicle.heading);
     _rotController = AnimationController(
       vsync: this,
@@ -46,14 +55,30 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
     );
     _rotation = Tween<double>(begin: _lastHeading, end: _lastHeading)
         .animate(CurvedAnimation(parent: _rotController, curve: Curves.easeOut));
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    _pulseScale = Tween<double>(begin: 1.0, end: 1.6).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeOut),
+    );
+    _pulseOpacity = Tween<double>(begin: 0.7, end: 0.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeOut),
+    );
+
+    if (widget.selected) {
+      _pulseController.repeat();
+    }
   }
 
   @override
   void didUpdateWidget(VehicleMarkerPin old) {
     super.didUpdateWidget(old);
+
+    // Heading rotation
     final double newHeading = widget.headingOverride ?? widget.vehicle.heading;
     if ((newHeading - _lastHeading).abs() > 1.0) {
-      // Always take the shortest rotation arc
       double delta = newHeading - _lastHeading;
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
@@ -63,21 +88,28 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
       _rotController.forward(from: 0);
       _lastHeading = target;
     }
+
+    // Pulse animation on/off
+    if (widget.selected && !old.selected) {
+      _pulseController.repeat();
+    } else if (!widget.selected && old.selected) {
+      _pulseController.stop();
+      _pulseController.reset();
+    }
   }
 
   @override
   void dispose() {
     _rotController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool offline = widget.vehicle.status == VehicleStatus.offline;
+    final Color statusColor = _statusColor(widget.vehicle.status);
     final bool selected = widget.selected;
-
-    // Arrow size: big and bold
-    final double size = selected ? 64.0 : 52.0;
+    final double markerSize = selected ? 58.0 : 46.0;
 
     return ClipRect(
       child: OverflowBox(
@@ -93,127 +125,319 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               ),
               const SizedBox(height: 4),
             ],
+            SizedBox(
+              width: markerSize + 24,
+              height: markerSize + 24,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // ── Outer pulsing ring (selected only) ──────────────
+                  if (selected)
+                    AnimatedBuilder(
+                      animation: _pulseController,
+                      builder: (context, _) {
+                        return Transform.scale(
+                          scale: _pulseScale.value,
+                          child: Opacity(
+                            opacity: _pulseOpacity.value,
+                            child: Container(
+                              width: markerSize + 12,
+                              height: markerSize + 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF2563EB).withOpacity(0.25),
+                                border: Border.all(
+                                  color: const Color(0xFF3B82F6),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
 
-            AnimatedBuilder(
-              animation: _rotation,
-              builder: (context, _) {
-                return Transform.rotate(
-                  angle: _rotation.value * math.pi / 180,
-                  child: CustomPaint(
-                    size: Size(size, size),
-                    painter: _ArrowHeadPainter(
-                      status: widget.vehicle.status,
-                      selected: selected,
+                  // ── Status glow shadow ring ──────────────────────────
+                  Container(
+                    width: markerSize + 8,
+                    height: markerSize + 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: statusColor.withOpacity(selected ? 0.20 : 0.12),
                     ),
                   ),
-                );
-              },
+
+                  // ── Rotating vehicle icon ────────────────────────────
+                  AnimatedBuilder(
+                    animation: _rotation,
+                    builder: (context, _) {
+                      return Transform.rotate(
+                        angle: _rotation.value * math.pi / 180,
+                        child: SizedBox(
+                          width: markerSize,
+                          height: markerSize,
+                          child: CustomPaint(
+                            painter: _TopViewVehiclePainter(
+                              status: widget.vehicle.status,
+                              selected: selected,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // ── Status dot at bottom ─────────────────────────────
+                  Positioned(
+                    bottom: 2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withOpacity(0.5),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  static Color _statusColor(VehicleStatus status) {
+    switch (status) {
+      case VehicleStatus.moving:
+        return const Color(0xFF22C55E); // Green
+      case VehicleStatus.idle:
+        return const Color(0xFFF59E0B); // Amber
+      case VehicleStatus.stopped:
+        return const Color(0xFFEF4444); // Red
+      case VehicleStatus.offline:
+      default:
+        return const Color(0xFF9CA3AF); // Gray
+    }
+  }
 }
 
-/// Draws a thick, bold, premium navigation arrowhead — clean, no extras.
-///
-/// Shape concept (points UP = north when heading=0):
-///
-///          ▲  ← sharp tip at top center
-///         ▲ ▲
-///        █████
-///        █   █  ← concave notch at the bottom
-///         ▼ ▼
-///
-class _ArrowHeadPainter extends CustomPainter {
-  const _ArrowHeadPainter({required this.status, required this.selected});
+// ─────────────────────────────────────────────────────────────────────────────
+//  PAINTER — 3D top-view vehicle (SUV/truck silhouette)
+//  Points UP (north) when heading=0. Rotated by the parent Transform.rotate.
+// ─────────────────────────────────────────────────────────────────────────────
+class _TopViewVehiclePainter extends CustomPainter {
+  const _TopViewVehiclePainter({required this.status, required this.selected});
 
   final VehicleStatus status;
   final bool selected;
+
+  Color get _bodyColor {
+    switch (status) {
+      case VehicleStatus.moving:
+        return const Color(0xFF1E293B);
+      case VehicleStatus.idle:
+        return const Color(0xFF1E293B);
+      case VehicleStatus.stopped:
+        return const Color(0xFF1E293B);
+      case VehicleStatus.offline:
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  Color get _accentColor {
+    switch (status) {
+      case VehicleStatus.moving:
+        return const Color(0xFF22C55E);
+      case VehicleStatus.idle:
+        return const Color(0xFFF59E0B);
+      case VehicleStatus.stopped:
+        return const Color(0xFFEF4444);
+      case VehicleStatus.offline:
+      default:
+        return const Color(0xFF9CA3AF);
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
     final double cx = w / 2;
-    final double cy = h / 2;
 
-    // ── 1. White Puck Background & Shadow ────────────────────────────
-    final Path puck = Path()
-      ..addOval(Rect.fromCircle(center: Offset(cx, cy), radius: cx));
-    
-    // Soft drop shadow
-    canvas.drawShadow(puck, Colors.black.withOpacity(0.4), selected ? 12 : 6, true);
-    
-    // Solid white fill
-    final Paint puckPaint = Paint()
+    // ── Drop shadow ─────────────────────────────────────────────────────
+    final Path shadowPath = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.32, h * 0.04, w * 0.64, h * 0.9),
+        Radius.circular(w * 0.14),
+      ));
+    canvas.drawShadow(shadowPath, Colors.black.withOpacity(0.5), selected ? 10 : 6, true);
+
+    // ── White background puck ────────────────────────────────────────────
+    final Paint bgPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-    canvas.drawPath(puck, puckPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.34, h * 0.03, w * 0.68, h * 0.92),
+        Radius.circular(w * 0.16),
+      ),
+      bgPaint,
+    );
 
-    // ── 2. 3D Arrow ──────────────────────────────────────────────────
-    // The arrow is drawn in two halves (left and right) with different
-    // shades of blue to create a 3D lighting effect.
-    final double aw = w * 0.45; // arrow total width
-    final double ah = h * 0.60; // arrow total height
-    
-    // Left half (lighter side facing the "sun")
-    final Path leftArrow = Path();
-    leftArrow.moveTo(cx, cy - ah * 0.6); // sharp tip
-    leftArrow.lineTo(cx - aw / 2, cy + ah * 0.4); // left shoulder
-    leftArrow.lineTo(cx, cy + ah * 0.15); // center notch
-    leftArrow.close();
-
-    // Right half (darker side in shadow)
-    final Path rightArrow = Path();
-    rightArrow.moveTo(cx, cy - ah * 0.6); // sharp tip
-    rightArrow.lineTo(cx + aw / 2, cy + ah * 0.4); // right shoulder
-    rightArrow.lineTo(cx, cy + ah * 0.15); // center notch
-    rightArrow.close();
-
-    Color leftColor;
-    Color rightColor;
-
-    switch (status) {
-      case VehicleStatus.moving:
-        leftColor = const Color(0xFF4ADE80); // Light Green
-        rightColor = const Color(0xFF16A34A); // Dark Green
-        break;
-      case VehicleStatus.idle:
-        leftColor = const Color(0xFFFDE047); // Light Yellow
-        rightColor = const Color(0xFFEAB308); // Dark Yellow
-        break;
-      case VehicleStatus.stopped:
-        // User requested "parking means orange color"
-        leftColor = const Color(0xFFFB923C); // Light Orange
-        rightColor = const Color(0xFFEA580C); // Dark Orange
-        break;
-      case VehicleStatus.offline:
-      default:
-        // User requested "stopped measn blue color", mapping offline to blue
-        leftColor = const Color(0xFF60A5FA); // Light Blue
-        rightColor = const Color(0xFF2563EB); // Dark Blue
-        break;
-    }
-
-    final Paint leftPaint = Paint()
-      ..color = leftColor
+    // ── Vehicle body ─────────────────────────────────────────────────────
+    final Paint bodyPaint = Paint()
+      ..color = _bodyColor
       ..style = PaintingStyle.fill;
 
-    final Paint rightPaint = Paint()
-      ..color = rightColor
+    // Main body shape - rounded rect representing the car body
+    final Rect bodyRect = Rect.fromLTWH(cx - w * 0.28, h * 0.10, w * 0.56, h * 0.78);
+    final RRect bodyRRect = RRect.fromRectAndCorners(
+      bodyRect,
+      topLeft: Radius.circular(w * 0.20),
+      topRight: Radius.circular(w * 0.20),
+      bottomLeft: Radius.circular(w * 0.10),
+      bottomRight: Radius.circular(w * 0.10),
+    );
+    canvas.drawRRect(bodyRRect, bodyPaint);
+
+    // ── Windshield (front, lighter) ──────────────────────────────────────
+    final Paint windshieldPaint = Paint()
+      ..color = const Color(0xFF94A3B8).withOpacity(0.7)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.20, h * 0.12, w * 0.40, h * 0.20),
+        Radius.circular(w * 0.10),
+      ),
+      windshieldPaint,
+    );
+
+    // ── Rear window (smaller) ────────────────────────────────────────────
+    final Paint rearPaint = Paint()
+      ..color = const Color(0xFF94A3B8).withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.16, h * 0.65, w * 0.32, h * 0.14),
+        Radius.circular(w * 0.06),
+      ),
+      rearPaint,
+    );
+
+    // ── Accent / headlights strip ────────────────────────────────────────
+    final Paint accentPaint = Paint()
+      ..color = _accentColor
       ..style = PaintingStyle.fill;
 
-    canvas.drawPath(leftArrow, leftPaint);
-    canvas.drawPath(rightArrow, rightPaint);
+    // Front accent line (headlights band)
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.25, h * 0.08, w * 0.50, h * 0.05),
+        Radius.circular(w * 0.05),
+      ),
+      accentPaint,
+    );
+
+    // Left headlight
+    canvas.drawCircle(
+      Offset(cx - w * 0.17, h * 0.12),
+      w * 0.06,
+      accentPaint..color = _accentColor.withOpacity(0.9),
+    );
+    // Right headlight
+    canvas.drawCircle(
+      Offset(cx + w * 0.17, h * 0.12),
+      w * 0.06,
+      accentPaint,
+    );
+
+    // ── Body highlight (3D gloss effect) ────────────────────────────────
+    final Paint highlightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.22, h * 0.18, w * 0.16, h * 0.35),
+        Radius.circular(w * 0.06),
+      ),
+      highlightPaint,
+    );
+
+    // ── Left & right wheels ──────────────────────────────────────────────
+    final Paint wheelPaint = Paint()
+      ..color = const Color(0xFF334155)
+      ..style = PaintingStyle.fill;
+    final Paint wheelRimPaint = Paint()
+      ..color = const Color(0xFF94A3B8)
+      ..style = PaintingStyle.fill;
+
+    // Front-left wheel
+    _drawWheel(canvas, Offset(cx - w * 0.30, h * 0.22), w * 0.08, wheelPaint, wheelRimPaint);
+    // Front-right wheel
+    _drawWheel(canvas, Offset(cx + w * 0.30, h * 0.22), w * 0.08, wheelPaint, wheelRimPaint);
+    // Rear-left wheel
+    _drawWheel(canvas, Offset(cx - w * 0.30, h * 0.72), w * 0.08, wheelPaint, wheelRimPaint);
+    // Rear-right wheel
+    _drawWheel(canvas, Offset(cx + w * 0.30, h * 0.72), w * 0.08, wheelPaint, wheelRimPaint);
+
+    // ── Rear tail-lights ─────────────────────────────────────────────────
+    final Paint tailPaint = Paint()
+      ..color = const Color(0xFFEF4444).withOpacity(0.85)
+      ..style = PaintingStyle.fill;
+    // Left tail
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.24, h * 0.82, w * 0.10, h * 0.05),
+        Radius.circular(w * 0.03),
+      ),
+      tailPaint,
+    );
+    // Right tail
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx + w * 0.14, h * 0.82, w * 0.10, h * 0.05),
+        Radius.circular(w * 0.03),
+      ),
+      tailPaint,
+    );
+
+    // ── Center stripe / roof detail ──────────────────────────────────────
+    final Paint roofPaint = Paint()
+      ..color = Colors.white.withOpacity(0.08)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.05, h * 0.35, w * 0.10, h * 0.28),
+        Radius.circular(w * 0.03),
+      ),
+      roofPaint,
+    );
+  }
+
+  void _drawWheel(Canvas canvas, Offset center, double radius,
+      Paint wheelPaint, Paint rimPaint) {
+    canvas.drawCircle(center, radius, wheelPaint);
+    canvas.drawCircle(center, radius * 0.5, rimPaint);
   }
 
   @override
-  bool shouldRepaint(_ArrowHeadPainter old) =>
+  bool shouldRepaint(_TopViewVehiclePainter old) =>
       old.status != status || old.selected != selected;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Label chip displayed above the marker when showLabel=true
+// ─────────────────────────────────────────────────────────────────────────────
 class _Label extends StatelessWidget {
   const _Label({required this.text, required this.color});
 
@@ -226,9 +450,9 @@ class _Label extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF111827).withOpacity(0.88),
+        color: const Color(0xFF0F172A).withOpacity(0.90),
         borderRadius: Corners.rXs,
-        border: Border.all(color: color.withOpacity(0.6), width: 1.2),
+        border: Border.all(color: color.withOpacity(0.65), width: 1.2),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6),
         ],
@@ -242,52 +466,6 @@ class _Label extends StatelessWidget {
           letterSpacing: 0.3,
           fontWeight: FontWeight.w700,
           color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-/// Cluster bubble
-class ClusterBubble extends StatelessWidget {
-  const ClusterBubble({required this.count, super.key});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final double size = count < 10 ? 40 : count < 50 ? 48 : 56;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.brand.withOpacity(0.22),
-      ),
-      child: Center(
-        child: Container(
-          width: size * 0.74,
-          height: size * 0.74,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: AppColors.brandGradient,
-            border: Border.all(color: Colors.white.withOpacity(0.92), width: 2.2),
-            boxShadow: [
-              BoxShadow(color: AppColors.brand.withOpacity(0.4), blurRadius: 12),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              count > 999 ? '999+' : '$count',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'JetBrainsMono',
-                fontWeight: FontWeight.w700,
-                fontSize: count < 100 ? 15 : 12.5,
-                height: 1,
-              ),
-            ),
-          ),
         ),
       ),
     );

@@ -412,47 +412,40 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     if (lat == null || lng == null) return null;
                     return Marker(
                       point: LatLng(lat, lng),
-                      width: 36,
-                      height: 44,
-                      alignment: Alignment.bottomCenter,
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
                       child: GestureDetector(
                         onTap: () {
                           if (widget.onTapStoppage != null) {
                             widget.onTapStoppage!(stop, index + 1);
                           }
                         },
-                        child: Stack(
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
                           alignment: Alignment.center,
-                          children: [
-                            // White border pin (outer)
-                            ClipPath(
-                              clipper: _MapPinClipper(),
-                              child: Container(
-                                width: 36,
-                                height: 44,
-                                color: Colors.white,
-                              ),
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                              height: 1.0,
                             ),
-                            // Red inner pin
-                            ClipPath(
-                              clipper: _MapPinClipper(),
-                              child: Container(
-                                width: 32,
-                                height: 40,
-                                color: const Color(0xFFEF4444),
-                                alignment: Alignment.topCenter,
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  '${index + 1}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     );
