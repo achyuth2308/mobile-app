@@ -459,11 +459,11 @@ class Vehicle extends Equatable {
         return val;
       }(),
       fuelLevel:
-          asDoubleOrNull(src, <String>['fuel', 'fuelLevel', 'fuelPercent']) ??
+          asDoubleOrNull(src, <String>['fuel', 'fuelLevel', 'fuelPercent', 'current_fuel', 'currentFuel']) ??
               asDoubleOrNull(
-                  srcAttrs, <String>['fuel', 'fuelLevel', 'fuelPercent']) ??
-              asDoubleOrNull(json, <String>['fuel', 'fuelLevel']) ??
-              asDoubleOrNull(jsonAttrs, <String>['fuel', 'fuelLevel']),
+                  srcAttrs, <String>['fuel', 'fuelLevel', 'fuelPercent', 'current_fuel', 'currentFuel']) ??
+              asDoubleOrNull(json, <String>['fuel', 'fuelLevel', 'current_fuel', 'currentFuel']) ??
+              asDoubleOrNull(jsonAttrs, <String>['fuel', 'fuelLevel', 'current_fuel', 'currentFuel']),
       batteryLevel:
           asDoubleOrNull(src, <String>['current_voltage', 'voltage', 'external_voltage']) ??
               asDoubleOrNull(
