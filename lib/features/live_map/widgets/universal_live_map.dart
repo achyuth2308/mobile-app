@@ -355,6 +355,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     final polylineData = _buildBasePolylines(activeId);
     final List<List<LatLng>> basePolylineSegments = polylineData.baseSegments;
     final List<List<LatLng>> estimatedGapSegments = polylineData.estimatedGaps;
+    final List<ReportRow> filteredStoppages = widget.stoppages.where((stop) => (stop.durationSecVal ?? 0) >= 120).toList();
 
     return Stack(
       children: <Widget>[
@@ -401,10 +402,10 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     );
                   }).toList(),
                 ),
-              if (widget.stoppages.isNotEmpty)
+              if (filteredStoppages.isNotEmpty)
                 MarkerLayer(
-                  markers: List.generate(widget.stoppages.length, (index) {
-                    final stop = widget.stoppages[index];
+                  markers: List.generate(filteredStoppages.length, (index) {
+                    final stop = filteredStoppages[index];
                     final lat = stop.startLat ?? stop.endLat;
                     final lng = stop.startLng ?? stop.endLng;
                     if (lat == null || lng == null) return null;
