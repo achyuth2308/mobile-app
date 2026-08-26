@@ -193,10 +193,10 @@ class Vehicle extends Equatable {
       return VehicleStatus.offline;
     }
 
-    // 1. If vehicle is in motion (speed > 2 km/h or motion flag is true), it is MOVING / RUNNING.
-    if (speed > 2 || isMoving) return VehicleStatus.moving;
+    // 1. If vehicle is in motion (speed >= 8 km/h), it is MOVING / RUNNING.
+    if (speed >= 8) return VehicleStatus.moving;
 
-    // 2. If stationary (speed <= 2 km/h) and ignition is ON, it is IDLE.
+    // 2. If stationary (speed < 8 km/h) and ignition is ON, it is IDLE.
     if (ignition) return VehicleStatus.idle;
 
     // 3. Stationary and ignition OFF:
