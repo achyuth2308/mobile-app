@@ -411,36 +411,47 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     if (lat == null || lng == null) return null;
                     return Marker(
                       point: LatLng(lat, lng),
-                      width: 32,
-                      height: 32,
+                      width: 36,
+                      height: 44,
+                      alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         onTap: () {
                           if (widget.onTapStoppage != null) {
                             widget.onTapStoppage!(stop, index + 1);
                           }
                         },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        child: Stack(
                           alignment: Alignment.center,
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                          children: [
+                            // White border pin (outer)
+                            ClipPath(
+                              clipper: _MapPinClipper(),
+                              child: Container(
+                                width: 36,
+                                height: 44,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
+                            // Red inner pin
+                            ClipPath(
+                              clipper: _MapPinClipper(),
+                              child: Container(
+                                width: 32,
+                                height: 40,
+                                color: const Color(0xFFEF4444),
+                                alignment: Alignment.topCenter,
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -453,5 +464,36 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
       ],
     );
   }
+}
+
+class _MapPinClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final Path path = Path();
+    
+    // Circle centered at (w/2, w/2) with radius w/2
+    final double r = w / 2;
+    
+    // Start at bottom tip
+    path.moveTo(w / 2, h);
+    // Draw left side tangent line to the circle
+    path.quadraticBezierTo(w * 0.1, h * 0.6, 0, r);
+    // Draw top circle arc
+    path.arcToPoint(
+      Offset(w, r),
+      radius: Radius.circular(r),
+      clockwise: true,
+    );
+    // Draw right side tangent line back to bottom tip
+    path.quadraticBezierTo(w * 0.9, h * 0.6, w / 2, h);
+    path.close();
+    
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 

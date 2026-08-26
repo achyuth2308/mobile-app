@@ -317,6 +317,34 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     final AsyncValue<VehicleDailyData> dailyDataAsync =
         ref.watch(vehicleDailyHistoryProvider(activeId));
 
+    ref.listen<AsyncValue<VehicleDailyData>>(vehicleDailyHistoryProvider(activeId), (previous, next) {
+      if (!_mapReady || _userInteracting) return;
+      final data = next.valueOrNull;
+      if (data != null && data.route.isNotEmpty) {
+        final points = data.route
+            .where((p) => p.latitude != null && p.longitude != null)
+            .map((p) => LatLng(p.latitude!, p.longitude!))
+            .toList();
+        if (following != null && following.hasLocation) {
+          points.add(LatLng(following.latitude!, following.longitude!));
+        }
+        if (points.isNotEmpty) {
+          final bounds = LatLngBounds.fromPoints(points);
+          _map.fitCamera(
+            CameraFit.bounds(
+              bounds: bounds,
+              padding: const EdgeInsets.only(
+                left: 50,
+                right: 50,
+                top: 150,
+                bottom: 180,
+              ),
+            ),
+          );
+        }
+      }
+    });
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Stack(
