@@ -378,19 +378,6 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             ),
             children: <Widget>[
               buildTileLayer(widget.style),
-              if (estimatedGapSegments.isNotEmpty)
-                PolylineLayer(
-                  polylines: estimatedGapSegments.map((segment) {
-                    return Polyline(
-                      points: segment,
-                      color: Colors.grey.withOpacity(0.9),
-                      strokeWidth: 4.0,
-                      pattern: StrokePattern.dashed(segments: const [8, 8]),
-                      strokeJoin: StrokeJoin.round,
-                      strokeCap: StrokeCap.round,
-                    );
-                  }).toList(),
-                ),
               if (widget.route.isNotEmpty && basePolylineSegments.isNotEmpty)
                 PolylineLayer(
                   polylines: basePolylineSegments.map((segment) {
