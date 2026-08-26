@@ -62,7 +62,11 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     setState(() {
       _followingId = id;
     });
-    ref.read(activeFollowingVehicleIdProvider.notifier).state = id;
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(activeFollowingVehicleIdProvider.notifier).state = id;
+      }
+    });
   }
 
   @override
@@ -82,7 +86,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   @override
   void dispose() {
     // Clear active following vehicle globally
-    ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+    Future.microtask(() {
+      ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+    });
     super.dispose();
   }
 
