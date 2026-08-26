@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -412,8 +412,8 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     if (lat == null || lng == null) return null;
                     return Marker(
                       point: LatLng(lat, lng),
-                      width: 40,
-                      height: 44,
+                      width: 26,
+                      height: 30,
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         onTap: () {
@@ -422,7 +422,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                           }
                         },
                         child: CustomPaint(
-                          size: const Size(40, 44),
+                          size: const Size(26, 30),
                           painter: _MessageBubblePainter(number: index + 1),
                         ),
                       ),
@@ -514,7 +514,7 @@ class _MessageBubblePainter extends CustomPainter {
         style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: number > 9 ? 11.5 : 13.5,
+          fontSize: number > 9 ? 8.0 : 9.5,
           height: 1.0,
         ),
       ),
