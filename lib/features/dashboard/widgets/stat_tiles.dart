@@ -63,31 +63,30 @@ class FleetOverviewCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: Gap.sm),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: <Widget>[
-                        Text(
-                          '${stats.total}',
-                          style: TextStyle(
-                            fontSize: 38,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF1E2432),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${stats.total}',
+                            style: TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF1E2432),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: Gap.xs),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text(
-                            stats.total == 1 ? 'vehicle' : 'vehicles',
+                          const WidgetSpan(child: SizedBox(width: Gap.xs)),
+                          TextSpan(
+                            text: stats.total == 1 ? 'vehicle' : 'vehicles',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: isDark ? const Color(0xFF64748B) : const Color(0xFF8B92A2),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

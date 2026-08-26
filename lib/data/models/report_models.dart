@@ -114,8 +114,30 @@ class ReportRow extends Equatable {
   double? get endLat => asDoubleOrNull(raw, <String>['end_lat', 'endLat']);
   double? get endLng => asDoubleOrNull(raw, <String>['end_lng', 'endLng']);
 
-  double? get startOdometer => asDoubleOrNull(raw, <String>['start_odometer', 'startOdometer']);
-  double? get endOdometer => asDoubleOrNull(raw, <String>['end_odometer', 'endOdometer']);
+  double? get startOdometer => asDoubleOrNull(raw, <String>[
+        'start_odometer',
+        'startOdometer',
+        'start_odo',
+        'startOdo',
+        'odometer_start',
+        'odometerStart',
+        'first_odometer',
+        'first_odo',
+        'start_odometer_reading',
+        'startOdometerReading',
+      ]);
+  double? get endOdometer => asDoubleOrNull(raw, <String>[
+        'end_odometer',
+        'endOdometer',
+        'end_odo',
+        'endOdo',
+        'odometer_end',
+        'odometerEnd',
+        'last_odometer',
+        'last_odo',
+        'end_odometer_reading',
+        'endOdometerReading',
+      ]);
   double? get distanceTravelled => asDoubleOrNull(raw, <String>['distance_travelled', 'distanceTravelled', 'distance', 'distanceKm']) ?? distanceKm;
   int get pointCount => asInt(raw, <String>['point_count', 'pointCount', 'pointsLogged']);
 
@@ -130,6 +152,22 @@ class ReportRow extends Equatable {
   int get runningMins => runningSeconds != null ? (runningSeconds! / 60).floor() : 0;
   int get idleMins => idleSeconds != null ? (idleSeconds! / 60).floor() : 0;
   int get stoppedMins => stoppedSeconds != null ? (stoppedSeconds! / 60).floor() : 0;
+
+  double get engineOnHours {
+    final int runSec = runningSeconds ?? 0;
+    final int idleSec = idleSeconds ?? 0;
+    return (runSec + idleSec) / 3600.0;
+  }
+
+  double? get startFuel => asDoubleOrNull(raw, <String>['start_fuel', 'startFuel', 'startingFuel', 'start_fuel_level', 'startFuelLevel']);
+  double? get endFuel => asDoubleOrNull(raw, <String>['end_fuel', 'endFuel', 'endingFuel', 'end_fuel_level', 'endFuelLevel']);
+  double? get consumption => asDoubleOrNull(raw, <String>['consumption', 'fuelConsumption', 'fuel_used', 'fuelUsed', 'totalConsumption', 'total_consumption']);
+  double? get filling => asDoubleOrNull(raw, <String>['filling', 'fuelFilling', 'fuelFilled', 'refuels', 'refuel', 'totalFilling', 'total_filling']);
+  double? get theft => asDoubleOrNull(raw, <String>['theft', 'fuelTheft', 'thefts', 'drain', 'totalTheft', 'total_theft']);
+  double? get kmpl => asDoubleOrNull(raw, <String>['kmpl', 'mileage', 'average']);
+  double? get lph => asDoubleOrNull(raw, <String>['lph', 'litresPerHour', 'avg_fuel_consumption_hourly']);
+  String? get fromLocation => asStringOrNull(raw, <String>['startAddress', 'start_address', 'fromLocation', 'from_location', 'origin']);
+  String? get toLocation => asStringOrNull(raw, <String>['endAddress', 'end_address', 'toLocation', 'to_location', 'destination']);
 
   int get tripCount => asInt(raw, <String>['trip_count', 'tripCount', 'trips', 'totalTrips']);
   int get stoppageCount => asInt(raw, <String>['stoppage_count', 'stoppageCount', 'stoppages', 'totalStops']);

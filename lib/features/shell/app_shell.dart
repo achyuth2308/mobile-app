@@ -10,6 +10,7 @@ import '../../data/models/alert.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../core/utils/formatters.dart';
+import '../live_map/providers/live_map_providers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
 
@@ -180,6 +181,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final int index = widget.navigationShell.currentIndex;
+    final String? activeFollowingId = ref.watch(activeFollowingVehicleIdProvider);
 
     return Scaffold(
       extendBody: true,
@@ -188,6 +190,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         currentIndex: index,
         onTap: _onTap,
         theme: theme,
+        activeFollowingVehicleId: activeFollowingId,
       ),
     );
   }
@@ -198,24 +201,66 @@ class _FloatingNavBar extends StatelessWidget {
     required this.currentIndex,
     required this.onTap,
     required this.theme,
+    this.activeFollowingVehicleId,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
   final ThemeData theme;
-
-  static const List<_NavItem> _items = <_NavItem>[
-    _NavItem('Fleet', Icons.dashboard_outlined, Icons.dashboard_rounded),
-    _NavItem('Live Map', Icons.map_outlined, Icons.map_rounded),
-    _NavItem('Reports', Icons.insights_outlined, Icons.insights_rounded),
-    _NavItem('Trips', Icons.route_outlined, Icons.route_rounded),
-    _NavItem('Account', Icons.person_outline_rounded, Icons.person_rounded),
-  ];
+  final String? activeFollowingVehicleId;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = theme.colorScheme;
     final double bottomInset = MediaQuery.paddingOf(context).bottom;
+
+    // Dynamically build nav items
+    final List<_NavItemData> navItems = [
+      const _NavItemData(
+        label: 'Fleet',
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard_rounded,
+        branchIndex: 0,
+      ),
+      const _NavItemData(
+        label: 'Live Map',
+        icon: Icons.map_outlined,
+        activeIcon: Icons.map_rounded,
+        branchIndex: 1,
+      ),
+    ];
+
+    if (activeFollowingVehicleId != null) {
+      navItems.add(
+        const _NavItemData(
+          label: 'Details',
+          icon: Icons.info_outline_rounded,
+          activeIcon: Icons.info_rounded,
+          isDetails: true,
+        ),
+      );
+    }
+
+    navItems.addAll([
+      const _NavItemData(
+        label: 'Reports',
+        icon: Icons.insights_outlined,
+        activeIcon: Icons.insights_rounded,
+        branchIndex: 2,
+      ),
+      const _NavItemData(
+        label: 'Trips',
+        icon: Icons.route_outlined,
+        activeIcon: Icons.route_rounded,
+        branchIndex: 3,
+      ),
+      const _NavItemData(
+        label: 'Account',
+        icon: Icons.person_outline_rounded,
+        activeIcon: Icons.person_rounded,
+        branchIndex: 4,
+      ),
+    ]);
 
     return Container(
       margin:
@@ -236,9 +281,9 @@ class _FloatingNavBar extends StatelessWidget {
         ],
       ),
       child: Row(
-        children: List<Widget>.generate(_items.length, (int i) {
-          final _NavItem item = _items[i];
-          final bool selected = i == currentIndex;
+        children: List<Widget>.generate(navItems.length, (int i) {
+          final _NavItemData item = navItems[i];
+          final bool selected = !item.isDetails && item.branchIndex == currentIndex;
 
           return Expanded(
             child: Semantics(
@@ -246,7 +291,13 @@ class _FloatingNavBar extends StatelessWidget {
               selected: selected,
               label: item.label,
               child: InkWell(
-                onTap: () => onTap(i),
+                onTap: () {
+                  if (item.isDetails) {
+                    context.push('/vehicle/$activeFollowingVehicleId');
+                  } else if (item.branchIndex != null) {
+                    onTap(item.branchIndex!);
+                  }
+                },
                 borderRadius: Corners.rLg,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -296,9 +347,18 @@ class _FloatingNavBar extends StatelessWidget {
   }
 }
 
-class _NavItem {
-  const _NavItem(this.label, this.icon, this.activeIcon);
+class _NavItemData {
+  const _NavItemData({
+    required this.label,
+    required this.icon,
+    required this.activeIcon,
+    this.branchIndex,
+    this.isDetails = false,
+  });
+
   final String label;
   final IconData icon;
   final IconData activeIcon;
+  final int? branchIndex;
+  final bool isDetails;
 }

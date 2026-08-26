@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/report_models.dart';
+import '../../../data/models/vehicle.dart';
+import '../../../providers/fleet_provider.dart';
 
 /// Async cell that fetches and displays the reverse-geocoded address.
 class AddressCell extends StatefulWidget {
@@ -70,9 +73,12 @@ class _AddressCellState extends State<AddressCell> {
 
   @override
   Widget build(BuildContext context) {
+    final double? containerWidth =
+        widget.maxWidth == double.infinity ? null : widget.maxWidth;
+
     if (_loading && _address == null) {
       return Container(
-        width: widget.maxWidth,
+        width: containerWidth,
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Text(
           'Fetching address...',
@@ -86,7 +92,7 @@ class _AddressCellState extends State<AddressCell> {
     }
 
     return Container(
-      width: widget.maxWidth,
+      width: containerWidth,
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Text(
         _address ?? 'Location unavailable',
@@ -196,135 +202,252 @@ class TableDataCell extends StatelessWidget {
 // 1. TRIP REPORT TABLE
 // ═════════════════════════════════════════════════════════════════
 class TripReportTable extends StatelessWidget {
-  const TripReportTable({required this.rows, super.key});
+  const TripReportTable({
+    required this.rows,
+    this.showVehicle = false,
+    super.key,
+  });
 
   final List<ReportRow> rows;
+  final bool showVehicle;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: DataTableTheme(
-        data: const DataTableThemeData(
-          headingRowColor: WidgetStatePropertyAll<Color>(Color(0xFFF8FAFC)),
-          horizontalMargin: 12,
-          columnSpacing: 16,
+    if (rows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
-        child: Table(
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          columnWidths: const <int, TableColumnWidth>{
-            0: FixedColumnWidth(170), // START TIME
-            1: FixedColumnWidth(230), // START ADDRESS
-            2: FixedColumnWidth(170), // END TIME
-            3: FixedColumnWidth(230), // END ADDRESS
-            4: FixedColumnWidth(160), // DURATION (HH:MM:SS)
-            5: FixedColumnWidth(110), // DISTANCE
-            6: FixedColumnWidth(110), // MAX SPEED
-            7: FixedColumnWidth(110), // AVG SPEED
-          },
-          children: <TableRow>[
-            const TableRow(
-              decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: rows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = rows[index];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                TableHeaderCell('START TIME'),
-                TableHeaderCell('START ADDRESS'),
-                TableHeaderCell('END TIME'),
-                TableHeaderCell('END ADDRESS'),
-                TableHeaderCell('DURATION (HH:MM:SS)'),
-                TableHeaderCell('DISTANCE', align: TextAlign.right),
-                TableHeaderCell('MAX SPEED', align: TextAlign.right),
-                TableHeaderCell('AVG SPEED', align: TextAlign.right),
+                // Header row (Vehicle Name & Duration)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    if (showVehicle)
+                      Row(
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.directions_car_rounded,
+                                size: 14, color: Color(0xFF2563EB)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            r.vehicleName ?? '-',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFAF5FF),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.electric_bolt_rounded,
+                                size: 14, color: Color(0xFF9333EA)),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Automated Trip',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        Fmt.durationWeb(r.durationSecVal),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Timeline (Start & End)
+                _buildTimelineRow(
+                  context: context,
+                  isStart: true,
+                  time: Fmt.dateTimeWeb(r.startTime),
+                  lat: r.startLat,
+                  lng: r.startLng,
+                  fallbackAddress: r.address,
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(left: 7, top: 2, bottom: 2),
+                  child: SizedBox(
+                    height: 12,
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1.5,
+                      color: Color(0xFFCBD5E1),
+                    ),
+                  ),
+                ),
+                _buildTimelineRow(
+                  context: context,
+                  isStart: false,
+                  time: Fmt.dateTimeWeb(r.endTime),
+                  lat: r.endLat,
+                  lng: r.endLng,
+                ),
+                
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+
+                // Stats Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat(
+                      label: 'DISTANCE',
+                      value: r.distanceTravelled != null
+                          ? '${r.distanceTravelled!.toStringAsFixed(r.distanceTravelled! < 10 ? 1 : 0)} km'
+                          : '-',
+                    ),
+                    _buildStat(
+                      label: 'MAX SPEED',
+                      value: r.maxSpeedVal != null
+                          ? '${r.maxSpeedVal!.round()} km/h'
+                          : '-',
+                    ),
+                    _buildStat(
+                      label: 'AVG SPEED',
+                      value: r.avgSpeedVal != null
+                          ? '${r.avgSpeedVal!.round()} km/h'
+                          : '-',
+                    ),
+                  ],
+                ),
               ],
             ),
-            ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
-              final int idx = entry.key;
-              final ReportRow r = entry.value;
-              final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+          ),
+        );
+      },
+    );
+  }
 
-              return TableRow(
-                decoration: BoxDecoration(color: rowColor),
-                children: <Widget>[
-                  TableDataCell(
-                    text: Fmt.dateTimeWeb(r.startTime),
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  TableDataCell(
-                    child: AddressCell(
-                      lat: r.startLat,
-                      lng: r.startLng,
-                      fallback: r.address,
-                      maxWidth: 220,
-                    ),
-                  ),
-                  TableDataCell(
-                    text: Fmt.dateTimeWeb(r.endTime),
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  TableDataCell(
-                    child: AddressCell(
-                      lat: r.endLat,
-                      lng: r.endLng,
-                      maxWidth: 220,
-                    ),
-                  ),
-                  TableDataCell(
-                    text: Fmt.durationWeb(r.durationSecVal),
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF475569),
-                    ),
-                  ),
-                  TableDataCell(
-                    text: r.distanceTravelled != null
-                        ? r.distanceTravelled!.toStringAsFixed(r.distanceTravelled! < 10 ? 1 : 0)
-                        : '-',
-                    align: TextAlign.right,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  TableDataCell(
-                    text: r.maxSpeedVal != null ? r.maxSpeedVal!.round().toString() : '-',
-                    align: TextAlign.right,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  TableDataCell(
-                    text: r.avgSpeedVal != null ? r.avgSpeedVal!.round().toString() : '-',
-                    align: TextAlign.right,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
-              );
-            }),
-          ],
+  Widget _buildTimelineRow({
+    required BuildContext context,
+    required bool isStart,
+    required String time,
+    required double? lat,
+    required double? lng,
+    String? fallbackAddress,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Marker indicator
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(
+            isStart ? Icons.radio_button_checked_rounded : Icons.location_on_rounded,
+            size: 15,
+            color: isStart ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+          ),
         ),
-      ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 2),
+              AddressCell(
+                lat: lat,
+                lng: lng,
+                fallback: fallbackAddress,
+                maxWidth: double.infinity,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStat({required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF94A3B8),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -333,12 +456,34 @@ class TripReportTable extends StatelessWidget {
 // 1b. MANUAL TRIP REPORT TABLE
 // ═════════════════════════════════════════════════════════════════
 class ManualTripReportTable extends StatelessWidget {
-  const ManualTripReportTable({required this.rows, super.key});
+  const ManualTripReportTable({
+    required this.rows,
+    this.showVehicle = false,
+    super.key,
+  });
 
   final List<ReportRow> rows;
+  final bool showVehicle;
 
   @override
   Widget build(BuildContext context) {
+    final Map<int, TableColumnWidth> widths = {
+      if (showVehicle) 0: const FixedColumnWidth(130), // VEHICLE
+      for (int i = 0; i < 9; i++)
+        (showVehicle ? i + 1 : i): switch (i) {
+          0 => const FixedColumnWidth(140), // STATUS
+          1 => const FixedColumnWidth(160), // TRIP NAME
+          2 => const FixedColumnWidth(150), // START TIME
+          3 => const FixedColumnWidth(200), // ORIGIN / START ADDR
+          4 => const FixedColumnWidth(150), // END TIME
+          5 => const FixedColumnWidth(200), // DESTINATION / END ADDR
+          6 => const FixedColumnWidth(160), // DURATION
+          7 => const FixedColumnWidth(100), // DISTANCE
+          8 => const FixedColumnWidth(100), // MAX SPEED
+          _ => const FixedColumnWidth(100),
+        },
+    };
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -350,30 +495,21 @@ class ManualTripReportTable extends StatelessWidget {
         ),
         child: Table(
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          columnWidths: const <int, TableColumnWidth>{
-            0: FixedColumnWidth(140), // STATUS
-            1: FixedColumnWidth(160), // TRIP NAME
-            2: FixedColumnWidth(150), // START TIME
-            3: FixedColumnWidth(200), // ORIGIN / START ADDR
-            4: FixedColumnWidth(150), // END TIME
-            5: FixedColumnWidth(200), // DESTINATION / END ADDR
-            6: FixedColumnWidth(160), // DURATION
-            7: FixedColumnWidth(100), // DISTANCE
-            8: FixedColumnWidth(100), // MAX SPEED
-          },
+          columnWidths: widths,
           children: <TableRow>[
-            const TableRow(
-              decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
+            TableRow(
+              decoration: const BoxDecoration(color: Color(0xFFF8FAFC)),
               children: <Widget>[
-                TableHeaderCell('STATUS'),
-                TableHeaderCell('TRIP NAME'),
-                TableHeaderCell('START TIME'),
-                TableHeaderCell('START / ORIGIN'),
-                TableHeaderCell('END TIME'),
-                TableHeaderCell('END / DESTINATION'),
-                TableHeaderCell('DURATION (HH:MM:SS)'),
-                TableHeaderCell('DISTANCE', align: TextAlign.right),
-                TableHeaderCell('MAX SPEED', align: TextAlign.right),
+                if (showVehicle) const TableHeaderCell('VEHICLE'),
+                const TableHeaderCell('STATUS'),
+                const TableHeaderCell('TRIP NAME'),
+                const TableHeaderCell('START TIME'),
+                const TableHeaderCell('START / ORIGIN'),
+                const TableHeaderCell('END TIME'),
+                const TableHeaderCell('END / DESTINATION'),
+                const TableHeaderCell('DURATION (HH:MM:SS)'),
+                const TableHeaderCell('DISTANCE', align: TextAlign.right),
+                const TableHeaderCell('MAX SPEED', align: TextAlign.right),
               ],
             ),
             ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
@@ -394,6 +530,15 @@ class ManualTripReportTable extends StatelessWidget {
               return TableRow(
                 decoration: BoxDecoration(color: rowColor),
                 children: <Widget>[
+                  if (showVehicle)
+                    TableDataCell(
+                      text: r.vehicleName ?? '-',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
                   TableDataCell(
                     text: statusStr,
                     style: TextStyle(
@@ -497,115 +642,135 @@ class DailyDistanceReportTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        columnWidths: const <int, TableColumnWidth>{
-          0: FixedColumnWidth(150), // VEHICLE NAME
-          1: FixedColumnWidth(130), // PLATE
-          2: FixedColumnWidth(120), // ORG
-          3: FixedColumnWidth(120), // DATE
-          4: FixedColumnWidth(140), // START ODOMETER
-          5: FixedColumnWidth(140), // END ODOMETER
-          6: FixedColumnWidth(170), // DISTANCE TRAVELLED (KM)
-          7: FixedColumnWidth(130), // POINTS LOGGED
-        },
-        children: <TableRow>[
-          const TableRow(
-            decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
-            children: <Widget>[
-              TableHeaderCell('VEHICLE NAME'),
-              TableHeaderCell('PLATE'),
-              TableHeaderCell('ORG'),
-              TableHeaderCell('DATE'),
-              TableHeaderCell('START ODOMETER', align: TextAlign.right),
-              TableHeaderCell('END ODOMETER', align: TextAlign.right),
-              TableHeaderCell('DISTANCE TRAVELLED (KM)', align: TextAlign.center),
-              TableHeaderCell('POINTS LOGGED', align: TextAlign.center),
-            ],
+    if (rows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
           ),
-          ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
-            final int idx = entry.key;
-            final ReportRow r = entry.value;
-            final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+        ),
+      );
+    }
 
-            return TableRow(
-              decoration: BoxDecoration(color: rowColor),
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: rows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = rows[index];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                TableDataCell(
-                  text: r.vehicleName ?? '-',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
+                // Header (Vehicle Name & Date)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            r.vehicleName ?? '-',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Plate: ${r.plate ?? "-"}  |  Org: ${r.orgName ?? "FuelTracks"}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        Fmt.dateWeb(r.date),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                TableDataCell(
-                  text: r.plate ?? '-',
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: Color(0xFF475569),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.orgName ?? 'FuelTracks',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                TableDataCell(
-                  text: Fmt.dateWeb(r.date),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.startOdometer != null ? r.startOdometer!.round().toString() : '-',
-                  align: TextAlign.right,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: Color(0xFF334155),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.endOdometer != null ? r.endOdometer!.round().toString() : '-',
-                  align: TextAlign.right,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: Color(0xFF334155),
-                  ),
-                ),
-                TableDataCell(
-                  text: '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
-                  align: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF10B981), // Green highlight
-                  ),
-                ),
-                TableDataCell(
-                  text: r.pointCount > 0 ? r.pointCount.toString() : '-',
-                  align: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: Color(0xFF475569),
-                  ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+
+                // Stats Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat(
+                      label: 'START ODOMETER',
+                      value: r.startOdometer != null ? '${r.startOdometer!.round()} km' : '-',
+                    ),
+                    _buildStat(
+                      label: 'END ODOMETER',
+                      value: r.endOdometer != null ? '${r.endOdometer!.round()} km' : '-',
+                    ),
+                    _buildStat(
+                      label: 'DISTANCE',
+                      value: '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
+                      isHighlight: true,
+                    ),
+                  ],
                 ),
               ],
-            );
-          }),
-        ],
-      ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStat({required String label, required String value, bool isHighlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF94A3B8),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isHighlight ? const Color(0xFF10B981) : const Color(0xFF0F172A),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1373,100 +1538,272 @@ class IndividualReportTable extends StatelessWidget {
 // 7. CONSOLIDATED REPORT TABLE
 // ═════════════════════════════════════════════════════════════════
 class ConsolidatedReportTable extends StatelessWidget {
-  const ConsolidatedReportTable({required this.rows, super.key});
+  const ConsolidatedReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
 
   final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
 
   @override
   Widget build(BuildContext context) {
-    if (rows.isEmpty) return const SizedBox.shrink();
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Table(
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        columnWidths: const <int, TableColumnWidth>{
-          0: FixedColumnWidth(150), // Vehicle Name
-          1: FixedColumnWidth(120), // Plate
-          2: FixedColumnWidth(140), // Total Distance
-          3: FixedColumnWidth(150), // Running Time (mins)
-          4: FixedColumnWidth(150), // Idle Time (mins)
-          5: FixedColumnWidth(160), // Stopped Time (mins)
-        },
-        children: <TableRow>[
-          const TableRow(
-            decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
-            children: <Widget>[
-              TableHeaderCell('Vehicle Name'),
-              TableHeaderCell('Plate'),
-              TableHeaderCell('Total Distance'),
-              TableHeaderCell('Running Time (mins)'),
-              TableHeaderCell('Idle Time (mins)'),
-              TableHeaderCell('Stopped Time (mins)'),
-            ],
+    if (rows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
           ),
-          ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
-            final int idx = entry.key;
-            final ReportRow r = entry.value;
-            final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+        ),
+      );
+    }
 
-            return TableRow(
-              decoration: BoxDecoration(color: rowColor),
+    final String dateText = '${Fmt.dateTimeFilter(startDate)}  →  ${Fmt.dateTimeFilter(endDate)}';
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: rows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = rows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                TableDataCell(
-                  text: r.vehicleName ?? '-',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF111827),
-                  ),
+                // Header (Vehicle Name & Period)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            vName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Plate: $vPlate',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Consolidated',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF2563EB),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                TableDataCell(
-                  text: r.plate ?? '-',
+                const SizedBox(height: 8),
+                Text(
+                  'Period: $dateText',
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF475569),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.distanceTravelled?.toStringAsFixed(0) ?? '0',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF475569),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.runningMins.toString(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF10B981),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.idleMins.toString(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFF59E0B),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.stoppedMins.toString(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
                     color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
+
+                // 1. Operational Times
+                const Text(
+                  'OPERATIONAL SUMMARY',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat('DISTANCE', '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km'),
+                    _buildStat('RUNNING TIME', '${r.runningMins}m'),
+                    _buildStat('STOPPING TIME', '${r.stoppedMins}m'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat('IDLE TIME', '${r.idleMins}m'),
+                    _buildStat('ENGINE ON', '${r.engineOnHours.toStringAsFixed(1)} h'),
+                    const SizedBox(width: 100), // spacer alignment
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
+
+                // 2. Fuel Details
+                const Text(
+                  'FUEL & EFFICIENCY',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat('START FUEL', r.startFuel != null ? '${r.startFuel!.toStringAsFixed(1)} L' : '-'),
+                    _buildStat('END FUEL', r.endFuel != null ? '${r.endFuel!.toStringAsFixed(1)} L' : '-'),
+                    _buildStat('CONSUMPTION', r.consumption != null ? '${r.consumption!.toStringAsFixed(1)} L' : '-'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat('FILLING', r.filling != null ? '${r.filling!.toStringAsFixed(1)} L' : '-'),
+                    _buildStat('THEFT / DRAIN', r.theft != null ? '${r.theft!.toStringAsFixed(1)} L' : '-'),
+                    _buildStat('KMPL', r.kmpl != null ? '${r.kmpl!.toStringAsFixed(1)} km/l' : '-'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat('LPH', r.lph != null ? '${r.lph!.toStringAsFixed(1)} L/h' : '-'),
+                    const SizedBox(width: 100), // spacer alignment
+                    const SizedBox(width: 100), // spacer alignment
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
+
+                // 3. Locations
+                const Text(
+                  'LOCATION BOUNDS',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildLocationRow(context, 'From Location', r.fromLocation, r.startLat, r.startLng),
+                const SizedBox(height: 8),
+                _buildLocationRow(context, 'To Location', r.toLocation, r.endLat, r.endLng),
               ],
-            );
-          }),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStat(String label, String value) {
+    return SizedBox(
+      width: 100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLocationRow(
+    BuildContext context,
+    String label,
+    String? address,
+    double? lat,
+    double? lng,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        Expanded(
+          child: AddressCell(
+            lat: lat,
+            lng: lng,
+            fallback: address,
+            maxWidth: double.infinity,
+          ),
+        ),
+      ],
     );
   }
 }

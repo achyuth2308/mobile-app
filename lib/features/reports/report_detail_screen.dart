@@ -44,7 +44,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
     final DateTime now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
-    _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    _endDate = now;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_currentType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
@@ -72,7 +72,9 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     if (_currentType == newType) return;
     setState(() {
       _currentType = newType;
-      if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
+      if (newType == ReportType.consolidated) {
+        _vehicleId = null;
+      } else if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
         final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
         if (vehicles.isNotEmpty) {
           _vehicleId = vehicles.first.id;
@@ -451,15 +453,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   }
 
   Widget _buildTableForType(ReportType type, ReportResult res) {
+    final bool showVehicle = _vehicleId == null || _vehicleId!.isEmpty;
     final Vehicle? selectedVehicle = _vehicleId != null
         ? ref.read(fleetProvider).vehicles.where((v) => v.id == _vehicleId).firstOrNull
         : null;
 
     switch (type) {
       case ReportType.trip:
-        return TripReportTable(rows: res.rows);
+        return TripReportTable(rows: res.rows, showVehicle: showVehicle);
       case ReportType.manualTrip:
-        return ManualTripReportTable(rows: res.rows);
+        return ManualTripReportTable(rows: res.rows, showVehicle: showVehicle);
       case ReportType.distance:
         return DailyDistanceReportTable(rows: res.rows);
       case ReportType.overspeeding:
@@ -487,7 +490,12 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           fallbackPlate: selectedVehicle?.registrationNumber ?? selectedVehicle?.plate,
         );
       case ReportType.consolidated:
-        return ConsolidatedReportTable(rows: res.rows);
+        return ConsolidatedReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
       default:
         return GenericReportTable(result: res);
     }

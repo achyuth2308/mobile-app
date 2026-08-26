@@ -6,6 +6,8 @@ import '../../../data/models/report_models.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../providers/fleet_provider.dart';
 
+enum DatePreset { today, yesterday, last7days, last30days, custom }
+
 class ReportFilterBar extends ConsumerWidget {
   const ReportFilterBar({
     required this.type,
@@ -100,24 +102,129 @@ class ReportFilterBar extends ConsumerWidget {
     }
   }
 
+  DatePreset _detectPreset(DateTime s, DateTime e) {
+    final DateTime now = DateTime.now();
+    final DateTime todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0);
+
+    if (s.year == todayStart.year && s.month == todayStart.month && s.day == todayStart.day) {
+      return DatePreset.today;
+    }
+
+    final DateTime yStart = todayStart.subtract(const Duration(days: 1));
+    if (s.year == yStart.year && s.month == yStart.month && s.day == yStart.day) {
+      return DatePreset.yesterday;
+    }
+
+    final DateTime s7 = todayStart.subtract(const Duration(days: 7));
+    if (s.year == s7.year && s.month == s7.month && s.day == s7.day) {
+      return DatePreset.last7days;
+    }
+
+    final DateTime s30 = todayStart.subtract(const Duration(days: 30));
+    if (s.year == s30.year && s.month == s30.month && s.day == s30.day) {
+      return DatePreset.last30days;
+    }
+
+    return DatePreset.custom;
+  }
+
+  void _applyPreset(DatePreset preset, BuildContext context) {
+    final DateTime now = DateTime.now();
+    final DateTime todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0);
+    final DateTime todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    switch (preset) {
+      case DatePreset.today:
+        onDateRangeChanged(todayStart, todayEnd);
+        break;
+      case DatePreset.yesterday:
+        final DateTime yStart = todayStart.subtract(const Duration(days: 1));
+        final DateTime yEnd = DateTime(yStart.year, yStart.month, yStart.day, 23, 59, 59);
+        onDateRangeChanged(yStart, yEnd);
+        break;
+      case DatePreset.last7days:
+        final DateTime s7 = todayStart.subtract(const Duration(days: 7));
+        onDateRangeChanged(s7, todayEnd);
+        break;
+      case DatePreset.last30days:
+        final DateTime s30 = todayStart.subtract(const Duration(days: 30));
+        onDateRangeChanged(s30, todayEnd);
+        break;
+      case DatePreset.custom:
+        _pickDateOrTime(context);
+        break;
+    }
+  }
+
+  Widget _buildChip({
+    required BuildContext context,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    IconData? icon,
+  }) {
+    final Color activeColor = _getAccentColor(type);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? activeColor : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? activeColor : const Color(0xFFE2E8F0),
+            width: selected ? 1.5 : 1.0,
+          ),
+          boxShadow: selected
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (icon != null) ...<Widget>[
+              Icon(icon, size: 12, color: selected ? Colors.white : const Color(0xFF64748B)),
+              const SizedBox(width: 4),
+            ] else if (selected) ...<Widget>[
+              const Icon(Icons.check_rounded, size: 12, color: Colors.white),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                color: selected ? Colors.white : const Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
-    final Vehicle? selected = vehicleId == null
-        ? null
-        : vehicles.cast<Vehicle?>().firstWhere(
-              (Vehicle? v) => v?.id == vehicleId,
-              orElse: () => null,
-            );
-
     final bool isTrip = type == ReportType.trip || type == ReportType.manualTrip;
     final String dateText = isTrip
         ? '${Fmt.dateTimeFilter(startDate)}   →   ${Fmt.dateTimeFilter(endDate)}'
         : '${Fmt.dateWeb(startDate)}   →   ${Fmt.dateWeb(endDate)}';
 
+    final DatePreset preset = _detectPreset(startDate, endDate);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -134,176 +241,216 @@ class ReportFilterBar extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           if (isTrip && onTypeChanged != null) ...<Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<ReportType>(
-                  value: type,
-                  isExpanded: true,
-                  icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF64748B)),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF334155),
-                    fontWeight: FontWeight.w600,
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => onTypeChanged!(ReportType.trip),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      decoration: BoxDecoration(
+                        color: type == ReportType.trip
+                            ? const Color(0xFF6366F1)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          bottomLeft: Radius.circular(8),
+                        ),
+                        border: Border.all(
+                          color: type == ReportType.trip
+                              ? const Color(0xFF6366F1)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                            Icons.electric_bolt_rounded,
+                            size: 14,
+                            color: type == ReportType.trip
+                                ? Colors.white
+                                : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Automated',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: type == ReportType.trip
+                                    ? Colors.white
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  items: const <DropdownMenuItem<ReportType>>[
-                    DropdownMenuItem<ReportType>(
-                      value: ReportType.trip,
-                      child: Text('Automated Trips (Ignition)'),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => onTypeChanged!(ReportType.manualTrip),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      decoration: BoxDecoration(
+                        color: type == ReportType.manualTrip
+                            ? const Color(0xFF6366F1)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(8),
+                          bottomRight: Radius.circular(8),
+                        ),
+                        border: Border.all(
+                          color: type == ReportType.manualTrip
+                              ? const Color(0xFF6366F1)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                            Icons.edit_road_rounded,
+                            size: 14,
+                            color: type == ReportType.manualTrip
+                                ? Colors.white
+                                : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Manual',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: type == ReportType.manualTrip
+                                    ? Colors.white
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    DropdownMenuItem<ReportType>(
-                      value: ReportType.manualTrip,
-                      child: Text('Manual Trips (Routes)'),
-                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Inline Vehicle Picker
+          if (type != ReportType.consolidated) ...<Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'VEHICLE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    if (!requiresVehicle)
+                      _buildChip(
+                        context: context,
+                        label: 'All Vehicles',
+                        selected: vehicleId == null,
+                        onTap: () => onVehicleChanged(null),
+                      ),
+                    ...vehicles.map((Vehicle v) => _buildChip(
+                          context: context,
+                          label: v.displayName,
+                          selected: vehicleId == v.id,
+                          onTap: () => onVehicleChanged(v.id),
+                        )),
                   ],
-                  onChanged: (ReportType? val) {
-                    if (val != null) onTypeChanged!(val);
-                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Inline Date Preset Picker
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'DATE FILTER',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF64748B),
+                  letterSpacing: 0.5,
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          // Vehicle Picker Row
-          InkWell(
-            onTap: () => _pickVehicle(context, vehicles),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: _getAccentColor(type).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(
-                      Icons.directions_car_rounded,
-                      size: 16,
-                      color: _getAccentColor(type),
-                    ),
+                  _buildChip(
+                    context: context,
+                    label: 'Today',
+                    selected: preset == DatePreset.today,
+                    onTap: () => _applyPreset(DatePreset.today, context),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'VEHICLE',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.grey.shade600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          selected != null
-                              ? (selected.name.isNotEmpty && selected.name != selected.registrationNumber
-                                  ? '${selected.displayName} (${selected.name})'
-                                  : selected.displayName)
-                              : (requiresVehicle ? 'Select a vehicle *' : 'All Vehicles'),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: selected == null && requiresVehicle
-                                ? const Color(0xFFDC2626)
-                                : const Color(0xFF0F172A),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+                  _buildChip(
+                    context: context,
+                    label: 'Yesterday',
+                    selected: preset == DatePreset.yesterday,
+                    onTap: () => _applyPreset(DatePreset.yesterday, context),
                   ),
-                  const Icon(
-                    Icons.arrow_drop_down_rounded,
-                    color: Color(0xFF64748B),
-                    size: 24,
+                  _buildChip(
+                    context: context,
+                    label: 'Last 7 Days',
+                    selected: preset == DatePreset.last7days,
+                    onTap: () => _applyPreset(DatePreset.last7days, context),
+                  ),
+                  _buildChip(
+                    context: context,
+                    label: 'Last 30 Days',
+                    selected: preset == DatePreset.last30days,
+                    onTap: () => _applyPreset(DatePreset.last30days, context),
+                  ),
+                  _buildChip(
+                    context: context,
+                    label: preset == DatePreset.custom ? 'Custom' : 'Custom Range...',
+                    selected: preset == DatePreset.custom,
+                    onTap: () => _applyPreset(DatePreset.custom, context),
+                    icon: Icons.edit_calendar_rounded,
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                'Active: $dateText',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
 
-          const SizedBox(height: 10),
-
-          // Date / Date-Time Picker Row
-          InkWell(
-            onTap: () => _pickDateOrTime(context),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0284C7).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.calendar_today_rounded,
-                      size: 16,
-                      color: Color(0xFF0284C7),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          isTrip ? 'START & END DATE / TIME' : 'DATE RANGE',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.grey.shade600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          dateText,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.edit_calendar_rounded,
-                    color: Color(0xFF64748B),
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           // Generate Button with Web Gradient
           SizedBox(

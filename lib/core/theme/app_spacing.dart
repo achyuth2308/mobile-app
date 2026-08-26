@@ -23,7 +23,7 @@ class Gap {
   static const EdgeInsets cardTight = EdgeInsets.all(md);
 
   /// Bottom padding that clears the floating nav bar + safe area.
-  static const double navClearance = 108;
+  static const double navClearance = 170;
 }
 
 /// Corner radius tokens — generous, Material 3 "expressive" feel.

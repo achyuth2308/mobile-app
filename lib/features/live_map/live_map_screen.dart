@@ -57,6 +57,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   /// India-centred default until the first fix arrives.
   static const LatLng _fallbackCenter = LatLng(17.385, 78.4867);
 
+  void _setFollowingId(String? id) {
+    if (!mounted) return;
+    setState(() {
+      _followingId = id;
+    });
+    ref.read(activeFollowingVehicleIdProvider.notifier).state = id;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +72,18 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _followingId = widget.focusVehicleId;
     _pendingFocusId = widget.focusVehicleId;
     _style = MapStyleX.fromKey(ref.read(secureStoreProvider).mapType);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(activeFollowingVehicleIdProvider.notifier).state = widget.focusVehicleId;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // Clear active following vehicle globally
+    ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+    super.dispose();
   }
 
   @override
@@ -95,8 +115,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
     if (target != null) {
       _pendingFocusId = null;
+      _setFollowingId(target.id);
       setState(() {
-        _followingId = target.id;
         _selectedId = target.id;
       });
 
@@ -111,7 +131,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         vehicles.where((Vehicle v) => v.hasLocation).toList();
     if (located.isEmpty || !_mapReady) return;
 
-    setState(() => _followingId = null);
+    _setFollowingId(null);
 
     if (located.length == 1) {
       _move(
@@ -151,7 +171,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         vehicleId: v.id,
         isFollowing: _followingId == v.id,
         onToggleFollow: () {
-          setState(() => _followingId = _followingId == v.id ? null : v.id);
+          _setFollowingId(_followingId == v.id ? null : v.id);
           Navigator.pop(ctx);
           if (_followingId != null) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -348,7 +368,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               locatedCount: located,
               totalCount: vehicles.length,
               followingName: following?.displayName,
-              onStopFollowing: () => setState(() => _followingId = null),
+              onStopFollowing: () => _setFollowingId(null),
               onRecenter: following != null && following.hasLocation
                   ? () => _move(
                         LatLng(following.latitude!, following.longitude!),
@@ -359,6 +379,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
           ),
 
           if (following != null) NavigationHUD(vehicle: following),
+
 
           Positioned(
             top: MediaQuery.paddingOf(context).top + 70,

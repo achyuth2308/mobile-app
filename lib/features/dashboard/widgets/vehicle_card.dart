@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -8,8 +10,10 @@ import '../../../core/utils/vehicle_icons.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/live_address.dart';
+import '../../../providers/core_providers.dart';
+import '../../../data/repositories/vehicle_repository.dart';
 
-class VehicleCard extends StatelessWidget {
+class VehicleCard extends ConsumerWidget {
   const VehicleCard({
     required this.vehicle,
     required this.onTap,
@@ -28,7 +32,7 @@ class VehicleCard extends StatelessWidget {
   final bool minimal;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
@@ -200,20 +204,21 @@ class VehicleCard extends StatelessWidget {
                                       crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
                                         const Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Colors.green),
-                                        Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
-                                            Text(
-                                              '${vehicle.satellites ?? 0}',
-                                              style: const TextStyle(
-                                                fontSize: 8,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.grey,
+                                        if (vehicle.satellites != null)
+                                          Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
+                                              Text(
+                                                '${vehicle.satellites}',
+                                                style: const TextStyle(
+                                                  fontSize: 8,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.grey,
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          ),
                                       ],
                                     ),
                                   ],
@@ -281,20 +286,21 @@ class VehicleCard extends StatelessWidget {
                                       crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
                                         const Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Colors.green),
-                                        Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
-                                            Text(
-                                              '${vehicle.satellites ?? 0}',
-                                              style: const TextStyle(
-                                                fontSize: 8,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.grey,
+                                        if (vehicle.satellites != null)
+                                          Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              const Icon(Icons.gps_not_fixed_rounded, size: 20, color: Colors.grey),
+                                              Text(
+                                                '${vehicle.satellites}',
+                                                style: const TextStyle(
+                                                  fontSize: 8,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.grey,
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          ),
                                       ],
                                     ),
                                   ],
@@ -336,7 +342,7 @@ class VehicleCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: IconButton(
-                    icon: Icon(Icons.navigation_rounded, color: theme.colorScheme.primary, size: 20),
+                    icon: Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 20),
                     onPressed: onTrack,
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(8),
@@ -349,13 +355,71 @@ class VehicleCard extends StatelessWidget {
       ),
     );
 
+    void showDebugDialog() async {
+      // Show loading indicator dialog
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext ctx) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        final VehicleRepository vehicleRepo = ref.read(vehicleRepositoryProvider);
+        final Vehicle detailedVehicle = await vehicleRepo.getVehicle(vehicle.id);
+        if (!context.mounted) return;
+        Navigator.pop(context); // Dismiss loading dialog
+
+        showDialog<void>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            title: Text('${vehicle.name} Detailed Raw JSON'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 450,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  JsonEncoder.withIndent("  ").convert(detailedVehicle.raw),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        Navigator.pop(context); // Dismiss loading dialog
+        showDialog<void>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('Failed to load detailed vehicle data: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
     if (glass) {
       return Padding(
         padding: EdgeInsets.only(bottom: dense ? Gap.md : Gap.lg),
-        child: GlassCard(
-          padding: EdgeInsets.zero,
-          onTap: onTap,
-          child: content,
+        child: GestureDetector(
+          onLongPress: showDebugDialog,
+          child: GlassCard(
+            padding: EdgeInsets.zero,
+            onTap: onTap,
+            child: content,
+          ),
         ),
       );
     }
@@ -384,6 +448,7 @@ class VehicleCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onTap,
+        onLongPress: showDebugDialog,
         borderRadius: Corners.rLg,
         child: content,
       ),

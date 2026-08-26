@@ -5,6 +5,8 @@ import '../../../data/models/trip.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 
+final activeFollowingVehicleIdProvider = StateProvider<String?>((ref) => null);
+
 class VehicleDailyData {
   const VehicleDailyData({
     required this.route,

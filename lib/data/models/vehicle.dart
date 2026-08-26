@@ -56,9 +56,11 @@ class Vehicle extends Equatable {
     this.todayDistanceKm,
     this.isActive = true,
     this.rawStatus,
+    this.raw = const <String, dynamic>{},
     this.isImmobilized = false,
   });
 
+  final Map<String, dynamic> raw;
   final String id;
   final String name;
   final String registrationNumber;
@@ -472,12 +474,27 @@ class Vehicle extends Equatable {
               ?.round() ??
           asDoubleOrNull(srcAttrs, <String>['gsm', 'gsmSignal', 'signal'])
               ?.round(),
-      satellites:
-          asDoubleOrNull(src, <String>['satellites', 'sats', 'gpsSatellites'])
-                  ?.round() ??
-              asDoubleOrNull(
-                      srcAttrs, <String>['satellites', 'sats', 'gpsSatellites'])
-                  ?.round(),
+      satellites: () {
+        const List<String> satKeys = <String>[
+          'satellites',
+          'sats',
+          'gpsSatellites',
+          'sat',
+          'sat_count',
+          'satcount',
+          'satellite',
+          'satelliteCount',
+          'satellite_count',
+          'satsCount',
+          'gps_satellites',
+        ];
+        return asDoubleOrNull(src, satKeys)?.round() ??
+            asDoubleOrNull(srcAttrs, satKeys)?.round() ??
+            asDoubleOrNull(json, satKeys)?.round() ??
+            asDoubleOrNull(jsonAttrs, satKeys)?.round() ??
+            asDoubleOrNull(device, satKeys)?.round() ??
+            asDoubleOrNull(deviceAttrs, satKeys)?.round();
+      }(),
       address: asStringOrNull(src, <String>['address', 'location', 'place']) ??
           asStringOrNull(json, <String>['address', 'lastAddress']),
       lastPacketAt: asDate(src, <String>[
@@ -567,6 +584,7 @@ class Vehicle extends Equatable {
       isActive: asBool(json, <String>['isActive', 'active', 'enabled'],
           fallback: true),
       rawStatus: parsedStatus,
+      raw: json,
     );
   }
 
@@ -620,6 +638,7 @@ class Vehicle extends Equatable {
       lastPacketAt: incoming.lastPacketAt ?? DateTime.now(),
       todayDistanceKm: incoming.todayDistanceKm ?? todayDistanceKm,
       rawStatus: incoming.rawStatus ?? rawStatus,
+    raw: <String, dynamic>{...raw, ...frame},
     );
   }
 
@@ -646,6 +665,8 @@ class Vehicle extends Equatable {
     double? todayDistanceKm,
     bool? isActive,
     String? rawStatus,
+    Map<String, dynamic>? raw,
+    bool? isImmobilized,
   }) =>
       Vehicle(
         id: id,
@@ -675,6 +696,8 @@ class Vehicle extends Equatable {
         todayDistanceKm: todayDistanceKm ?? this.todayDistanceKm,
         isActive: isActive ?? this.isActive,
         rawStatus: rawStatus ?? this.rawStatus,
+        raw: raw ?? this.raw,
+        isImmobilized: isImmobilized ?? this.isImmobilized,
       );
 
   @override

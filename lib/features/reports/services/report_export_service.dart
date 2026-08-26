@@ -154,19 +154,39 @@ class ReportExportService {
         csvData.add(<dynamic>[
           'Vehicle Name',
           'Plate',
-          'Total Distance',
+          'Distance Travelled (km)',
           'Running Time (mins)',
+          'Stopping Time (mins)',
           'Idle Time (mins)',
-          'Stopped Time (mins)',
+          'Engine On Hours',
+          'Starting Fuel (L)',
+          'Ending Fuel (L)',
+          'Consumption (L)',
+          'Filling (L)',
+          'Theft (L)',
+          'KMPL',
+          'LPH (L/h)',
+          'From Location',
+          'To Location',
         ]);
         for (final ReportRow r in rows) {
           csvData.add(<dynamic>[
             r.vehicleName ?? '-',
             r.plate ?? '-',
-            r.distanceTravelled?.toStringAsFixed(0) ?? '0',
+            r.distanceTravelled?.toStringAsFixed(1) ?? '0',
             r.runningMins,
-            r.idleMins,
             r.stoppedMins,
+            r.idleMins,
+            r.engineOnHours.toStringAsFixed(2),
+            r.startFuel?.toStringAsFixed(1) ?? '',
+            r.endFuel?.toStringAsFixed(1) ?? '',
+            r.consumption?.toStringAsFixed(1) ?? '',
+            r.filling?.toStringAsFixed(1) ?? '',
+            r.theft?.toStringAsFixed(1) ?? '',
+            r.kmpl?.toStringAsFixed(1) ?? '',
+            r.lph?.toStringAsFixed(1) ?? '',
+            r.fromLocation ?? '',
+            r.toLocation ?? '',
           ]);
         }
         break;

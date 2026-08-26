@@ -79,33 +79,39 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
     // Arrow size: big and bold
     final double size = selected ? 64.0 : 52.0;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.showLabel) ...[
-          _Label(
-            text: widget.vehicle.displayName,
-            color: AppColors.forStatus(widget.vehicle.status.key),
-          ),
-          const SizedBox(height: 4),
-        ],
-
-        AnimatedBuilder(
-          animation: _rotation,
-          builder: (context, _) {
-            return Transform.rotate(
-              angle: _rotation.value * math.pi / 180,
-              child: CustomPaint(
-                size: Size(size, size),
-                painter: _ArrowHeadPainter(
-                  status: widget.vehicle.status,
-                  selected: selected,
-                ),
+    return ClipRect(
+      child: OverflowBox(
+        alignment: Alignment.topCenter,
+        maxHeight: double.infinity,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.showLabel) ...[
+              _Label(
+                text: widget.vehicle.displayName,
+                color: AppColors.forStatus(widget.vehicle.status.key),
               ),
-            );
-          },
+              const SizedBox(height: 4),
+            ],
+
+            AnimatedBuilder(
+              animation: _rotation,
+              builder: (context, _) {
+                return Transform.rotate(
+                  angle: _rotation.value * math.pi / 180,
+                  child: CustomPaint(
+                    size: Size(size, size),
+                    painter: _ArrowHeadPainter(
+                      status: widget.vehicle.status,
+                      selected: selected,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

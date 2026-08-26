@@ -52,7 +52,7 @@ final Provider<AlertRepository> alertRepositoryProvider =
 
 final Provider<ReportRepository> reportRepositoryProvider =
     Provider<ReportRepository>(
-        (Ref ref) => ReportRepository(ref.watch(apiClientProvider)));
+        (Ref ref) => ReportRepository(ref.watch(apiClientProvider), ref));
 
 final Provider<GeofenceRepository> geofenceRepositoryProvider =
     Provider<GeofenceRepository>(

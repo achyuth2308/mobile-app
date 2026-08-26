@@ -250,10 +250,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     return VehicleCard(
                       key: ValueKey<String>(v.id),
                       vehicle: v,
-                      onTap: () => context.push('/vehicle/${v.id}'),
-                      onTrack: v.hasLocation
+                      onTap: v.hasLocation
                           ? () => context.go('/map?focus=${v.id}')
-                          : null,
+                          : () {},
+                      onTrack: () => context.push('/vehicle/${v.id}'),
                     );
                   },
                 ),
