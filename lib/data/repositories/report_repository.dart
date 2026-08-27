@@ -378,7 +378,18 @@ class ReportRepository {
 
     debugPrint('API RESPONSE FOR ${type.name}: $filteredRes');
 
-    return ReportResult.parse(filteredRes);
+    final ReportResult parsed = ReportResult.parse(filteredRes);
+    if (type == ReportType.trip) {
+      final List<ReportRow> filteredRows = parsed.rows
+          .where((ReportRow row) => (row.distanceTravelled ?? 0.0) > 0.0)
+          .toList();
+      return ReportResult(
+        rows: filteredRows,
+        summary: ReportSummary.fromRows(filteredRows),
+        columns: parsed.columns,
+      );
+    }
+    return parsed;
   }
 
   dynamic _filterPayloadByVehicle(dynamic payload, String vehicleId) {
