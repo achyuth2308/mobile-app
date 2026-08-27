@@ -356,6 +356,12 @@ class TripReportTable extends StatelessWidget {
                           : '-',
                     ),
                     _buildStat(
+                      label: 'MOVING TIME',
+                      value: r.movingSeconds != null
+                          ? Fmt.durationWeb(r.movingSeconds)
+                          : '-',
+                    ),
+                    _buildStat(
                       label: 'MAX SPEED',
                       value: r.maxSpeedVal != null
                           ? '${r.maxSpeedVal!.round()} km/h'

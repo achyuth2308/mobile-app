@@ -146,6 +146,16 @@ class ReportRow extends Equatable {
   int? get durationSecVal => asDoubleOrNull(raw, <String>['duration_seconds', 'durationSeconds', 'duration'])?.round() ?? durationSeconds;
 
   int? get runningSeconds => asDoubleOrNull(raw, <String>['running_seconds', 'runningSeconds', 'runningTime'])?.round();
+  int? get movingSeconds {
+    final int? runSec = runningSeconds;
+    if (runSec != null && runSec > 0) return runSec;
+    final double dist = distanceTravelled ?? 0.0;
+    final double avgSpeed = avgSpeedVal ?? 0.0;
+    if (dist > 0 && avgSpeed > 0) {
+      return ((dist / avgSpeed) * 3600).round();
+    }
+    return null;
+  }
   int? get idleSeconds => asDoubleOrNull(raw, <String>['idle_seconds', 'idleSeconds', 'idleTime'])?.round();
   int? get stoppedSeconds => asDoubleOrNull(raw, <String>['stopped_seconds', 'stoppedSeconds', 'stoppedTime'])?.round();
 
