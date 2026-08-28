@@ -170,6 +170,11 @@ class FleetController extends Notifier<FleetState> {
         clearError: true,
       );
 
+      final SocketService socket = ref.read(socketServiceProvider);
+      for (final Vehicle v in merged) {
+        socket.joinVehicle(v.id);
+      }
+
       _startStaleTimer();
     } on ApiException catch (e) {
       state = state.copyWith(
