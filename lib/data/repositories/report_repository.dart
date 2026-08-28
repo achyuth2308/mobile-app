@@ -22,7 +22,8 @@ class ReportRepository {
     List<String>? vehicleIds,
     CancelToken? cancelToken,
   }) async {
-    // For reports with no vehicle selected, fetch all vehicles in parallel if it is not a fleet-wide consolidated/individual/routeHistory report
+    // For consolidated: always call the backend fleet-wide (it returns ALL vehicles in one query).
+    // Per-vehicle parallel calls would only return 1 row each, causing missing vehicles.
     final bool isFleetWideParallel = vehicleId == null &&
         type != ReportType.consolidated &&
         type != ReportType.individual &&
@@ -107,8 +108,9 @@ class ReportRepository {
       cancelToken: cancelToken,
     );
 
-    // Fallback: If fleet-wide consolidated report is empty, synthesize it by running in parallel for all vehicles.
-    if (type == ReportType.consolidated && vehicleId == null && singleRes.rows.isEmpty && vehicles.isNotEmpty) {
+    // Fallback: only for non-consolidated report types
+    if (type != ReportType.consolidated && type != ReportType.individual &&
+        vehicleId == null && singleRes.rows.isEmpty && vehicles.isNotEmpty) {
       final List<ReportResult> results = (await Future.wait(
         vehicles.map((Vehicle v) async {
           try {
@@ -170,137 +172,11 @@ class ReportRepository {
   }) async {
     ReportResult processedRes = res;
 
-    // 1. CONSOLIDATED ENRICHMENT & SYNTHESIS
+    // 1. CONSOLIDATED — backend already returns start_lat/end_lat/start_lng/end_lng.
+    // Just pass through. No extra trip fetch needed.
     if (type == ReportType.consolidated) {
-      if (processedRes.rows.isEmpty) {
-        try {
-          final ReportResult trips = await _fetch(
-            type: ReportType.trip,
-            start: start,
-            end: end,
-            vehicleId: id,
-            vehicle: vehicle,
-            cancelToken: cancelToken,
-          );
-
-          final int periodSeconds = end.difference(start).inSeconds;
-          final List<ReportRow> updatedRows = <ReportRow>[];
-
-          if (trips.rows.isNotEmpty) {
-            final double totalDistance = trips.rows.map((r) => r.distanceTravelled ?? 0.0).fold(0.0, (a, b) => a + b);
-            final int totalRunningSeconds = trips.rows.map((r) => r.durationSeconds ?? 0).fold(0, (a, b) => a + b);
-
-            final double? startFuel = trips.rows.first.startFuel;
-            final double? endFuel = trips.rows.last.endFuel;
-            final double totalConsumption = trips.rows.map((r) => r.consumption ?? 0.0).fold(0.0, (a, b) => a + b);
-            final double totalFilling = trips.rows.map((r) => r.filling ?? 0.0).fold(0.0, (a, b) => a + b);
-            final double totalTheft = trips.rows.map((r) => r.theft ?? 0.0).fold(0.0, (a, b) => a + b);
-
-            final int stoppedSeconds = (periodSeconds > totalRunningSeconds) ? (periodSeconds - totalRunningSeconds) : 0;
-
-            final Map<String, dynamic> syntheticRaw = <String, dynamic>{
-              'vehicle_id': id,
-              'vehicle_name': vehicle?.displayName ?? '',
-              'plate': vehicle?.registrationNumber ?? '',
-              'registrationNumber': vehicle?.registrationNumber ?? '',
-              'distance_travelled': totalDistance,
-              'running_seconds': totalRunningSeconds,
-              'stopped_seconds': stoppedSeconds,
-              'idle_seconds': 0,
-              'start_fuel': startFuel,
-              'end_fuel': endFuel,
-              'consumption': totalConsumption,
-              'filling': totalFilling,
-              'theft': totalTheft,
-              'start_lat': trips.rows.first.startLat,
-              'start_lng': trips.rows.first.startLng,
-              'end_lat': trips.rows.last.endLat,
-              'end_lng': trips.rows.last.endLng,
-              'from_location': trips.rows.first.fromLocation,
-              'to_location': trips.rows.last.toLocation,
-            };
-            updatedRows.add(ReportRow.fromJson(syntheticRaw));
-          } else {
-            final Map<String, dynamic> syntheticRaw = <String, dynamic>{
-              'vehicle_id': id,
-              'vehicle_name': vehicle?.displayName ?? '',
-              'plate': vehicle?.registrationNumber ?? '',
-              'registrationNumber': vehicle?.registrationNumber ?? '',
-              'distance_travelled': 0.0,
-              'running_seconds': 0,
-              'stopped_seconds': periodSeconds,
-              'idle_seconds': 0,
-              'start_fuel': vehicle?.fuelLevel,
-              'end_fuel': vehicle?.fuelLevel,
-              'consumption': 0.0,
-              'filling': 0.0,
-              'theft': 0.0,
-              'start_lat': vehicle?.latitude,
-              'start_lng': vehicle?.longitude,
-              'end_lat': vehicle?.latitude,
-              'end_lng': vehicle?.longitude,
-            };
-            updatedRows.add(ReportRow.fromJson(syntheticRaw));
-          }
-          processedRes = ReportResult(
-            rows: updatedRows,
-            summary: ReportSummary.fromRows(updatedRows),
-            columns: updatedRows.isEmpty ? <String>[] : updatedRows.first.cells.keys.toList(),
-          );
-        } catch (e) {
-          debugPrint('Failed to synthesize consolidated report for vehicle $id: $e');
-        }
-      } else {
-        try {
-          final ReportResult trips = await _fetch(
-            type: ReportType.trip,
-            start: start,
-            end: end,
-            vehicleId: id,
-            vehicle: vehicle,
-            cancelToken: cancelToken,
-          );
-          if (trips.rows.isNotEmpty) {
-            final ReportRow firstTrip = trips.rows.first;
-            final ReportRow lastTrip = trips.rows.last;
-            final List<ReportRow> updatedRows = <ReportRow>[];
-            for (final ReportRow row in processedRes.rows) {
-              final Map<String, dynamic> mutableRaw = Map<String, dynamic>.of(row.raw);
-              mutableRaw['start_lat'] = firstTrip.startLat;
-              mutableRaw['start_lng'] = firstTrip.startLng;
-              mutableRaw['end_lat'] = lastTrip.endLat;
-              mutableRaw['end_lng'] = lastTrip.endLng;
-              mutableRaw['from_location'] = firstTrip.fromLocation;
-              mutableRaw['to_location'] = lastTrip.toLocation;
-              updatedRows.add(ReportRow.fromJson(mutableRaw));
-            }
-            processedRes = ReportResult(
-              rows: updatedRows,
-              summary: ReportSummary.fromRows(updatedRows),
-              columns: updatedRows.isEmpty ? <String>[] : updatedRows.first.cells.keys.toList(),
-            );
-          } else {
-            if (vehicle != null && vehicle.latitude != null && vehicle.longitude != null) {
-              final List<ReportRow> updatedRows = <ReportRow>[];
-              for (final ReportRow row in processedRes.rows) {
-                final Map<String, dynamic> mutableRaw = Map<String, dynamic>.of(row.raw);
-                mutableRaw['start_lat'] = vehicle.latitude;
-                mutableRaw['start_lng'] = vehicle.longitude;
-                mutableRaw['end_lat'] = vehicle.latitude;
-                mutableRaw['end_lng'] = vehicle.longitude;
-                updatedRows.add(ReportRow.fromJson(mutableRaw));
-              }
-              processedRes = ReportResult(
-                rows: updatedRows,
-                summary: ReportSummary.fromRows(updatedRows),
-                columns: updatedRows.isEmpty ? <String>[] : updatedRows.first.cells.keys.toList(),
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint('Failed to enrich locations for vehicle $id: $e');
-        }
-      }
+      // Nothing to do — coordinates are already in the rows from the backend.
+      // The AddressCell widget will reverse-geocode them automatically.
     }
 
     // 2. DAILY DISTANCE ODOMETER BACK-CALCULATION
