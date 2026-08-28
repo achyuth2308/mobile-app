@@ -149,6 +149,11 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   
   // Track in-flight OSRM HTTP requests to prevent duplicate network calls (e.g. at 60fps)
   final Set<String> _inFlightRequests = {};
+  final Map<String, GlobalKey> _markerKeys = <String, GlobalKey>{};
+
+  GlobalKey _getMarkerKey(String id) {
+    return _markerKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'marker_$id'));
+  }
 
   @override
   void initState() {
@@ -265,7 +270,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
               onTap: () => widget.onSelectVehicle(v),
               child: Center(
                 child: AnimatedVehicleMarker(
-                  key: ValueKey<String>('anim_${v.id}'),
+                  key: _getMarkerKey(v.id),
                   point: LatLng(v.latitude!, v.longitude!),
                   heading: v.heading ?? 0.0,
                   status: v.status,
