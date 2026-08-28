@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../config/app_config.dart';
 
 class _GeocodeTask {
   _GeocodeTask(this.key, this.lat, this.lon, this.completer);
@@ -18,14 +20,15 @@ class Geocoder {
 
   static final Dio _dio = Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 4),
-      receiveTimeout: const Duration(seconds: 4),
-      validateStatus: (int? status) => true, // Don't throw on 4xx/5xx so console stays clean
+      connectTimeout: const Duration(seconds: 6),
+      receiveTimeout: const Duration(seconds: 6),
+      validateStatus: (int? status) => true,
     ),
   );
 
   /// Reverse geocodes coordinates to a human-readable address.
-  /// Uses ArcGIS with sequential queue pacing and deduplication to avoid 503 errors.
+  /// On Flutter Web, routes via our own backend proxy to avoid CORS issues
+  /// with ArcGIS. On mobile/desktop, calls ArcGIS directly.
   static Future<String> getAddress(double lat, double lon) {
     if (lat == 0 && lon == 0) return Future<String>.value('Location unavailable');
 
@@ -68,38 +71,56 @@ class Geocoder {
           continue;
         }
 
+        // Fallback: show coordinates if geocoding fails
         String result = '${task.lat.toStringAsFixed(4)}, ${task.lon.toStringAsFixed(4)}';
 
         try {
-          final Response<dynamic> res = await _dio.get(
-            'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode',
-            queryParameters: <String, dynamic>{
-              'location': '${task.lon},${task.lat}',
-              'f': 'json',
-            },
-          );
+          String? label;
 
-          if (res.statusCode == 200 && res.data != null && res.data is Map<String, dynamic>) {
-            final Map<String, dynamic> data = res.data as Map<String, dynamic>;
-            final Map<String, dynamic>? addressObj = data['address'] as Map<String, dynamic>?;
-            if (addressObj != null) {
-              final String? longLabel = addressObj['LongLabel']?.toString();
-              final String? matchAddr = addressObj['Match_addr']?.toString();
-              final String? address = addressObj['Address']?.toString();
-              final String? city = addressObj['City']?.toString();
+          if (kIsWeb) {
+            // On Flutter Web, ArcGIS blocks cross-origin requests.
+            // Route through our own backend proxy which has no CORS restrictions.
+            final String proxyUrl =
+                '${AppConfig.apiBaseUrl}/api/geocode/reverse'
+                '?lat=${task.lat}&lng=${task.lon}';
 
-              String parsed = longLabel ?? matchAddr ?? '';
-              if (parsed.isEmpty && address != null && address.isNotEmpty) {
-                parsed = city != null && city.isNotEmpty ? '$address, $city' : address;
-              }
+            final Response<dynamic> res = await _dio.get(proxyUrl);
+            if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+              label = (res.data as Map<String, dynamic>)['label']?.toString();
+            }
+          } else {
+            // Mobile / Desktop: call ArcGIS directly (no CORS restrictions)
+            final Response<dynamic> res = await _dio.get(
+              'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode',
+              queryParameters: <String, dynamic>{
+                'location': '${task.lon},${task.lat}',
+                'f': 'json',
+              },
+            );
 
-              if (parsed.isNotEmpty) {
-                result = parsed;
+            if (res.statusCode == 200 && res.data != null && res.data is Map<String, dynamic>) {
+              final Map<String, dynamic> data = res.data as Map<String, dynamic>;
+              final Map<String, dynamic>? addressObj = data['address'] as Map<String, dynamic>?;
+              if (addressObj != null) {
+                final String? longLabel = addressObj['LongLabel']?.toString();
+                final String? matchAddr = addressObj['Match_addr']?.toString();
+                final String? address = addressObj['Address']?.toString();
+                final String? city = addressObj['City']?.toString();
+
+                String parsed = longLabel ?? matchAddr ?? '';
+                if (parsed.isEmpty && address != null && address.isNotEmpty) {
+                  parsed = city != null && city.isNotEmpty ? '$address, $city' : address;
+                }
+                if (parsed.isNotEmpty) label = parsed;
               }
             }
           }
+
+          if (label != null && label.isNotEmpty) {
+            result = label;
+          }
         } catch (_) {
-          // Graceful fallback on network/timeout error
+          // Graceful fallback on network/timeout error — result stays as coordinates
         }
 
         _cache[task.key] = result;
@@ -108,14 +129,12 @@ class Geocoder {
           task.completer.complete(result);
         }
 
-        // Pacing delay (100ms) to ensure ArcGIS never rate-limits or returns 503
+        // Pacing delay to avoid rate-limits
         if (_queue.isNotEmpty) {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await Future<void>.delayed(const Duration(milliseconds: 150));
         }
       }
       _isProcessing = false;
     });
   }
 }
-
-
