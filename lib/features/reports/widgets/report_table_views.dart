@@ -1728,10 +1728,29 @@ class ConsolidatedReportTable extends StatelessWidget {
                     const SizedBox(width: 100), // spacer alignment
                   ],
                 ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
+
+                // 3. Locations
+                const Text(
+                  'LOCATION BOUNDS',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildLocationRow(context, 'From Location', r.fromLocation, r.startLat, r.startLng),
+                const SizedBox(height: 8),
+                _buildLocationRow(context, 'To Location', r.toLocation, r.endLat, r.endLng),
               ],
             ),
           ),
         );
+
       },
     );
   }
