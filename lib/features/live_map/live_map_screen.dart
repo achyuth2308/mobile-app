@@ -162,6 +162,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   void _selectVehicle(Vehicle v) {
     unawaited(HapticFeedback.selectionClick());
+    _setFollowingId(v.id);
     setState(() => _selectedId = v.id);
     _move(LatLng(v.latitude!, v.longitude!));
     _showPeek(v);
@@ -371,6 +372,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             },
             onUserInteracting: (interacting) {
               _userInteracting = interacting;
+              if (interacting && _followingId != null) {
+                // Break the camera lock when the user drags the map
+                _setFollowingId(null);
+              }
             },
             onTapMap: () {
               if (_selectedId != null) setState(() => _selectedId = null);

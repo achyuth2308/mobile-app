@@ -630,7 +630,7 @@ class Vehicle extends Equatable {
       ignition: hasExplicitIgnition ? incoming.ignition : ignition,
       isMoving: hasExplicitMotion ? incoming.isMoving : isMoving,
       odometer: incoming.odometer ?? odometer,
-      fuelLevel: incoming.fuelLevel ?? fuelLevel,
+      fuelLevel: (incoming.fuelLevel != null && incoming.fuelLevel! > 0) ? incoming.fuelLevel : fuelLevel,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
       gsmSignal: incoming.gsmSignal ?? gsmSignal,
       satellites: incoming.satellites ?? satellites,

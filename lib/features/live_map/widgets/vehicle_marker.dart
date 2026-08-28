@@ -108,15 +108,16 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
 
   @override
   Widget build(BuildContext context) {
-    final Color statusColor = _statusColor(widget.vehicle.status);
-    // Large glow circle (dominant) + small vehicle on top — matching web app
-    const double glowSize = 56.0;
-    const double vehicleSize = 26.0;
+    // Competitor style: Long truck/vehicle marker.
+    // Taller than it is wide.
+    const double vehicleWidth = 28.0;
+    const double vehicleHeight = 64.0;
 
     return ClipRect(
       child: OverflowBox(
-        alignment: Alignment.topCenter,
+        alignment: Alignment.center,
         maxHeight: double.infinity,
+        maxWidth: double.infinity,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -128,63 +129,30 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               const SizedBox(height: 4),
             ],
             SizedBox(
-              width: glowSize + 20,
-              height: glowSize + 20,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // ── Outer pulsing ripple (selected/followed vehicle) ──
-                  if (widget.selected)
-                    AnimatedBuilder(
-                      animation: _pulseController,
-                      builder: (context, _) => Transform.scale(
-                        scale: _pulseScale.value,
-                        child: Opacity(
-                          opacity: _pulseOpacity.value,
-                          child: Container(
-                            width: glowSize + 8,
-                            height: glowSize + 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: statusColor.withOpacity(0.30),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // ── Large translucent glow circle (main visual) ────────
-                  Container(
-                    width: glowSize,
-                    height: glowSize,
+              width: vehicleWidth,
+              height: vehicleHeight,
+              child: AnimatedBuilder(
+                animation: _rotation,
+                builder: (context, _) => Transform.rotate(
+                  // Face the direction of travel (North = 0)
+                  angle: _rotation.value * math.pi / 180,
+                  child: Container(
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: statusColor.withOpacity(0.28),
-                      border: Border.all(
-                        color: statusColor.withOpacity(0.55),
-                        width: 1.5,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: CustomPaint(
+                      painter: _CompactVehiclePainter(
+                        status: widget.vehicle.status,
                       ),
                     ),
                   ),
-
-                  // ── Small top-view vehicle icon (rotates with heading) ─
-                  AnimatedBuilder(
-                    animation: _rotation,
-                    builder: (context, _) => Transform.rotate(
-                      // +180° corrects bearing so front faces direction of travel
-                      angle: (_rotation.value + 180) * math.pi / 180,
-                      child: SizedBox(
-                        width: vehicleSize,
-                        height: vehicleSize,
-                        child: CustomPaint(
-                          painter: _CompactVehiclePainter(
-                            status: widget.vehicle.status,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -195,7 +163,7 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Small compact top-view vehicle icon — clean and minimal
+//  Realistic top-view Truck/Heavy Vehicle icon (Competitor style)
 // ─────────────────────────────────────────────────────────────────────────────
 class _CompactVehiclePainter extends CustomPainter {
   const _CompactVehiclePainter({required this.status});
@@ -204,14 +172,14 @@ class _CompactVehiclePainter extends CustomPainter {
   Color get _bodyColor {
     switch (status) {
       case VehicleStatus.moving:
-        return const Color(0xFF15803D);   // green
+        return const Color(0xFF22C55E);   // green
       case VehicleStatus.idle:
-        return const Color(0xFFA16207);   // dark yellow
+        return const Color(0xFFEAB308);   // yellow
       case VehicleStatus.stopped:
-        return const Color(0xFFC2410C);   // dark orange (parked)
+        return const Color(0xFFEF4444);   // red (matching competitor screenshot)
       case VehicleStatus.offline:
       default:
-        return const Color(0xFFB91C1C);   // dark red
+        return const Color(0xFF94A3B8);   // grey
     }
   }
 
@@ -219,59 +187,76 @@ class _CompactVehiclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
-    final double cx = w / 2;
+    
+    // Truck body (Long rectangle)
+    final Paint shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      
+    final RRect bodyRect = RRect.fromRectAndCorners(
+      Rect.fromLTWH(0, 0, w, h),
+      topLeft: Radius.circular(w * 0.15),
+      topRight: Radius.circular(w * 0.15),
+      bottomLeft: Radius.circular(w * 0.10),
+      bottomRight: Radius.circular(w * 0.10),
+    );
+    
+    // Draw shadow
+    canvas.drawRRect(bodyRect.shift(const Offset(2, 4)), shadowPaint);
 
-    // Vehicle body
-    final Paint body = Paint()..color = _bodyColor;
-    canvas.drawRRect(
-      RRect.fromRectAndCorners(
-        Rect.fromLTWH(cx - w * 0.32, h * 0.06, w * 0.64, h * 0.86),
-        topLeft: Radius.circular(w * 0.22),
-        topRight: Radius.circular(w * 0.22),
-        bottomLeft: Radius.circular(w * 0.10),
-        bottomRight: Radius.circular(w * 0.10),
-      ),
-      body,
+    // Draw main colored trailer/body
+    final Paint bodyPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          _bodyColor,
+          _bodyColor.withOpacity(0.8),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawRRect(bodyRect, bodyPaint);
+
+    // Draw front cabin (White block at the top)
+    final double cabinHeight = h * 0.22;
+    final RRect cabinRect = RRect.fromRectAndCorners(
+      Rect.fromLTWH(w * 0.05, 0, w * 0.9, cabinHeight),
+      topLeft: Radius.circular(w * 0.15),
+      topRight: Radius.circular(w * 0.15),
+      bottomLeft: Radius.circular(w * 0.05),
+      bottomRight: Radius.circular(w * 0.05),
+    );
+    canvas.drawRRect(cabinRect, Paint()..color = Colors.white);
+
+    // Draw small detail on the white cabin (e.g. blue/red logo dot like competitor)
+    canvas.drawCircle(
+      Offset(w * 0.5, cabinHeight * 0.45),
+      w * 0.15,
+      Paint()..color = _bodyColor,
+    );
+    canvas.drawCircle(
+      Offset(w * 0.5, cabinHeight * 0.45),
+      w * 0.05,
+      Paint()..color = Colors.white,
     );
 
-    // Windshield (white, front/top)
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(cx - w * 0.20, h * 0.09, w * 0.40, h * 0.20),
-        Radius.circular(w * 0.10),
-      ),
-      Paint()..color = Colors.white.withOpacity(0.60),
+    // Draw connecting joint between cabin and trailer
+    canvas.drawRect(
+      Rect.fromLTWH(w * 0.2, cabinHeight, w * 0.6, h * 0.02),
+      Paint()..color = Colors.black.withOpacity(0.5),
     );
 
-    // Rear window (white, smaller, bottom)
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(cx - w * 0.14, h * 0.66, w * 0.28, h * 0.14),
-        Radius.circular(w * 0.06),
-      ),
-      Paint()..color = Colors.white.withOpacity(0.38),
-    );
-
-    // Wheels (dark, four corners)
-    final Paint wh = Paint()..color = Colors.black.withOpacity(0.65);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - w * 0.42, h * 0.14, w * 0.14, h * 0.22), Radius.circular(w * 0.04)), wh);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx + w * 0.28, h * 0.14, w * 0.14, h * 0.22), Radius.circular(w * 0.04)), wh);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx - w * 0.42, h * 0.62, w * 0.14, h * 0.22), Radius.circular(w * 0.04)), wh);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(cx + w * 0.28, h * 0.62, w * 0.14, h * 0.22), Radius.circular(w * 0.04)), wh);
-
-    // Gloss highlight
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(cx - w * 0.26, h * 0.14, w * 0.12, h * 0.30),
-        Radius.circular(w * 0.05),
-      ),
-      Paint()..color = Colors.white.withOpacity(0.20),
-    );
+    // Draw subtle trailer roof lines
+    final Paint linePaint = Paint()
+      ..color = Colors.black.withOpacity(0.15)
+      ..strokeWidth = 1.5;
+    canvas.drawLine(Offset(w * 0.25, cabinHeight + h * 0.1), Offset(w * 0.25, h * 0.9), linePaint);
+    canvas.drawLine(Offset(w * 0.75, cabinHeight + h * 0.1), Offset(w * 0.75, h * 0.9), linePaint);
   }
 
   @override
   bool shouldRepaint(_CompactVehiclePainter old) => old.status != status;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Label chip displayed above the marker

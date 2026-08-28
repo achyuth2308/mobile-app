@@ -217,33 +217,43 @@ class HalfCircleGaugePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.grey.shade300
+    final double w = size.width;
+    final double h = size.height;
+    final Rect rect = Rect.fromLTWH(0, 0, w, h * 2);
+
+    final Paint bgPaint = Paint()
+      ..color = Colors.grey.shade200
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = 10
       ..strokeCap = StrokeCap.round;
 
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height * 2);
     // Draw background arc
-    canvas.drawArc(rect, 3.14159, 3.14159, false, paint);
+    canvas.drawArc(rect, 3.14159, 3.14159, false, bgPaint);
 
-    // Draw speed arc
-    paint.color = Colors.red;
-    final sweepAngle = (speed.clamp(0, 120) / 120) * 3.14159;
-    canvas.drawArc(rect, 3.14159, sweepAngle, false, paint);
+    if (speed <= 0) return;
 
-    // Draw tick marks
-    final tickPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2;
-    for (int i = 1; i < 5; i++) {
-      final angle = 3.14159 + (i * 3.14159 / 5);
-      final x1 = size.width / 2 +
-          (size.width / 2 - 4) *
-              1.0 *
-              (angle == 3.14159 ? 1 : 1); // Simple approximation
-      // proper trig requires math package, let's just do dashes by breaking the arc.
-    }
+    // Draw speed gradient arc
+    final double maxSpeed = 120.0;
+    final double sweepAngle = (speed.clamp(0.0, maxSpeed) / maxSpeed) * 3.14159;
+
+    final Gradient gradient = const SweepGradient(
+      startAngle: 3.14159,
+      endAngle: 3.14159 * 2,
+      colors: [
+        Color(0xFF22C55E), // Green
+        Color(0xFFF59E0B), // Yellow
+        Color(0xFFEF4444), // Red
+      ],
+      stops: [0.0, 0.6, 1.0],
+    );
+
+    final Paint fgPaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(rect, 3.14159, sweepAngle, false, fgPaint);
   }
 
   @override

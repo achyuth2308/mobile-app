@@ -102,6 +102,17 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
       }
     }
 
+    final String timeStr = (data['deviceTime'] ?? data['device_time'] ?? data['timestamp'] ?? data['time'] ?? '').toString();
+    if (timeStr.isNotEmpty) {
+      body += '\nTime: $timeStr';
+    }
+    
+    final String lat = (data['lat'] ?? '').toString();
+    final String lng = (data['lng'] ?? '').toString();
+    if (lat.isNotEmpty && lng.isNotEmpty) {
+      body += '\nLocation: $lat, $lng';
+    }
+
     final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical =
         <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(type);
@@ -423,6 +434,17 @@ class PushService {
       } else {
         body = 'A new $title event has occurred.';
       }
+    }
+    
+    final String timeStr = (data['deviceTime'] ?? data['device_time'] ?? data['timestamp'] ?? data['time'] ?? '').toString();
+    if (timeStr.isNotEmpty) {
+      body += '\nTime: $timeStr';
+    }
+    
+    final String lat = (data['lat'] ?? '').toString();
+    final String lng = (data['lng'] ?? '').toString();
+    if (lat.isNotEmpty && lng.isNotEmpty) {
+      body += '\nLocation: $lat, $lng';
     }
     final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow']

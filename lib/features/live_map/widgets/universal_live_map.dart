@@ -131,6 +131,12 @@ class UniversalLiveMap extends StatefulWidget {
 
 class _UniversalLiveMapState extends State<UniversalLiveMap> {
   final ValueNotifier<LatLng?> _activeVisualPosition = ValueNotifier(null);
+  bool _isUserInteracting = false;
+  
+  // Polyline caching to prevent frame drops
+  List<List<LatLng>> _cachedBaseSegments = [];
+  int _lastTotalPointsCount = -1;
+  String? _lastRouteVehicleId;
   
   // Stores fresh GPS points that arrive via websocket while watching a vehicle,
   // since widget.route is only fetched once from the DB upon selection.
@@ -143,6 +149,20 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   
   // Track in-flight OSRM HTTP requests to prevent duplicate network calls (e.g. at 60fps)
   final Set<String> _inFlightRequests = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _activeVisualPosition.addListener(_onVisualPositionChanged);
+  }
+
+  void _onVisualPositionChanged() {
+    final pos = _activeVisualPosition.value;
+    final String? activeId = widget.selectedId ?? widget.followingId;
+    if (pos != null && activeId != null && widget.followingId != null && !_isUserInteracting) {
+      widget.mapController.move(pos, widget.mapController.camera.zoom);
+    }
+  }
 
   Future<void> _fetchGapRoute(String key, LatLng start, LatLng end) async {
     if (_inFlightRequests.contains(key)) return;
@@ -190,6 +210,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
 
   @override
   void dispose() {
+    _activeVisualPosition.removeListener(_onVisualPositionChanged);
     _activeVisualPosition.dispose();
     super.dispose();
   }
@@ -277,9 +298,14 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
 
     final combinedRoute = [...widget.route, ..._livePoints];
 
-    final int limit = (activeId != null && combinedRoute.length > 1) 
-        ? combinedRoute.length - 1 
-        : combinedRoute.length;
+    final int totalPoints = combinedRoute.length;
+    if (totalPoints == _lastTotalPointsCount && activeId == _lastRouteVehicleId) {
+      return (baseSegments: _cachedBaseSegments, estimatedGaps: []);
+    }
+
+    final int limit = (activeId != null && totalPoints > 1) 
+        ? totalPoints - 1 
+        : totalPoints;
 
     for (int i = 0; i < limit; i++) {
       final p = combinedRoute[i];
@@ -298,18 +324,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             segments.add(currentSegment);
           }
 
-          // Trigger OSRM call for significant physical gaps (>50m)
-          if (d > 50) {
-            final String gapKey = '${lastPoint.latitude.toStringAsFixed(5)},${lastPoint.longitude.toStringAsFixed(5)}-${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
-            if (_estimatedGaps.containsKey(gapKey)) {
-               final route = _estimatedGaps[gapKey]!;
-               if (route.isNotEmpty) {
-                 gapSegments.add(route);
-               }
-            } else {
-               _fetchGapRoute(gapKey, lastPoint, point);
-            }
-          }
+          // Removed OSRM gap fetching (raw GPS preferred)
 
           currentSegment = [];
         } else {
@@ -331,16 +346,20 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
       segments.add(currentSegment);
     }
 
-    // Simplify and smooth EACH segment independently
-    final List<List<LatLng>> smoothedSegments = [];
+    // Simplify segments lightly to prevent massive DOM overhead, but no curve smoothing
+    final List<List<LatLng>> rawSegments = [];
     for (final seg in segments) {
-      final simplified = _rdpSimplify(seg, 8.0);
+      final simplified = _rdpSimplify(seg, 2.0); // Light simplify
       if (simplified.length >= 2) {
-        smoothedSegments.add(_catmullRom(simplified, segments: 6));
+        rawSegments.add(simplified);
       }
     }
 
-    return (baseSegments: smoothedSegments, estimatedGaps: gapSegments);
+    _lastTotalPointsCount = totalPoints;
+    _lastRouteVehicleId = activeId;
+    _cachedBaseSegments = rawSegments;
+
+    return (baseSegments: rawSegments, estimatedGaps: []);
   }
 
   @override
@@ -358,6 +377,72 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     final List<List<LatLng>> estimatedGapSegments = polylineData.estimatedGaps;
     final List<ReportRow> filteredStoppages = widget.stoppages.where((stop) => (stop.durationSecVal ?? 0) >= 300).toList();
 
+    // Extract the last 10 live points for the dashed trail
+    List<LatLng> liveTrailPoints = [];
+    if (_livePoints.length > 1 && activeId != null) {
+      final int startIdx = math.max(0, _livePoints.length - 10);
+      liveTrailPoints = _livePoints.sublist(startIdx)
+          .where((p) => p.latitude != null && p.longitude != null)
+          .map((p) => LatLng(p.latitude!, p.longitude!))
+          .toList();
+    }
+
+    // Collect special point markers (Start marker + Stoppages)
+    final List<Marker> pointMarkers = [];
+    
+    // 1. Start Marker (Green, Number 1)
+    LatLng? startLatLng;
+    if (widget.route.isNotEmpty) {
+      startLatLng = LatLng(widget.route.first.latitude, widget.route.first.longitude);
+    } else if (basePolylineSegments.isNotEmpty && basePolylineSegments.first.isNotEmpty) {
+      startLatLng = basePolylineSegments.first.first;
+    }
+    
+    if (startLatLng != null) {
+      pointMarkers.add(
+        Marker(
+          point: startLatLng,
+          width: 26,
+          height: 30,
+          alignment: Alignment.bottomCenter,
+          child: CustomPaint(
+            size: const Size(26, 30),
+            painter: _MessageBubblePainter(number: 1, color: const Color(0xFF22C55E)), // Green
+          ),
+        )
+      );
+    }
+
+    // 2. Stoppage Markers (Red, Numbered 2, 3, ...)
+    for (int i = 0; i < filteredStoppages.length; i++) {
+      final stop = filteredStoppages[i];
+      final lat = stop.startLat ?? stop.endLat;
+      final lng = stop.startLng ?? stop.endLng;
+      if (lat == null || lng == null) continue;
+      
+      pointMarkers.add(
+        Marker(
+          point: LatLng(lat, lng),
+          width: 26,
+          height: 30,
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () {
+              if (widget.onTapStoppage != null) {
+                // Keep original index numbering for backend/UI consistency if needed, 
+                // but visually display i + 2 (since 1 is the start point).
+                widget.onTapStoppage!(stop, i + 1);
+              }
+            },
+            child: CustomPaint(
+              size: const Size(26, 30),
+              painter: _MessageBubblePainter(number: i + 2, color: const Color(0xFFFF6B6B)), // Red
+            ),
+          ),
+        )
+      );
+    }
+
     return Stack(
       children: <Widget>[
           FlutterMap(
@@ -372,50 +457,45 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
               onMapReady: widget.onMapReady,
-              onPointerDown: (_, __) => widget.onUserInteracting(true),
-              onPointerUp: (_, __) => widget.onUserInteracting(false),
+              onPointerDown: (_, __) {
+                _isUserInteracting = true;
+                widget.onUserInteracting(true);
+              },
+              onPointerUp: (_, __) {
+                _isUserInteracting = false;
+                widget.onUserInteracting(false);
+              },
               onTap: (_, __) => widget.onTapMap(),
             ),
             children: <Widget>[
               buildTileLayer(widget.style),
-              if (widget.route.isNotEmpty && basePolylineSegments.isNotEmpty)
+              if (basePolylineSegments.isNotEmpty)
                 PolylineLayer(
                   polylines: basePolylineSegments.map((segment) {
                     return Polyline(
                       points: segment,
-                      color: const Color(0xFFFFB74D), // Light Orange
+                      color: const Color(0xFF0EA5E9), // Sky Blue
                       strokeWidth: 4.0, // 4px thickness
                       strokeJoin: StrokeJoin.round,
                       strokeCap: StrokeCap.round,
                     );
                   }).toList(),
                 ),
-              if (filteredStoppages.isNotEmpty)
-                MarkerLayer(
-                  markers: List.generate(filteredStoppages.length, (index) {
-                    final stop = filteredStoppages[index];
-                    final lat = stop.startLat ?? stop.endLat;
-                    final lng = stop.startLng ?? stop.endLng;
-                    if (lat == null || lng == null) return null;
-                    return Marker(
-                      point: LatLng(lat, lng),
-                      width: 26,
-                      height: 30,
-                      alignment: Alignment.bottomCenter,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (widget.onTapStoppage != null) {
-                            widget.onTapStoppage!(stop, index + 1);
-                          }
-                        },
-                        child: CustomPaint(
-                          size: const Size(26, 30),
-                          painter: _MessageBubblePainter(number: index + 1),
-                        ),
-                      ),
-                    );
-                  }).whereType<Marker>().toList(),
+              if (liveTrailPoints.length > 1)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: liveTrailPoints,
+                      color: const Color(0xFF3B82F6), // Vibrant Blue
+                      strokeWidth: 4.0,
+                      pattern: StrokePattern.dashed(segments: const [5.0, 10.0]),
+                      strokeJoin: StrokeJoin.round,
+                      strokeCap: StrokeCap.round,
+                    )
+                  ],
                 ),
+              if (pointMarkers.isNotEmpty)
+                MarkerLayer(markers: pointMarkers),
               if (markers.isNotEmpty)
                 MarkerLayer(markers: markers),
             ],
@@ -462,7 +542,8 @@ class _MapPinClipper extends CustomClipper<ui.Path> {
 // ─────────────────────────────────────────────────────────────────────────────
 class _MessageBubblePainter extends CustomPainter {
   final int number;
-  const _MessageBubblePainter({required this.number});
+  final Color color;
+  const _MessageBubblePainter({required this.number, this.color = const Color(0xFFFF6B6B)});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -483,7 +564,7 @@ class _MessageBubblePainter extends CustomPainter {
       ..close();
 
     final Paint fill = Paint()
-      ..color = const Color(0xFFFF6B6B)
+      ..color = color
       ..style = PaintingStyle.fill;
 
     canvas.drawRRect(body, fill);

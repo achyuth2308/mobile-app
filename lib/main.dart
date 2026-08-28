@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import 'core/notifications/push_service.dart';
 import 'core/router/app_router.dart';
@@ -164,11 +165,24 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
   }
 
   void _handleNotificationTap(Map<String, dynamic> data) {
-    final String route = routeForNotification(data);
-    try {
-      ref.read(routerProvider).go(route);
-    } catch (e) {
-      debugPrint('[main] deep link failed: $e');
+    if (data['lat'] != null && data['lng'] != null) {
+      final String lat = data['lat'].toString();
+      final String lng = data['lng'].toString();
+      try {
+        url_launcher.launchUrl(
+          Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng'),
+          mode: url_launcher.LaunchMode.externalApplication,
+        );
+      } catch (e) {
+        debugPrint('[main] Maps deep link failed: $e');
+      }
+    } else {
+      final String route = routeForNotification(data);
+      try {
+        ref.read(routerProvider).go(route);
+      } catch (e) {
+        debugPrint('[main] internal deep link failed: $e');
+      }
     }
   }
 

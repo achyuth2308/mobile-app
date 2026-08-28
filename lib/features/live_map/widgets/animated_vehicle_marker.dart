@@ -53,7 +53,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       vsync: this,
       duration: widget.duration,
     );
-    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.linear);
 
     _controller.addListener(_onAnimationTick);
   }
@@ -91,16 +91,23 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       _toPoint = widget.point;
 
       // Derive heading from actual movement vector when vehicle is moving
-      if (widget.status == VehicleStatus.moving && meters > 5) {
+      if (widget.status == VehicleStatus.moving && meters > 2) {
         _targetHeading = dist.bearing(_fromPoint, _toPoint);
-      } else if (meters <= 2) {
-        // Micro-jitter — keep existing heading
       } else {
         _targetHeading = widget.heading;
       }
 
-      // Scale animation duration proportionally to distance (min 400ms, max 1200ms)
-      final int ms = (meters * 30).clamp(400, 1200).toInt();
+      // Calculate animation duration based on physical speed
+      // Speed is in km/h. Convert to m/s.
+      final double speedMs = (widget.speed > 0 ? widget.speed : 10.0) / 3.6;
+
+      // Time = Distance / Speed.
+      int ms = ((meters / speedMs) * 1000).toInt();
+
+      // If we got a massive delay, clamp it so it doesn't take 5 minutes to animate a huge jump
+      // Also ensure it's not super fast if points are close.
+      ms = ms.clamp(1000, 15000);
+
       _controller.duration = Duration(milliseconds: ms);
       _controller.forward(from: 0.0);
     } else if (oldWidget.heading != widget.heading) {
@@ -117,8 +124,10 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
   LatLng get _interpolatedPoint {
     final double t = _curve.value;
-    final double lat = _fromPoint.latitude + (_toPoint.latitude - _fromPoint.latitude) * t;
-    final double lng = _fromPoint.longitude + (_toPoint.longitude - _fromPoint.longitude) * t;
+    final double lat =
+        _fromPoint.latitude + (_toPoint.latitude - _fromPoint.latitude) * t;
+    final double lng =
+        _fromPoint.longitude + (_toPoint.longitude - _fromPoint.longitude) * t;
     return LatLng(lat, lng);
   }
 
@@ -131,13 +140,10 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       builder: (BuildContext context, Widget? child) {
         final LatLng current = _interpolatedPoint;
 
-        // Notify the polyline listener every frame
-        if (widget.visualPositionNotifier != null) {
-          widget.visualPositionNotifier!.value = current;
-        }
-
-        final math.Point<double> targetPos = camera.latLngToScreenPoint(_toPoint);
-        final math.Point<double> currentPos = camera.latLngToScreenPoint(current);
+        final math.Point<double> targetPos =
+            camera.latLngToScreenPoint(_toPoint);
+        final math.Point<double> currentPos =
+            camera.latLngToScreenPoint(current);
 
         final Offset offset = Offset(
           currentPos.x - targetPos.x,

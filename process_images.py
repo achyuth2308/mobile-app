@@ -24,7 +24,7 @@ def make_transparent(file_path, target_colors, tolerance=20):
     img.putdata(new_data)
     img.save(file_path, 'PNG')
 
-folder = 'c:/Users/user/OneDrive/Desktop/App/mobile-app/assets/images/vehicles'
+folder = 'assets/images/vehicles'
 bg_colors = [(26, 36, 64), (11, 16, 32), (0, 0, 0)] # #1A2440, #0B1020, Black
 for filename in os.listdir(folder):
     if filename.endswith('.png'):

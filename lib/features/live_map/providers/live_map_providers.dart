@@ -24,37 +24,86 @@ final vehicleDailyHistoryProvider =
   }
 
   final vehicleRepo = ref.watch(vehicleRepositoryProvider);
-  final reportRepo = ref.watch(reportRepositoryProvider);
 
   final now = DateTime.now();
-  final start = DateTime(now.year, now.month, now.day);
-  final end = start.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+  final startLocal = DateTime(now.year, now.month, now.day);
+  final endLocal = now;
 
-  final routeFuture = vehicleRepo.getRoute(
-    vehicleId: vehicleId,
-    start: start,
-    end: end,
+  // Apply Traccar UTC/IST offset bug workaround (same as vehicle_playback_tab)
+  final DateTime startIstUtc = DateTime.utc(
+    startLocal.year, startLocal.month, startLocal.day,
+    startLocal.hour, startLocal.minute, startLocal.second,
+  );
+  final DateTime endIstUtc = DateTime.utc(
+    endLocal.year, endLocal.month, endLocal.day,
+    endLocal.hour, endLocal.minute, endLocal.second,
   );
 
-  final stoppagesFuture = reportRepo.run(
-    type: ReportType.stoppages,
-    start: start,
-    end: end,
+  final DateTime startQuery = startIstUtc.subtract(const Duration(hours: 5, minutes: 30));
+  final DateTime endQuery = endIstUtc.subtract(const Duration(hours: 5, minutes: 30));
+
+  final List<TrackPoint> pts = await vehicleRepo.getHistory(
     vehicleId: vehicleId,
+    start: startQuery,
+    end: endQuery,
   );
 
-  final results = await Future.wait([routeFuture, stoppagesFuture]);
-  final route = results[0] as List<TrackPoint>;
-  final reportResult = results[1] as ReportResult;
-  final stoppages = List<ReportRow>.from(reportResult.rows);
-  stoppages.sort((a, b) {
-    final aTime = a.startTime ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final bTime = b.startTime ?? DateTime.fromMillisecondsSinceEpoch(0);
-    return aTime.compareTo(bTime);
-  });
+  // Compute stoppages from the points
+  final List<ReportRow> stoppages = [];
+  TrackPoint? stopStart;
+  TrackPoint? stopEnd;
+
+  for (int i = 0; i < pts.length; i++) {
+    final TrackPoint pt = pts[i];
+    final bool isIdle = pt.speed <= 3;
+    
+    if (isIdle) {
+      stopStart ??= pt;
+      stopEnd = pt;
+    } else {
+      if (stopStart != null && stopEnd != null) {
+        final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
+        if (diff.inMinutes >= 5) {
+          stoppages.add(ReportRow(
+            cells: const {},
+            raw: {
+              'start_lat': stopStart.latitude,
+              'start_lng': stopStart.longitude,
+              'end_lat': stopEnd.latitude,
+              'end_lng': stopEnd.longitude,
+              'start_time': stopStart.timestamp.toIso8601String(),
+              'end_time': stopEnd.timestamp.toIso8601String(),
+              'duration_seconds': diff.inSeconds.toDouble(),
+            },
+          ));
+        }
+      }
+      stopStart = null;
+      stopEnd = null;
+    }
+  }
+
+  // Handle an ongoing stoppage at the end of the data
+  if (stopStart != null && stopEnd != null) {
+    final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
+    if (diff.inMinutes >= 5) {
+      stoppages.add(ReportRow(
+        cells: const {},
+        raw: {
+          'start_lat': stopStart.latitude,
+          'start_lng': stopStart.longitude,
+          'end_lat': stopEnd.latitude,
+          'end_lng': stopEnd.longitude,
+          'start_time': stopStart.timestamp.toIso8601String(),
+          'end_time': stopEnd.timestamp.toIso8601String(),
+          'duration_seconds': diff.inSeconds.toDouble(),
+        },
+      ));
+    }
+  }
 
   return VehicleDailyData(
-    route: route,
+    route: pts,
     stoppages: stoppages,
   );
 });
