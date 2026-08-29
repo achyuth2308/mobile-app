@@ -118,8 +118,8 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(type);
 
     final String channelId = isTheft
-        ? 'fueltracks_theft_v3'
-        : (isCritical ? 'fueltracks_critical_v3' : 'fueltracks_alerts_v3');
+        ? 'fueltracks_theft_v4'
+        : (isCritical ? 'fueltracks_critical_v4' : 'fueltracks_alerts_v4');
     final String channelName = isTheft
         ? 'Theft Alarms'
         : (isCritical ? 'Critical Fleet Alerts' : 'Fleet Alerts');
@@ -135,7 +135,6 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
       importance: Importance.max,
       enableVibration: true,
       playSound: true,
-      sound: const RawResourceAndroidNotificationSound('observation_haki'),
     );
     await local
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
@@ -164,13 +163,11 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(body),
           groupKey: 'fueltracks_alerts',
-          sound: const RawResourceAndroidNotificationSound('observation_haki'),
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
-          sound: 'observation_haki.mp3',
           interruptionLevel: (isTheft || isCritical)
               ? InterruptionLevel.timeSensitive
               : InterruptionLevel.active,
@@ -242,34 +239,32 @@ class PushService {
   /// as heads-up notifications on Android 8+.
   static const AndroidNotificationChannel _criticalChannel =
       AndroidNotificationChannel(
-    'fueltracks_critical_v3',
+    'fueltracks_critical_v4',
     'Critical Fleet Alerts',
     description: 'SOS, power disconnection and tamper alerts.',
     importance: Importance.max,
     enableVibration: true,
     playSound: true,
-    sound: RawResourceAndroidNotificationSound('observation_haki'),
   );
 
   static const AndroidNotificationChannel _theftChannel =
       AndroidNotificationChannel(
-    'fueltracks_theft_v3',
+    'fueltracks_theft_v4',
     'Theft Alarms',
     description: 'Alerts when unauthorized vehicle movement is detected.',
     importance: Importance.max,
     enableVibration: true,
     playSound: true,
-    sound: RawResourceAndroidNotificationSound('observation_haki'),
   );
 
   static const AndroidNotificationChannel _generalChannel =
       AndroidNotificationChannel(
-    'fueltracks_alerts_v3',
+    'fueltracks_alerts_v4',
     'Fleet Alerts',
     description: 'Overspeeding, geofence and ignition notifications.',
-    importance: Importance.high,
+    importance: Importance.defaultImportance,
+    enableVibration: true,
     playSound: true,
-    sound: RawResourceAndroidNotificationSound('observation_haki'),
   );
 
   Future<void> initialize() async {

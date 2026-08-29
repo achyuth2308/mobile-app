@@ -115,7 +115,7 @@ TileLayer buildTileLayer(MapStyle style, {bool retina = false}) {
     maxZoom: style.maxZoom,
     userAgentPackageName: AppConfig.tileUserAgent,
     tileProvider: kIsWeb ? CancellableNetworkTileProvider() : FastCachedTileProvider(),
-    retinaMode: false, // Standard tiles are 4x smaller and load significantly faster
+    retinaMode: true, // Enhances tiles on high-density mobile screens for a sharper map
     panBuffer: 2, // Preload 2-tile perimeter so panning is instant without blank squares
     keepBuffer: 8, // Keep 8 buffer levels in RAM to avoid reload flickers
     tileUpdateTransformer: TileUpdateTransformers.throttle(

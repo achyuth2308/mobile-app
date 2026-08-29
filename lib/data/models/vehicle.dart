@@ -552,17 +552,27 @@ class Vehicle extends Equatable {
         'subscriptionExpiry',
         'renewalDate',
       ]),
-      speedLimit: asDoubleOrNull(json, <String>[
+      speedLimit: asDoubleOrNull(jsonAttrs, <String>[
+        'speedLimit',
+        'maxSpeed',
+        'overspeedLimit',
+        'overSpeedLimit',
+        'speedThreshold',
+      ]) ?? asDoubleOrNull(json, <String>[
         'speedLimit',
         'maxSpeed',
         'overspeedLimit',
         'overSpeedLimit',
         'speedThreshold',
       ]),
-      overspeedDurationAlert: asDoubleOrNull(json, <String>[
+      overspeedDurationAlert: asDoubleOrNull(jsonAttrs, <String>[
+        'overspeedDurationAlert',
+      ]) ?? asDoubleOrNull(json, <String>[
         'overspeedDurationAlert',
       ]),
-      idleDurationAlert: asDoubleOrNull(json, <String>[
+      idleDurationAlert: asDoubleOrNull(jsonAttrs, <String>[
+        'idleDurationAlert',
+      ]) ?? asDoubleOrNull(json, <String>[
         'idleDurationAlert',
       ]),
       todayDistanceKm: () {
