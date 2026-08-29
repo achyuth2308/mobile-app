@@ -305,6 +305,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       }
     });
 
+    // If this screen was opened by clicking a specific vehicle (focusVehicleId
+    // is set), only show that single vehicle on the map so it's not cluttered.
+    // If opened from the "Live Map" bottom nav tab (focusVehicleId == null),
+    // show the full fleet as normal.
+    final List<Vehicle> visibleVehicles = widget.focusVehicleId != null
+        ? vehicles.where((v) => v.id == widget.focusVehicleId).toList()
+        : vehicles;
+
     final int located = vehicles.where((v) => v.hasLocation).length;
 
     final Vehicle? following = _followingId == null
@@ -352,7 +360,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         children: <Widget>[
           UniversalLiveMap(
             mapController: _map,
-            vehicles: vehicles,
+            vehicles: visibleVehicles,
             style: _style,
             fallbackCenter: _fallbackCenter,
             selectedId: _selectedId,
