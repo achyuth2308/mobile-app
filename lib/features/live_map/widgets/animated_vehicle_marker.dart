@@ -40,6 +40,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
   LatLng _toPoint = const LatLng(0, 0);
   double _targetHeading = 0.0;
   bool _initialized = false;
+  DateTime? _lastUpdateTime;
 
   @override
   void initState() {
@@ -97,16 +98,22 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
         _targetHeading = widget.heading;
       }
 
-      // Calculate animation duration based on physical speed
-      // Speed is in km/h. Convert to m/s.
-      final double speedMs = (widget.speed > 0 ? widget.speed : 10.0) / 3.6;
+      // Calculate animation duration dynamically based on the frequency of updates.
+      // This creates a "Rapido-style" continuous glide. By adding a small buffer (500ms)
+      // to the actual time between packets, the animation never finishes before the 
+      // next packet arrives, preventing stuttering and stopping.
+      final DateTime now = DateTime.now();
+      int ms = 1500; // Default smooth fallback
+      if (_lastUpdateTime != null) {
+        ms = now.difference(_lastUpdateTime!).inMilliseconds;
+        ms = (ms + 500).clamp(1000, 8000); // Buffer to ensure it keeps gliding
+      }
+      _lastUpdateTime = now;
 
-      // Time = Distance / Speed.
-      int ms = ((meters / speedMs) * 1000).toInt();
-
-      // If we got a massive delay, clamp it so it doesn't take 5 minutes to animate a huge jump
-      // Also ensure it's not super fast if points are close.
-      ms = ms.clamp(1000, 15000);
+      // Snap for massive jumps to catch up instantly
+      if (meters > 500) {
+        ms = 1000;
+      }
 
       _controller.duration = Duration(milliseconds: ms);
       _controller.forward(from: 0.0);

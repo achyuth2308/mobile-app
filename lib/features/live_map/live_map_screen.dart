@@ -346,13 +346,20 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       }
     });
 
+    // If the user is actively following or viewing a specific vehicle (activeId),
+    // hide all other vehicles to prevent map clutter.
+    // Otherwise, show the full fleet.
+    final List<Vehicle> visibleVehicles = activeId.isNotEmpty
+        ? vehicles.where((v) => v.id == activeId).toList()
+        : vehicles;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Stack(
         children: <Widget>[
           UniversalLiveMap(
             mapController: _map,
-            vehicles: vehicles,
+            vehicles: visibleVehicles,
             style: _style,
             fallbackCenter: _fallbackCenter,
             selectedId: _selectedId,
