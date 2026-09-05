@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -205,7 +204,17 @@ class ReportExportService {
         break;
     }
 
-    final String csv = const ListToCsvConverter().convert(csvData);
+    final StringBuffer sb = StringBuffer();
+    for (final List<dynamic> row in csvData) {
+      sb.writeln(row.map((dynamic e) {
+        final String s = e.toString();
+        if (s.contains(',') || s.contains('"') || s.contains('\n')) {
+          return '"${s.replaceAll('"', '""')}"';
+        }
+        return s;
+      }).join(','));
+    }
+    final String csv = sb.toString();
     final Directory dir = await getTemporaryDirectory();
     final String fileName = '${type.name}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
     final File file = File('${dir.path}/$fileName');

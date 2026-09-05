@@ -230,63 +230,10 @@ class FleetController extends Notifier<FleetState> {
         break;
       case 'alert:new':
       case 'geofence:event':
-        _triggerLocalNotificationForSocketAlert(event.payload);
+        // FCM handles push notifications now. Socket is just for UI state.
         break;
       default:
         break;
-    }
-  }
-
-  Future<void> _triggerLocalNotificationForSocketAlert(Map<String, dynamic> data) async {
-    try {
-      final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase();
-      final String title = (data['title'] as String?) ?? (data['alert_title'] as String?) ?? 'Fleet Alert';
-      String body = (data['message'] as String?) ?? (data['body'] as String?) ?? 'A new alert has occurred.';
-
-      final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
-      final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(type);
-
-      final String channelId = isTheft
-          ? 'fueltracks_theft_v3'
-          : (isCritical ? 'fueltracks_critical_v3' : 'fueltracks_alerts_v3');
-      final String channelName = isTheft
-          ? 'Theft Alarms'
-          : (isCritical ? 'Critical Fleet Alerts' : 'Fleet Alerts');
-
-      final flutter_local_notifications.FlutterLocalNotificationsPlugin local =
-          flutter_local_notifications.FlutterLocalNotificationsPlugin();
-
-      await local.show(
-        data.hashCode,
-        title,
-        body,
-        flutter_local_notifications.NotificationDetails(
-          android: flutter_local_notifications.AndroidNotificationDetails(
-            channelId,
-            channelName,
-            importance: flutter_local_notifications.Importance.max,
-            priority: (isTheft || isCritical) ? flutter_local_notifications.Priority.max : flutter_local_notifications.Priority.high,
-            fullScreenIntent: true,
-            color: const Color(0xFF4F6BFF),
-            icon: '@drawable/ic_notification',
-            styleInformation: flutter_local_notifications.BigTextStyleInformation(body),
-            groupKey: 'fueltracks_alerts',
-            sound: const flutter_local_notifications.RawResourceAndroidNotificationSound('observation_haki'),
-          ),
-          iOS: flutter_local_notifications.DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-            sound: 'observation_haki.mp3',
-            interruptionLevel: (isTheft || isCritical)
-                ? flutter_local_notifications.InterruptionLevel.timeSensitive
-                : flutter_local_notifications.InterruptionLevel.active,
-          ),
-        ),
-        payload: dart_convert.jsonEncode(data),
-      );
-    } catch (e) {
-      debugPrint('[fleet] failed to trigger local notification for socket alert: $e');
     }
   }
 

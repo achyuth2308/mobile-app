@@ -39,7 +39,7 @@ class SecureStore {
     try {
       return await _secure.read(key: _kToken);
     } catch (_) {
-      await _secure.deleteAll();
+      await _secure.delete(key: _kToken);
       return null;
     }
   }
@@ -48,7 +48,7 @@ class SecureStore {
     try {
       await _secure.write(key: _kToken, value: v);
     } catch (_) {
-      await _secure.deleteAll();
+      await _secure.delete(key: _kToken);
       await _secure.write(key: _kToken, value: v);
     }
   }

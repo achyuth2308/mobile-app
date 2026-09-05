@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../data/models/report_models.dart';
 import '../../../data/models/trip.dart';
@@ -42,44 +44,57 @@ final vehicleDailyHistoryProvider =
   final DateTime startQuery = startIstUtc.subtract(const Duration(hours: 5, minutes: 30));
   final DateTime endQuery = endIstUtc.subtract(const Duration(hours: 5, minutes: 30));
 
-  final List<TrackPoint> pts = await vehicleRepo.getHistory(
+  final List<TrackPoint> rawPts = await vehicleRepo.getHistory(
     vehicleId: vehicleId,
     start: startQuery,
     end: endQuery,
   );
+  
+  final List<TrackPoint> pts = List<TrackPoint>.from(rawPts);
+
+  // Sort chronologically — the API does not guarantee order and often returns descending.
+  // Without this, the time difference calculations will be negative and stoppages will never trigger.
+  pts.sort((TrackPoint a, TrackPoint b) =>
+      a.timestamp.compareTo(b.timestamp));
 
   // Compute stoppages from the points
   final List<ReportRow> stoppages = [];
   TrackPoint? stopStart;
   TrackPoint? stopEnd;
+  int movingCount = 0;
 
   for (int i = 0; i < pts.length; i++) {
-    final TrackPoint pt = pts[i];
-    final bool isIdle = pt.speed <= 3;
-    
-    if (isIdle) {
-      stopStart ??= pt;
-      stopEnd = pt;
+    final TrackPoint p = pts[i];
+    if (p.speed <= 3) {
+      stopStart ??= p;
+      stopEnd = p;
+      movingCount = 0;
     } else {
       if (stopStart != null && stopEnd != null) {
-        final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
-        if (diff.inMinutes >= 5) {
-          stoppages.add(ReportRow(
-            cells: const {},
-            raw: {
-              'start_lat': stopStart.latitude,
-              'start_lng': stopStart.longitude,
-              'end_lat': stopEnd.latitude,
-              'end_lng': stopEnd.longitude,
-              'start_time': stopStart.timestamp.toIso8601String(),
-              'end_time': stopEnd.timestamp.toIso8601String(),
-              'duration_seconds': diff.inSeconds.toDouble(),
-            },
-          ));
+        movingCount++;
+        // Only break the stop if we have 2 consecutive points > 3 km/h
+        if (movingCount >= 2) {
+          final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
+          if (diff.inMinutes >= 5) {
+            // Show ALL stoppages >= 5 mins, even if it's the initial one
+            stoppages.add(ReportRow(
+              cells: const {},
+              raw: {
+                'start_lat': stopStart.latitude,
+                'start_lng': stopStart.longitude,
+                'end_lat': stopEnd.latitude,
+                'end_lng': stopEnd.longitude,
+                'start_time': stopStart.timestamp,
+                'end_time': stopEnd.timestamp,
+                'duration_seconds': diff.inSeconds,
+              },
+            ));
+          }
+          stopStart = null;
+          stopEnd = null;
+          movingCount = 0;
         }
       }
-      stopStart = null;
-      stopEnd = null;
     }
   }
 
@@ -94,16 +109,48 @@ final vehicleDailyHistoryProvider =
           'start_lng': stopStart.longitude,
           'end_lat': stopEnd.latitude,
           'end_lng': stopEnd.longitude,
-          'start_time': stopStart.timestamp.toIso8601String(),
-          'end_time': stopEnd.timestamp.toIso8601String(),
-          'duration_seconds': diff.inSeconds.toDouble(),
+          'start_time': stopStart.timestamp,
+          'end_time': stopEnd.timestamp,
+          'duration_seconds': diff.inSeconds,
         },
       ));
     }
   }
 
+  // Merge consecutive overlapping stoppages (e.g. GPS drift) so numbering doesn't skip
+  final List<ReportRow> mergedStoppages = [];
+  const dist = Distance();
+  for (final stop in stoppages) {
+    if (mergedStoppages.isEmpty) {
+      mergedStoppages.add(stop);
+    } else {
+      final last = mergedStoppages.last;
+      if (last.startLat != null && last.startLng != null && stop.startLat != null && stop.startLng != null) {
+        final double meters = dist(LatLng(last.startLat!, last.startLng!), LatLng(stop.startLat!, stop.startLng!));
+        // Increase merge radius to 150 meters to cover large parking lots and prevent visual overlap
+        if (meters < 150) {
+          // Merge them into one
+          final updated = ReportRow(
+            cells: const {},
+            raw: {
+              ...last.raw,
+              'end_time': stop.raw['end_time'],
+              'duration_seconds': (last.durationSecVal ?? 0) + (stop.durationSecVal ?? 0),
+            },
+          );
+          mergedStoppages.removeLast();
+          mergedStoppages.add(updated);
+        } else {
+          mergedStoppages.add(stop);
+        }
+      } else {
+        mergedStoppages.add(stop);
+      }
+    }
+  }
+
   return VehicleDailyData(
     route: pts,
-    stoppages: stoppages,
+    stoppages: mergedStoppages,
   );
 });

@@ -16,7 +16,7 @@ import '../../../data/models/trip.dart';
 import '../../../providers/core_providers.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
-import '../../live_map/widgets/vehicle_3d_marker.dart';
+
 
 /// Stoppage / parking event along a historical route.
 class StoppageEvent {
@@ -200,14 +200,27 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final TrackPoint a = _points[idx];
     final TrackPoint b = _points[idx + 1];
 
-    return TrackPoint(
-      latitude: a.latitude + (b.latitude - a.latitude) * t,
-      longitude: a.longitude + (b.longitude - a.longitude) * t,
-      timestamp: a.timestamp.add(
-        Duration(
-          milliseconds: (b.timestamp.difference(a.timestamp).inMilliseconds * t).round(),
-        ),
+    final DateTime currentTimestamp = a.timestamp.add(
+      Duration(
+        milliseconds: (b.timestamp.difference(a.timestamp).inMilliseconds * t).round(),
       ),
+    );
+
+    StoppageEvent? stoppage;
+    for (final StoppageEvent s in _stoppages) {
+      if (!currentTimestamp.isBefore(s.startTime) &&
+          !currentTimestamp.isAfter(s.endTime)) {
+        stoppage = s;
+        break;
+      }
+    }
+
+    final bool lockPos = stoppage != null;
+
+    return TrackPoint(
+      latitude: lockPos ? stoppage.lat : a.latitude + (b.latitude - a.latitude) * t,
+      longitude: lockPos ? stoppage.lng : a.longitude + (b.longitude - a.longitude) * t,
+      timestamp: currentTimestamp,
       speed: a.speed + (b.speed - a.speed) * t,
       heading: a.heading + (b.heading - a.heading) * t,
       ignition: t < 0.5 ? a.ignition : b.ignition,

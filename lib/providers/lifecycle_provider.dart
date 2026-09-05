@@ -77,10 +77,8 @@ class _AppLifecycleObserverState extends ConsumerState<AppLifecycleObserver>
     if (_backgroundedAt != null) return;
     _backgroundedAt = DateTime.now();
 
-    debugPrint('[lifecycle] → background: keeping socket alive (user requested)');
-    // We intentionally leave the socket connected in the background so it 
-    // continues receiving real-time alerts.
-    // ref.read(socketServiceProvider).pauseForBackground();
+    debugPrint('[lifecycle] → background: pausing socket');
+    ref.read(socketServiceProvider).pauseForBackground();
   }
 
   Future<void> _onForeground() async {
@@ -126,27 +124,48 @@ class _AppLifecycleObserverState extends ConsumerState<AppLifecycleObserver>
 }
 
 /// Reconnects automatically when connectivity is restored while foregrounded.
-class ConnectivityReconnector extends ConsumerWidget {
+class ConnectivityReconnector extends ConsumerStatefulWidget {
   const ConnectivityReconnector({required this.child, super.key});
-
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConnectivityReconnector> createState() =>
+      _ConnectivityReconnectorState();
+}
+
+class _ConnectivityReconnectorState
+    extends ConsumerState<ConnectivityReconnector> {
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.listen<AsyncValue<bool>>(connectivityProvider,
         (AsyncValue<bool>? prev, AsyncValue<bool> next) {
       final bool? online = next.value;
-      if (online == null) return;
-
-      if (online && ref.read(authProvider).isAuthenticated) {
-        final SocketService socket = ref.read(socketServiceProvider);
-        if (!socket.isSuspended) {
-          unawaited(socket.connect());
-          unawaited(ref.read(fleetProvider.notifier).load(silent: true));
-        }
+      if (online == null || !online) {
+        _debounce?.cancel();
+        return;
       }
+
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        if (ref.read(authProvider).isAuthenticated) {
+          final SocketService socket = ref.read(socketServiceProvider);
+          if (!socket.isSuspended) {
+            unawaited(socket.connect());
+            unawaited(ref.read(fleetProvider.notifier).load(silent: true));
+          }
+        }
+      });
     });
 
-    return child;
+    return widget.child;
   }
 }

@@ -4,16 +4,15 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../data/models/vehicle.dart';
 
-/// Smoothly interpolates a vehicle marker between GPS updates.
-/// NO extrapolation / drift — the marker stops exactly at the last known
-/// position once the animation completes, which keeps it on the road.
+/// Smoothly glides a vehicle marker between GPS updates.
+/// It does NOT extrapolate forward (Dead Reckoning) to prevent the marker
+/// from driving off the road or disconnecting from the historical trail.
 class AnimatedVehicleMarker extends StatefulWidget {
   final LatLng point;
   final double heading;
   final VehicleStatus status;
   final double speed;
   final Widget Function(BuildContext context, double heading) builder;
-  final Duration duration;
   final ValueNotifier<LatLng?>? visualPositionNotifier;
 
   const AnimatedVehicleMarker({
@@ -22,7 +21,6 @@ class AnimatedVehicleMarker extends StatefulWidget {
     required this.status,
     required this.speed,
     required this.builder,
-    this.duration = const Duration(milliseconds: 800),
     this.visualPositionNotifier,
     super.key,
   });
@@ -38,33 +36,41 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
   LatLng _fromPoint = const LatLng(0, 0);
   LatLng _toPoint = const LatLng(0, 0);
-  double _targetHeading = 0.0;
+  
+  double _fromHeading = 0.0;
+  double _toHeading = 0.0;
+  
   bool _initialized = false;
-  DateTime? _lastUpdateTime;
+  static const Distance _dist = Distance();
 
   @override
   void initState() {
     super.initState();
     _fromPoint = widget.point;
     _toPoint = widget.point;
-    _targetHeading = widget.heading;
+    _fromHeading = widget.heading;
+    _toHeading = widget.heading;
     _initialized = true;
 
     _controller = AnimationController(
       vsync: this,
-      duration: widget.duration,
+      duration: const Duration(milliseconds: 1500), // Standard glide time
     );
-    _curve = CurvedAnimation(parent: _controller, curve: Curves.linear);
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
 
     _controller.addListener(_onAnimationTick);
+    
+    // Set initial visual position
+    if (widget.visualPositionNotifier != null) {
+      widget.visualPositionNotifier!.value = widget.point;
+    }
   }
 
   void _onAnimationTick() {
     if (widget.visualPositionNotifier != null) {
       widget.visualPositionNotifier!.value = _interpolatedPoint;
     }
-    // We only need the AnimatedBuilder below to rebuild — so no setState here.
-    // The AnimatedBuilder listens to _controller directly.
+    // AnimatedBuilder will rebuild the widget below based on _controller
   }
 
   @override
@@ -74,51 +80,38 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     if (!_initialized) return;
 
     if (oldWidget.point != widget.point) {
-      const Distance dist = Distance();
-      final double meters = dist(oldWidget.point, widget.point);
-
-      // Snap for impossibly large jumps (teleport / bad data > 2 km)
-      if (meters > 2000) {
-        _fromPoint = widget.point;
-        _toPoint = widget.point;
-        _targetHeading = widget.heading;
-        widget.visualPositionNotifier?.value = widget.point;
-        _controller.stop();
-        return;
-      }
+      final double meters = _dist(oldWidget.point, widget.point);
 
       // Start new interpolation from wherever we currently are visually
       _fromPoint = _interpolatedPoint;
       _toPoint = widget.point;
 
+      _fromHeading = _interpolatedHeading;
+      
       // Derive heading from actual movement vector when vehicle is moving
       if (widget.status == VehicleStatus.moving && meters > 2) {
-        _targetHeading = dist.bearing(_fromPoint, _toPoint);
+        _toHeading = _dist.bearing(_fromPoint, _toPoint);
       } else {
-        _targetHeading = widget.heading;
+        _toHeading = widget.heading;
       }
 
-      // Calculate animation duration dynamically based on the frequency of updates.
-      // This creates a "Rapido-style" continuous glide. By adding a small buffer (500ms)
-      // to the actual time between packets, the animation never finishes before the 
-      // next packet arrives, preventing stuttering and stopping.
-      final DateTime now = DateTime.now();
-      int ms = 1500; // Default smooth fallback
-      if (_lastUpdateTime != null) {
-        ms = now.difference(_lastUpdateTime!).inMilliseconds;
-        ms = (ms + 500).clamp(1000, 8000); // Buffer to ensure it keeps gliding
-      }
-      _lastUpdateTime = now;
-
-      // Snap for massive jumps to catch up instantly
-      if (meters > 500) {
-        ms = 1000;
+      // Calculate animation duration based on distance. 
+      // We cap it so teleports don't take forever, but it glides smoothly.
+      int ms = 1500;
+      if (meters > 5000) {
+        // Massive teleport, snap almost instantly
+        ms = 300;
+      } else if (meters > 100) {
+        // Long distance jump, glide slightly longer so it looks smooth
+        ms = 2500;
       }
 
       _controller.duration = Duration(milliseconds: ms);
       _controller.forward(from: 0.0);
     } else if (oldWidget.heading != widget.heading) {
-      _targetHeading = widget.heading;
+      _fromHeading = _interpolatedHeading;
+      _toHeading = widget.heading;
+      _controller.forward(from: 0.0);
     }
   }
 
@@ -136,6 +129,14 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     final double lng =
         _fromPoint.longitude + (_toPoint.longitude - _fromPoint.longitude) * t;
     return LatLng(lat, lng);
+  }
+  
+  double get _interpolatedHeading {
+    final double t = _curve.value;
+    // Shortest path angle interpolation
+    final double diff = (_toHeading - _fromHeading) % 360;
+    final double shortestAngle = (2 * diff % 360) - diff;
+    return (_fromHeading + shortestAngle * t) % 360;
   }
 
   @override
@@ -159,7 +160,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
         return Transform.translate(
           offset: offset,
-          child: widget.builder(context, _targetHeading),
+          child: widget.builder(context, _interpolatedHeading),
         );
       },
     );

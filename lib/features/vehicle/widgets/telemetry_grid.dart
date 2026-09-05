@@ -77,8 +77,8 @@ class TelemetryGrid extends StatelessWidget {
           icon: Icons.signal_cellular_alt_rounded,
           label: 'GSM',
           value: '${vehicle.gsmSignal}',
-          unit: '/5',
-          color: vehicle.gsmSignal! <= 1 ? AppColors.idle : null,
+          unit: vehicle.gsmSignal! > 5 ? '%' : '/5',
+          color: vehicle.gsmSignal! <= (vehicle.gsmSignal! > 5 ? 20 : 1) ? AppColors.idle : null,
         ),
       if (vehicle.satellites != null)
         _Cell(

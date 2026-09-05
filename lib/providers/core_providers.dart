@@ -1,6 +1,6 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../core/connectivity/connectivity_service.dart';
 import '../core/network/api_client.dart';
 import '../core/payments/payment_service.dart';
@@ -131,7 +131,7 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
   }
 }
 
-class NotificationPreferences {
+class NotificationPreferences extends Equatable {
   const NotificationPreferences({
     required this.sos,
     required this.theft,
@@ -164,16 +164,25 @@ class NotificationPreferences {
         ignition: ignition ?? this.ignition,
         harsh: harsh ?? this.harsh,
       );
+
+  @override
+  List<Object?> get props =>
+      <Object?>[sos, theft, overspeed, geofence, ignition, harsh];
 }
 
 class NotificationPreferencesNotifier
     extends Notifier<NotificationPreferences> {
+  bool _synced = false;
+
   @override
   NotificationPreferences build() {
     final SecureStore store = ref.watch(secureStoreProvider);
     
     // Kick off a background sync with the server
-    Future<void>.microtask(_syncWithServer);
+    if (!_synced) {
+      _synced = true;
+      Future<void>.microtask(_syncWithServer);
+    }
 
     return NotificationPreferences(
       sos: store.notifSos,
@@ -186,9 +195,9 @@ class NotificationPreferencesNotifier
   }
 
   Future<void> _syncWithServer() async {
-    final Map<String, dynamic> remote =
+    final Map<String, dynamic>? remote =
         await ref.read(alertRepositoryProvider).getPreferences();
-    if (remote.isEmpty) return;
+    if (remote == null || remote.isEmpty) return;
 
     final SecureStore store = ref.read(secureStoreProvider);
     final NotificationPreferences next = NotificationPreferences(

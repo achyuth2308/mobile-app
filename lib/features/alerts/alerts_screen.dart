@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+
 import '../../core/config/backend_capabilities.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/realtime/socket_service.dart';
@@ -836,6 +837,25 @@ class AlertTile extends StatelessWidget {
                         ],
                       ),
                       _AddressText(alert),
+                      if (alert.hasLocation) ...<Widget>[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            final vid = alert.vehicleId;
+                            if (vid != null && vid.isNotEmpty) {
+                              context.push('/vehicle/$vid');
+                            }
+                          },
+                          icon: const Icon(Icons.map_rounded, size: 14),
+                          label: const Text('View in Map'),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                            foregroundColor: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

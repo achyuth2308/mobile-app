@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/network/api_exception.dart';
 import '../models/json_utils.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
@@ -131,12 +132,7 @@ class VehicleRepository {
   }
 
   Future<void> sendImmobilizerCommand(String vehicleId, bool cutEngine) async {
-    // TODO: Swap this mock with the actual backend API endpoint
-    // e.g. await _api.post('/vehicles/$vehicleId/command', body: {'type': cutEngine ? 'engineStop' : 'engineResume'});
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (vehicleId.isEmpty) {
-      throw Exception('Invalid vehicle ID');
-    }
+    throw ApiException(message: 'Immobilizer feature is not yet available.');
   }
 
   Future<void> updateSettings(String vehicleId, {

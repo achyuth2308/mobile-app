@@ -55,7 +55,7 @@ enum MapStyle { standard, satellite, google }
 extension MapStyleX on MapStyle {
   String get label => switch (this) {
         MapStyle.standard => 'Modern Light',
-        MapStyle.satellite => 'Satellite (Esri)',
+        MapStyle.satellite => 'Satellite (Google)',
         MapStyle.google => 'Google Maps',
       };
 
@@ -69,9 +69,9 @@ extension MapStyleX on MapStyle {
         MapStyle.standard =>
           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         MapStyle.satellite =>
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2', // Google Hybrid (Satellite + Labels) high-res
         MapStyle.google =>
-          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2', // Google Maps high-res
       };
 
   List<String> get subdomains => switch (this) {
@@ -82,15 +82,15 @@ extension MapStyleX on MapStyle {
 
   /// Max zoom the source serves.
   double get maxZoom => switch (this) {
-        MapStyle.satellite => 18,
+        MapStyle.satellite => 20,
         MapStyle.google => 20,
         _ => 19,
       };
 
   String get attribution => switch (this) {
         MapStyle.standard => 'OpenStreetMap',
-        MapStyle.satellite => 'Esri · World Imagery',
-        MapStyle.google => 'Google',
+        MapStyle.satellite => 'Google Maps',
+        MapStyle.google => 'Google Maps',
       };
 
   static MapStyle fromKey(String key) => MapStyle.values.firstWhere(
@@ -112,10 +112,10 @@ TileLayer buildTileLayer(MapStyle style, {bool retina = false}) {
     urlTemplate: style.urlTemplate,
     subdomains: style.subdomains,
     maxNativeZoom: style.maxZoom.toInt(),
-    maxZoom: style.maxZoom,
+    maxZoom: 22.0, // Scale up the native tiles when zoomed in closely
     userAgentPackageName: AppConfig.tileUserAgent,
     tileProvider: kIsWeb ? CancellableNetworkTileProvider() : FastCachedTileProvider(),
-    retinaMode: true, // Enhances tiles on high-density mobile screens for a sharper map
+    retinaMode: style == MapStyle.standard, // OSM needs z+1 scaling, Google provides native high-res (scale=2)
     panBuffer: 2, // Preload 2-tile perimeter so panning is instant without blank squares
     keepBuffer: 8, // Keep 8 buffer levels in RAM to avoid reload flickers
     tileUpdateTransformer: TileUpdateTransformers.throttle(

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_assets_base64.dart';
 import '../../providers/auth_provider.dart';
@@ -200,7 +199,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       children: [
         Text(
           'Forgot Password?',
-          style: GoogleFonts.playfairDisplay(
+          style: const TextStyle(
+            fontFamily: 'Sora',
             fontSize: 30,
             fontWeight: FontWeight.w700,
             fontStyle: FontStyle.italic,
@@ -212,7 +212,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         const SizedBox(height: 8),
         Text(
           'Enter the email address registered with your account and we\'ll send you a password reset link.',
-          style: GoogleFonts.playfairDisplay(
+          style: const TextStyle(
+            fontFamily: 'Sora',
             fontSize: 15,
             fontWeight: FontWeight.w500,
             fontStyle: FontStyle.italic,
@@ -311,7 +312,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           const SizedBox(height: 20),
           Text(
             'Check Your Inbox',
-            style: GoogleFonts.playfairDisplay(
+            style: const TextStyle(
+              fontFamily: 'Sora',
               fontSize: 26,
               fontWeight: FontWeight.w700,
               fontStyle: FontStyle.italic,

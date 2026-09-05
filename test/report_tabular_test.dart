@@ -306,7 +306,12 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ConsolidatedReportTable(rows: rows),
+            body: ConsolidatedReportTable(
+              rows: rows,
+              startDate: DateTime.now().subtract(const Duration(days: 1)),
+              endDate: DateTime.now(),
+              vehicles: const [],
+            ),
           ),
         ),
       );

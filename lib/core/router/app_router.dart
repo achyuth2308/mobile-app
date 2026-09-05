@@ -24,9 +24,7 @@ import '../../providers/auth_provider.dart';
 final GlobalKey<NavigatorState> _rootKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
 
-/// Deep-link target set by a notification tap before the router is ready.
-final StateProvider<String?> pendingDeepLinkProvider =
-    StateProvider<String?>((Ref ref) => null);
+
 
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
   final ValueNotifier<AuthStage> stage =
@@ -234,5 +232,5 @@ String routeForNotification(Map<String, dynamic> data) {
   if (type.contains('renewal') || type.contains('billing')) return '/renewals';
   if (type == 'route_deviation' || type == 'trip_started' || type == 'trip_ended') return '/routes';
   if (vehicleId != null && vehicleId.isNotEmpty) return '/vehicle/$vehicleId';
-  return '/alerts';
+  return '/dashboard';
 }

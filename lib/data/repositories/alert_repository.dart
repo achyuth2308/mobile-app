@@ -66,18 +66,21 @@ class AlertRepository {
     } on ApiException {/* non-critical */}
   }
 
-  Future<Map<String, dynamic>> getPreferences() async {
+  Future<Map<String, dynamic>?> getPreferences() async {
     try {
       final dynamic res = await _api.get<dynamic>('/alerts/preferences');
-      if (res is Map<String, dynamic>) return res;
-      if (res is Map) return Map<String, dynamic>.from(res);
+      if (res is Map<String, dynamic> && res['preferences'] is Map) {
+        return Map<String, dynamic>.from(res['preferences']);
+      }
     } on ApiException {/* fallback to local */}
-    return <String, dynamic>{};
+    return null;
   }
 
   Future<void> updatePreferences(Map<String, bool> preferences) async {
     try {
-      await _api.put<dynamic>('/alerts/preferences', body: preferences);
+      await _api.put<dynamic>('/alerts/preferences', body: <String, dynamic>{
+        'preferences': preferences,
+      });
     } on ApiException {/* non-critical */}
   }
 

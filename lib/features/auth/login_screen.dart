@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_assets_base64.dart';
 import '../../providers/auth_provider.dart';
 
@@ -18,7 +17,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  bool _isLoading = false;
   bool _obscurePassword = true;
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -32,7 +30,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _login() async {
     if (_emailCtrl.text.trim().isEmpty || _passCtrl.text.isEmpty) return;
-    setState(() => _isLoading = true);
 
     final success = await ref.read(authProvider.notifier).login(
           identifier: _emailCtrl.text.trim(),
@@ -40,10 +37,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
-        context.go('/dashboard');
-      } else {
+      if (!success) {
         final error = ref.read(authProvider).error;
         if (error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -163,7 +157,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       children: [
         Text(
           'Welcome back',
-          style: GoogleFonts.playfairDisplay(
+          style: const TextStyle(
+            fontFamily: 'Sora',
             fontSize: 34,
             fontWeight: FontWeight.w700,
             fontStyle: FontStyle.italic,
@@ -175,7 +170,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(height: 8),
         Text(
           'Sign in to monitor your fleet in real time.',
-          style: GoogleFonts.playfairDisplay(
+          style: const TextStyle(
+            fontFamily: 'Sora',
             fontSize: 16,
             fontWeight: FontWeight.w500,
             fontStyle: FontStyle.italic,
@@ -307,14 +303,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ],
       ),
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _login,
+        onPressed: ref.watch(authProvider).isBusy ? null : _login,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           padding: const EdgeInsets.symmetric(vertical: 20),
         ),
-        child: _isLoading
+        child: ref.watch(authProvider).isBusy
             ? const SizedBox(
                 width: 24,
                 height: 24,

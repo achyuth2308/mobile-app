@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:equatable/equatable.dart';
 
 import '../../core/config/app_config.dart';
@@ -453,7 +454,7 @@ class Vehicle extends Equatable {
                 <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??
             asDoubleOrNull(deviceAttrs,
                 <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']);
-        if (val != null && val > 50000) {
+        if (val != null && val > 500000) {
           val = val / 1000.0;
         }
         return val;
@@ -586,7 +587,7 @@ class Vehicle extends Equatable {
         // Traccar often reports distances in meters. If today's distance is e.g. 5000 (which is 5km),
         // we might want to convert. But if it's huge, definitely divide.
         // Usually, if it's > 500, it's likely meters. 500km in a day is rare but possible, 500m is common.
-        if (val != null && val > 2000) {
+        if (val != null && val > 10000) {
           val = val / 1000.0;
         }
         return val;
@@ -632,20 +633,65 @@ class Vehicle extends Equatable {
             ((frame['attributes'] as Map).containsKey('motion') ||
                 (frame['attributes'] as Map).containsKey('moving')));
 
+    bool acceptLocation = true;
+
+    if (frame['attributes'] is Map) {
+      final Map<String, dynamic> attrs = Map<String, dynamic>.from(frame['attributes'] as Map);
+      if (attrs['valid'] == false || attrs['outdated'] == true) {
+        acceptLocation = false;
+      }
+      
+      final num? accuracy = asDoubleOrNull(attrs, <String>['accuracy', 'hdop']);
+      if (accuracy != null && accuracy > 100) {
+        acceptLocation = false;
+      }
+    }
+
+    if (incoming.satellites != null && incoming.satellites! < 3 && incoming.satellites! > 0) {
+      acceptLocation = false;
+    }
+
+    if (acceptLocation && latitude != null && longitude != null && incoming.latitude != null && incoming.longitude != null && lastPacketAt != null) {
+      final double lat1 = latitude! * math.pi / 180;
+      final double lon1 = longitude! * math.pi / 180;
+      final double lat2 = incoming.latitude! * math.pi / 180;
+      final double lon2 = incoming.longitude! * math.pi / 180;
+
+      final double dLat = lat2 - lat1;
+      final double dLon = lon2 - lon1;
+
+      final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+          math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+      final double c = 2 * math.asin(math.sqrt(a));
+      final double distanceMeters = 6371000 * c;
+
+      final DateTime newPacketTime = incoming.lastPacketAt ?? DateTime.now();
+      final double timeDiffSecs = newPacketTime.difference(lastPacketAt!).inSeconds.abs().toDouble();
+
+      if (timeDiffSecs > 0) {
+        final double speedKmph = (distanceMeters / timeDiffSecs) * 3.6;
+        if (speedKmph > 200 && distanceMeters > 100) {
+          acceptLocation = false;
+        }
+      } else if (distanceMeters > 50) {
+        acceptLocation = false;
+      }
+    }
+
     return copyWith(
-      latitude: incoming.latitude ?? latitude,
-      longitude: incoming.longitude ?? longitude,
+      latitude: acceptLocation ? (incoming.latitude ?? latitude) : latitude,
+      longitude: acceptLocation ? (incoming.longitude ?? longitude) : longitude,
       speed: hasExplicitSpeed ? incoming.speed : (incoming.speed != 0 ? incoming.speed : speed),
       heading: incoming.heading != 0 ? incoming.heading : heading,
       ignition: hasExplicitIgnition ? incoming.ignition : ignition,
       isMoving: hasExplicitMotion ? incoming.isMoving : isMoving,
       odometer: incoming.odometer ?? odometer,
-      fuelLevel: (incoming.fuelLevel != null && incoming.fuelLevel! > 0) ? incoming.fuelLevel : fuelLevel,
+      fuelLevel: (incoming.fuelLevel != null && incoming.fuelLevel! >= 0) ? incoming.fuelLevel : fuelLevel,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
       gsmSignal: incoming.gsmSignal ?? gsmSignal,
       satellites: incoming.satellites ?? satellites,
       address: incoming.address ?? address,
-      lastPacketAt: incoming.lastPacketAt ?? DateTime.now(),
+      lastPacketAt: incoming.lastPacketAt ?? (hasExplicitSpeed || hasExplicitMotion || incoming.latitude != null ? DateTime.now() : lastPacketAt),
       todayDistanceKm: incoming.todayDistanceKm ?? todayDistanceKm,
       rawStatus: incoming.rawStatus ?? rawStatus,
     raw: <String, dynamic>{...raw, ...frame},
@@ -672,6 +718,8 @@ class Vehicle extends Equatable {
     DateTime? lastPacketAt,
     DateTime? expiryDate,
     double? speedLimit,
+    double? overspeedDurationAlert,
+    double? idleDurationAlert,
     double? todayDistanceKm,
     bool? isActive,
     String? rawStatus,
@@ -703,6 +751,8 @@ class Vehicle extends Equatable {
         lastPacketAt: lastPacketAt ?? this.lastPacketAt,
         expiryDate: expiryDate ?? this.expiryDate,
         speedLimit: speedLimit ?? this.speedLimit,
+        overspeedDurationAlert: overspeedDurationAlert ?? this.overspeedDurationAlert,
+        idleDurationAlert: idleDurationAlert ?? this.idleDurationAlert,
         todayDistanceKm: todayDistanceKm ?? this.todayDistanceKm,
         isActive: isActive ?? this.isActive,
         rawStatus: rawStatus ?? this.rawStatus,
@@ -726,5 +776,15 @@ class Vehicle extends Equatable {
         batteryLevel,
         address,
         expiryDate,
+        rawStatus,
+        isImmobilized,
+        todayDistanceKm,
+        odometer,
+        satellites,
+        gsmSignal,
+        speedLimit,
+        isActive,
+        type,
+        driverName,
       ];
 }

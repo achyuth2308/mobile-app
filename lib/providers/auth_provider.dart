@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../core/network/api_exception.dart';
 import '../data/models/user.dart';
 import '../data/repositories/auth_repository.dart';
 import 'core_providers.dart';
+import 'fleet_provider.dart';
 
 enum AuthStage { unknown, authenticated, unauthenticated }
 
@@ -202,6 +204,9 @@ class AuthController extends Notifier<AuthState> {
   Future<void> logout() async {
     // Tear down real-time + push before dropping the token.
     ref.read(socketServiceProvider).disconnect();
+    
+    // Clear fleet data to prevent data leak to next user
+    ref.read(fleetProvider.notifier).clear();
 
     final String? orgId = state.user?.orgId;
     if (orgId != null && orgId.isNotEmpty) {
@@ -211,6 +216,9 @@ class AuthController extends Notifier<AuthState> {
           await ref.read(authRepositoryProvider).unregisterDevice(
                 await ref.read(secureStoreProvider).readFcmToken() ?? '',
               );
+          final FirebaseMessaging fcm = FirebaseMessaging.instance;
+          await fcm.unsubscribeFromTopic('org_$orgId');
+          await fcm.deleteToken();
         } catch (_) {}
       }));
     }

@@ -165,6 +165,7 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
   }
 
   void _handleNotificationTap(Map<String, dynamic> data) {
+    if (!mounted) return;
     if (data['lat'] != null && data['lng'] != null) {
       final String lat = data['lat'].toString();
       final String lng = data['lng'].toString();

@@ -72,13 +72,15 @@ class VehicleCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         Flexible(
-                          child: Text(
-                            vehicle.displayName.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF2E3355),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              vehicle.displayName.toUpperCase(),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF2E3355),
+                              ),
                             ),
                           ),
                         ),

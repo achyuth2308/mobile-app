@@ -250,9 +250,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     return VehicleCard(
                       key: ValueKey<String>(v.id),
                       vehicle: v,
-                      onTap: v.hasLocation
-                          ? () => context.go('/map?focus=${v.id}')
-                          : () {},
+                      onTap: () {
+                        if (v.hasLocation) {
+                          context.go('/map?focus=${v.id}');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Vehicle has no location data yet'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
                       onTrack: () => context.push('/vehicle/${v.id}'),
                     );
                   },

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_assets_base64.dart';
 import '../../core/theme/app_colors.dart';
@@ -238,7 +237,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       children: [
         Text(
           'Reset Password',
-          style: GoogleFonts.playfairDisplay(
+          style: const TextStyle(
+            fontFamily: 'Sora',
             fontSize: 30,
             fontWeight: FontWeight.w700,
             fontStyle: FontStyle.italic,
@@ -250,7 +250,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         const SizedBox(height: 8),
         Text(
           'Create a new secure password for your account.',
-          style: GoogleFonts.playfairDisplay(
+          style: const TextStyle(
+            fontFamily: 'Sora',
             fontSize: 15,
             fontWeight: FontWeight.w500,
             fontStyle: FontStyle.italic,
@@ -397,7 +398,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           const SizedBox(height: 20),
           Text(
             'Password Reset!',
-            style: GoogleFonts.playfairDisplay(
+            style: const TextStyle(
+              fontFamily: 'Sora',
               fontSize: 26,
               fontWeight: FontWeight.w700,
               fontStyle: FontStyle.italic,

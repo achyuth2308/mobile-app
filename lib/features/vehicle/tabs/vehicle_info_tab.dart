@@ -60,7 +60,7 @@ class VehicleInfoTab extends ConsumerWidget {
             ('Last packet', Fmt.full(v.lastPacketAt)),
             ('Coordinates', Fmt.coordinates(v.latitude, v.longitude)),
             if (v.satellites != null) ('Satellites', '${v.satellites}'),
-            if (v.gsmSignal != null) ('GSM signal', '${v.gsmSignal}/5'),
+            if (v.gsmSignal != null) ('GSM signal', '${v.gsmSignal}${v.gsmSignal! > 5 ? '%' : '/5'}'),
           ],
           copyable: const <String>{'IMEI', 'Coordinates', 'Device ID'},
         ),

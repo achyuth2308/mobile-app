@@ -161,9 +161,9 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), // Subtle light background like web
       appBar: AppBar(
-        title: Text(
-          _currentType.label,
-          style: const TextStyle(
+        title: const Text(
+          'Reports',
+          style: TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 18,
             color: Color(0xFF0F172A),

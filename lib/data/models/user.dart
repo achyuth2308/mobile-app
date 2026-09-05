@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
 
 import 'json_utils.dart';
 
@@ -34,8 +35,12 @@ class AppUser extends Equatable {
         .where((String p) => p.isNotEmpty)
         .toList();
     if (parts.isEmpty) return email.isNotEmpty ? email[0].toUpperCase() : 'U';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first[0] + parts.last[0]).toUpperCase();
+    if (parts.length == 1) {
+      return parts.first.characters.take(1).toString().toUpperCase();
+    }
+    return (parts.first.characters.take(1).toString() +
+            parts.last.characters.take(1).toString())
+        .toUpperCase();
   }
 
   factory AppUser.fromJson(Map<String, dynamic> json) {

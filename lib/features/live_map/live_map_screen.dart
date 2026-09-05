@@ -86,9 +86,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   @override
   void dispose() {
     // Clear active following vehicle globally
-    Future.microtask(() {
-      ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
-    });
+    ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
     super.dispose();
   }
 
@@ -200,15 +198,16 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   }
 
   void _showStoppageCard(ReportRow stoppage, int stopNumber) {
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext ctx) => Padding(
-        padding: const EdgeInsets.only(top: kToolbarHeight),
-        child: Align(
-          alignment: Alignment.bottomCenter,
+      barrierColor: Colors.transparent, // Don't dim the map!
+      builder: (BuildContext ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        alignment: Alignment.centerLeft, // Float on the left side
+        insetPadding: const EdgeInsets.only(left: 24, right: 24, top: 100, bottom: 100),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 350),
           child: StoppageDetailCard(
             stoppage: stoppage,
             stopNumber: stopNumber,
@@ -615,58 +614,6 @@ class _MapButton extends StatelessWidget {
   }
 }
 
-class _MapLegend extends StatelessWidget {
-  const _MapLegend();
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-
-    const List<(Color, String)> entries = <(Color, String)>[
-      (AppColors.moving, 'Moving'),
-      (AppColors.idle, 'Idle'),
-      (AppColors.stopped, 'Stopped'),
-      (AppColors.offline, 'Offline'),
-    ];
-
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
-      borderRadius: Corners.rLg,
-      opacity: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.65,
-      blur: 16,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: entries
-            .map(
-              ((Color, String) e) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2.5),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration:
-                          BoxDecoration(color: e.$1, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      e.$2,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontSize: 10,
-                            letterSpacing: 0,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-}
 
 class _NoLocationCard extends StatelessWidget {
   const _NoLocationCard();
