@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import '../core/crashlytics/crash_reporter.dart';
 import '../core/network/api_exception.dart';
 import '../data/models/user.dart';
 import '../data/repositories/auth_repository.dart';
@@ -224,11 +225,16 @@ class AuthController extends Notifier<AuthState> {
     }
 
     await _repo.logout();
+    // Clear user context so reports after logout are fully anonymous.
+    unawaited(CrashReporter.clearUserContext());
     state = const AuthState(stage: AuthStage.unauthenticated);
   }
 
   /// Registers this device for push once a session exists.
   Future<void> _afterLogin(AppUser user) async {
+    // Associate all subsequent Crashlytics reports with this user's internal ID.
+    // We send only id + role — never name, email, or phone.
+    unawaited(CrashReporter.setUserContext(user));
     try {
       final String? fcm = await ref.read(secureStoreProvider).readFcmToken();
       if (fcm != null && fcm.isNotEmpty) {

@@ -4,6 +4,8 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
     id "com.google.gms.google-services"
+    // Uploads R8 mapping file so release crashes are deobfuscated in Crashlytics.
+    id "com.google.firebase.crashlytics"
 }
 
 // Load keystore credentials from key.properties (never commit this file)
@@ -62,6 +64,16 @@ android {
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            // Upload R8 mapping file to Crashlytics after every release build.
+            firebaseCrashlytics {
+                mappingFileUploadEnabled true
+            }
+        }
+        debug {
+            // Disable Crashlytics in debug so dev noise doesn't pollute the dashboard.
+            firebaseCrashlytics {
+                mappingFileUploadEnabled false
+            }
         }
     }
 }

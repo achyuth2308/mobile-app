@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
+import 'core/crashlytics/crash_reporter.dart';
 import 'core/notifications/push_service.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/secure_store.dart';
@@ -34,11 +35,16 @@ Future<void> main() async {
     SystemUiMode.edgeToEdge,
   );
 
-  // ── Firebase (non-fatal if it fails: the app still works without push) ──
+  // ── Firebase + Crashlytics ───────────────────────────────────────────────
+  // Firebase must be fully initialised before we attach any error handlers,
+  // otherwise recordError() calls will silently fail.
   try {
     if (!kIsWeb) {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+      // Init Crashlytics: enables collection only in production, sets the
+      // app_environment custom key so every report is labelled correctly.
+      await CrashReporter.init();
     }
   } catch (e) {
     debugPrint('[main] Firebase init failed: $e');
@@ -46,9 +52,36 @@ Future<void> main() async {
 
   final SecureStore store = await SecureStore.create();
 
+  // ── Flutter framework errors ─────────────────────────────────────────────
+  // FlutterError.onError captures errors thrown inside the Flutter widget
+  // framework: build(), layout, paint, and gesture-recogniser errors.
+  // presentError() preserves the existing debug-mode red-screen behaviour.
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    // Hook Crashlytics/Sentry here.
+    if (!kIsWeb) {
+      CrashReporter.recordError(
+        details.exception,
+        details.stack,
+        reason: 'Flutter framework error: ${details.library ?? "unknown"}',
+        fatal: true,
+      );
+    }
+  };
+
+  // ── Dart async / platform channel errors ────────────────────────────────
+  // PlatformDispatcher.onError catches every Dart error that escapes a
+  // Zone — async gaps, Future chains, isolate errors routed to the main
+  // isolate. This is the modern replacement for runZonedGuarded().
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    if (!kIsWeb) {
+      CrashReporter.recordError(
+        error,
+        stack,
+        reason: 'Unhandled platform/async error',
+        fatal: true,
+      );
+    }
+    return true; // Returning true suppresses the default uncaught-error log.
   };
 
   runApp(
