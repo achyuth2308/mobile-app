@@ -14,6 +14,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
+import '../../../providers/auth_provider.dart';
 
 import '../../../shared/widgets/live_address.dart';
 import '../../live_map/widgets/map_tiles.dart';
@@ -108,6 +109,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                             MapStyleX.fromKey(
                               ref.read(secureStoreProvider).mapType,
                             ),
+                            apiKey: ref.read(authProvider).user?.apiKey,
                           ),
                           MarkerLayer(
                             markers: <Marker>[

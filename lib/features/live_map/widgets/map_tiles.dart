@@ -65,13 +65,13 @@ extension MapStyleX on MapStyle {
         MapStyle.google => Icons.public,
       };
 
-  String get urlTemplate => switch (this) {
+  String urlTemplate(String? apiKey) => switch (this) {
         MapStyle.standard =>
           'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         MapStyle.satellite =>
-          'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2', // Google Hybrid (Satellite + Labels) high-res
+          'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Hybrid (Satellite + Labels) high-res
         MapStyle.google =>
-          'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2', // Google Maps high-res
+          'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Maps high-res
       };
 
   List<String> get subdomains => switch (this) {
@@ -107,9 +107,9 @@ extension MapStyleX on MapStyle {
 ///  - **Background Pre-fetching**: [panBuffer: 2] preloads adjacent tiles before scrolling into view.
 ///  - **Flicker-free Zoom**: [keepBuffer: 8] retains previous zoom tiles to eliminate grey flash.
 ///  - **Gesture Throttling**: Throttles tile updates during fast panning for 60fps smoothness.
-TileLayer buildTileLayer(MapStyle style, {bool retina = false}) {
+TileLayer buildTileLayer(MapStyle style, {bool retina = false, String? apiKey}) {
   return TileLayer(
-    urlTemplate: style.urlTemplate,
+    urlTemplate: style.urlTemplate(apiKey),
     subdomains: style.subdomains,
     maxNativeZoom: style.maxZoom.toInt(),
     maxZoom: 22.0, // Scale up the native tiles when zoomed in closely

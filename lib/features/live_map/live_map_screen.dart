@@ -15,6 +15,7 @@ import '../../data/models/vehicle.dart';
 import '../../data/models/report_models.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/glass_card.dart';
 import 'providers/live_map_providers.dart';
@@ -303,6 +304,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   Widget build(BuildContext context) {
     final FleetState fleet = ref.watch(fleetProvider);
     final List<Vehicle> vehicles = fleet.vehicles;
+    final String? apiKey = ref.read(authProvider).user?.apiKey;
 
     // Follow mode — recentre as new frames arrive, unless the user is panning.
     ref.listen<FleetState>(fleetProvider, (FleetState? _, FleetState next) {
@@ -347,6 +349,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             mapController: _map,
             vehicles: visibleVehicles,
             style: _style,
+            apiKey: apiKey,
             fallbackCenter: _fallbackCenter,
             selectedId: _selectedId,
             followingId: _followingId,

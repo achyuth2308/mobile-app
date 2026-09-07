@@ -18,6 +18,7 @@ class UniversalLiveMap extends StatefulWidget {
     required this.mapController,
     required this.vehicles,
     required this.style,
+    this.apiKey,
     required this.fallbackCenter,
     required this.selectedId,
     required this.followingId,
@@ -34,6 +35,7 @@ class UniversalLiveMap extends StatefulWidget {
   final MapController mapController;
   final List<Vehicle> vehicles;
   final MapStyle style;
+  final String? apiKey;
   final LatLng fallbackCenter;
   final String? selectedId;
   final String? followingId;
@@ -226,7 +228,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
               onTap: (_, __) => widget.onTapMap(),
             ),
             children: <Widget>[
-              buildTileLayer(widget.style),
+              buildTileLayer(widget.style, apiKey: widget.apiKey),
               ValueListenableBuilder<LatLng?>(
                 valueListenable: _activeVisualPosition,
                 builder: (BuildContext context, LatLng? visualPos, Widget? child) {

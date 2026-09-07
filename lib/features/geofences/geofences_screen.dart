@@ -8,6 +8,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/geofence.dart';
 import '../../providers/core_providers.dart';
+import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/glass_card.dart';
 import '../live_map/widgets/map_tiles.dart';
@@ -223,7 +224,10 @@ class _GeofenceCard extends StatelessWidget {
                           ),
                         ),
                         children: <Widget>[
-                          buildTileLayer(MapStyle.standard),
+                          buildTileLayer(
+                            MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+                            apiKey: ref.read(authProvider).user?.apiKey,
+                          ),
                           if (fence.shape == GeofenceShape.circle)
                             CircleLayer<Object>(
                               circles: <CircleMarker<Object>>[

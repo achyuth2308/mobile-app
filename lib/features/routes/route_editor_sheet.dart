@@ -10,6 +10,8 @@ import '../../data/models/vehicle.dart';
 import '../../features/live_map/widgets/map_tiles.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/route_provider.dart';
+import '../../providers/core_providers.dart';
+import '../../providers/auth_provider.dart';
 
 /// Full-screen sheet for drawing a route on the map and assigning it
 /// to one or more vehicles. Opened from [RoutesScreen].
@@ -184,7 +186,10 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                     onTap: _onTap,
                   ),
                   children: <Widget>[
-                    buildTileLayer(MapStyle.standard),
+                    buildTileLayer(
+                      MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+                      apiKey: ref.read(authProvider).user?.apiKey,
+                    ),
                     // Route polyline
                     if (_waypoints.length >= 2)
                       PolylineLayer(

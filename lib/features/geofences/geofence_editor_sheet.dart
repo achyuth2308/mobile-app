@@ -9,7 +9,9 @@ import '../../core/theme/app_spacing.dart';
 import '../../data/models/geofence.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
+import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../live_map/widgets/map_tiles.dart';
 
 /// Create a circular geofence by dragging the map and sizing the radius.
@@ -298,7 +300,10 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                             },
                           ),
                           children: <Widget>[
-                            buildTileLayer(MapStyle.standard),
+                            buildTileLayer(
+                              MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+                              apiKey: ref.read(authProvider).user?.apiKey,
+                            ),
                             if (_shape == GeofenceShape.circle)
                               CircleLayer<Object>(
                                 circles: <CircleMarker<Object>>[

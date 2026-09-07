@@ -14,6 +14,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/trip.dart';
 import '../../../providers/core_providers.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
 
@@ -591,12 +592,18 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                   },
                 ),
                 children: <Widget>[
-                  buildTileLayer(MapStyle.standard),
+                  buildTileLayer(
+                    MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+                    apiKey: ref.read(authProvider).user?.apiKey,
+                  ),
                   if (_points.length >= 2) ..._routeLayers(theme),
                   MarkerLayer(markers: _routeMarkers(theme)),
-                  const Align(
+                  Align(
                     alignment: Alignment.bottomRight,
-                    child: OsmAttribution(style: MapStyle.standard, compact: true),
+                    child: OsmAttribution(
+                      style: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+                      compact: true,
+                    ),
                   ),
                 ],
               ),

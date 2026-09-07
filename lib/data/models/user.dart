@@ -14,6 +14,8 @@ class AppUser extends Equatable {
     this.orgName = '',
     this.avatarUrl,
     this.timezone,
+    this.mapProvider,
+    this.apiKey,
     this.createdAt,
   });
 
@@ -26,6 +28,8 @@ class AppUser extends Equatable {
   final String orgName;
   final String? avatarUrl;
   final String? timezone;
+  final String? mapProvider;
+  final String? apiKey;
   final DateTime? createdAt;
 
   String get initials {
@@ -67,6 +71,8 @@ class AppUser extends Equatable {
           : asString(src, <String>['orgName', 'companyName']),
       avatarUrl: asStringOrNull(src, <String>['avatar', 'avatarUrl', 'photo', 'profileImage']),
       timezone: asStringOrNull(src, <String>['timezone', 'timeZone', 'tz']),
+      mapProvider: asStringOrNull(src, <String>['mapProvider', 'map_provider']),
+      apiKey: asStringOrNull(src, <String>['apiKey', 'api_key']),
       createdAt: asDate(src, <String>['createdAt', 'created_at', 'joinedAt']),
     );
   }
@@ -81,6 +87,8 @@ class AppUser extends Equatable {
         'orgName': orgName,
         'avatar': avatarUrl,
         'timezone': timezone,
+        'mapProvider': mapProvider,
+        'apiKey': apiKey,
         'createdAt': createdAt?.toIso8601String(),
       };
 
@@ -90,6 +98,8 @@ class AppUser extends Equatable {
     String? phone,
     String? avatarUrl,
     String? timezone,
+    String? mapProvider,
+    String? apiKey,
   }) =>
       AppUser(
         id: id,
@@ -101,10 +111,12 @@ class AppUser extends Equatable {
         orgName: orgName,
         avatarUrl: avatarUrl ?? this.avatarUrl,
         timezone: timezone ?? this.timezone,
+        mapProvider: mapProvider ?? this.mapProvider,
+        apiKey: apiKey ?? this.apiKey,
         createdAt: createdAt,
       );
 
   @override
   List<Object?> get props =>
-      <Object?>[id, name, email, phone, role, orgId, orgName, avatarUrl];
+      <Object?>[id, name, email, phone, role, orgId, orgName, avatarUrl, mapProvider, apiKey];
 }
