@@ -154,25 +154,26 @@ class _FloatingNavBar extends StatelessWidget {
       ),
     ]);
 
-    return Container(
-      margin:
-          EdgeInsets.fromLTRB(Gap.md, 0, Gap.md, bottomInset > 0 ? 8 : Gap.md),
-      height: 66,
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer.withOpacity(0.97),
-        borderRadius: Corners.rXl,
-        border: Border.all(color: scheme.outlineVariant),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(
-              scheme.brightness == Brightness.dark ? 0.42 : 0.10,
+    return SafeArea(
+      bottom: true,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(Gap.md, 0, Gap.md, Gap.md),
+        height: 66,
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainer.withOpacity(0.97),
+          borderRadius: Corners.rXl,
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                scheme.brightness == Brightness.dark ? 0.42 : 0.10,
+              ),
+              blurRadius: 26,
+              offset: const Offset(0, 8),
             ),
-            blurRadius: 26,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
+          ],
+        ),
+        child: Row(
         children: List<Widget>.generate(navItems.length, (int i) {
           final _NavItemData item = navItems[i];
           final bool selected = !item.isDetails && item.branchIndex == currentIndex;
@@ -235,7 +236,7 @@ class _FloatingNavBar extends StatelessWidget {
           );
         }),
       ),
-    );
+    ));
   }
 }
 

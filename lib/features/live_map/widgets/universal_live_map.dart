@@ -54,16 +54,21 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   final ValueNotifier<LatLng?> _activeVisualPosition = ValueNotifier(null);
   bool _isUserInteracting = false;
 
-  final Map<String, GlobalKey> _markerKeys = <String, GlobalKey>{};
-
-  GlobalKey _getMarkerKey(String id) {
-    return _markerKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'marker_$id'));
-  }
+  bool _showLoadingOverlay = true;
 
   @override
   void initState() {
     super.initState();
     _activeVisualPosition.addListener(_onVisualPositionChanged);
+    
+    // Give tiles 2.5 seconds to load in the background before revealing the map
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) {
+        setState(() {
+          _showLoadingOverlay = false;
+        });
+      }
+    });
   }
 
   void _onVisualPositionChanged() {
@@ -82,36 +87,58 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   }
 
   List<Marker> _buildMarkers(String? activeId) {
+    final bool manyVehicles = widget.vehicles.length > 50;
+
     return widget.vehicles
         .where((Vehicle v) => v.hasLocation)
         .map(
-          (Vehicle v) => Marker(
-            key: ValueKey<String>(v.id),
-            point: LatLng(v.latitude!, v.longitude!),
-            width: 120,
-            height: 120,
-            alignment: Alignment.center,
-            child: GestureDetector(
-              onTap: () => widget.onSelectVehicle(v),
-              child: Center(
-                child: AnimatedVehicleMarker(
-                  key: _getMarkerKey(v.id),
-                  point: LatLng(v.latitude!, v.longitude!),
-                  heading: v.heading ?? 0.0,
-                  status: v.status,
-                  speed: v.speed ?? 0.0,
-                  visualPositionNotifier: (v.id == activeId) ? _activeVisualPosition : null,
-                  builder: (BuildContext context, double animatedHeading) => VehicleMarkerPin(
-                    vehicle: v,
-                    selected: v.id == widget.selectedId,
-                    showLabel: false,
-                    useSprite: true,
-                    headingOverride: animatedHeading,
-                  ),
+          (Vehicle v) {
+            final bool isSelected = v.id == widget.selectedId;
+            final bool isActive = v.id == activeId;
+            final bool useAnimation = isActive || !manyVehicles;
+
+            Widget markerChild = VehicleMarkerPin(
+              vehicle: v,
+              selected: isSelected,
+              showLabel: false,
+              useSprite: true,
+              headingOverride: v.heading,
+            );
+
+            if (useAnimation) {
+              markerChild = AnimatedVehicleMarker(
+                key: ValueKey<String>('anim_${v.id}'),
+                point: LatLng(v.latitude!, v.longitude!),
+                heading: v.heading,
+                status: v.status,
+                speed: v.speed,
+                visualPositionNotifier: isActive ? _activeVisualPosition : null,
+                builder: (BuildContext context, double animatedHeading) => VehicleMarkerPin(
+                  vehicle: v,
+                  selected: isSelected,
+                  showLabel: false,
+                  useSprite: true,
+                  headingOverride: animatedHeading,
+                ),
+              );
+            }
+
+            return Marker(
+              key: ValueKey<String>(v.id),
+              point: LatLng(v.latitude!, v.longitude!),
+              width: 40,
+              height: 50,
+              child: GestureDetector(
+                onTap: () => widget.onSelectVehicle(v),
+                // Shift the marker UP by half its height (25px) so the bottom tip (y=50) 
+                // anchors exactly on the GPS coordinate.
+                child: Transform.translate(
+                  offset: const Offset(0, -25),
+                  child: markerChild,
                 ),
               ),
-            ),
-          ),
+            );
+          },
         )
         .toList();
   }
@@ -141,13 +168,9 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
       final int count = overlapCounts[overlapKey] ?? 0;
       overlapCounts[overlapKey] = count + 1;
 
-      // Visual offset so they fan out diagonally instead of perfectly eclipsing each other
-      final double offsetLat = lat + (count * 0.0004); // ~40m North
-      final double offsetLng = lng + (count * 0.0004); // ~40m East
-
       pointMarkers.add(
         Marker(
-          point: LatLng(offsetLat, offsetLng),
+          point: LatLng(lat, lng),
           width: 44,
           height: 44,
           alignment: Alignment.bottomCenter,
@@ -166,6 +189,15 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             ),
           ),
         )
+      );
+    }
+
+    // Extract active vehicle info for the trail builder
+    Vehicle? activeV;
+    if (activeId != null && activeId.isNotEmpty) {
+      activeV = widget.vehicles.cast<Vehicle?>().firstWhere(
+        (v) => v?.id == activeId,
+        orElse: () => null,
       );
     }
 
@@ -195,47 +227,131 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             ),
             children: <Widget>[
               buildTileLayer(widget.style),
-              // The polyline trails were removed based on user request to only show numbered stoppage points
+              ValueListenableBuilder<LatLng?>(
+                valueListenable: _activeVisualPosition,
+                builder: (BuildContext context, LatLng? visualPos, Widget? child) {
+                  final List<LatLng> trailPoints = [];
+                  
+                  if (activeV != null && activeV.hasLocation) {
+                    final LatLng finalBackendPos = LatLng(activeV.latitude!, activeV.longitude!);
+                    final LatLng targetPos = visualPos ?? finalBackendPos;
+
+                    if (widget.route.isNotEmpty) {
+                      int cutIdx = -1;
+                      double minDistance = double.infinity;
+                      const Distance dist = Distance();
+
+                      for (int i = 0; i < widget.route.length; i++) {
+                        final TrackPoint tp = widget.route[i];
+                        if (!tp.isValid) continue;
+
+                        final double d = dist(tp.latLng, targetPos);
+                        if (d < minDistance) {
+                          minDistance = d;
+                          cutIdx = i;
+                        }
+                      }
+
+                      if (cutIdx != -1 && minDistance < 1000) {
+                        for (int i = 0; i <= cutIdx; i++) {
+                          if (widget.route[i].isValid) {
+                            trailPoints.add(widget.route[i].latLng);
+                          }
+                        }
+                      } else {
+                        for (final TrackPoint tp in widget.route) {
+                          if (tp.isValid) {
+                            if (activeV.lastPacketAt != null && tp.timestamp.isAfter(activeV.lastPacketAt!)) {
+                              break;
+                            }
+                            trailPoints.add(tp.latLng);
+                          }
+                        }
+                      }
+                    }
+                    if (trailPoints.isEmpty || trailPoints.last != targetPos) {
+                      trailPoints.add(targetPos);
+                    }
+                  } else if (widget.route.isNotEmpty) {
+                    for (final TrackPoint tp in widget.route) {
+                      if (tp.isValid) trailPoints.add(tp.latLng);
+                    }
+                  }
+
+                  if (trailPoints.length < 2) return const SizedBox.shrink();
+
+                  return PolylineLayer(
+                    polylines: _splitPolyline(
+                      points: trailPoints,
+                      color: const Color(0xFF10B981),
+                      strokeWidth: 4.5,
+                    ),
+                  );
+                },
+              ),
               if (markers.isNotEmpty)
                 MarkerLayer(markers: markers),
               if (pointMarkers.isNotEmpty)
                 MarkerLayer(markers: pointMarkers),
             ],
           ),
+          
+          // Loading overlay that hides the map while tiles are being downloaded
+          if (_showLoadingOverlay)
+            Positioned.fill(
+              child: Container(
+                color: theme.colorScheme.surface,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
       ],
     );
   }
 }
 
-class _MapPinClipper extends CustomClipper<ui.Path> {
-  @override
-  ui.Path getClip(Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    final ui.Path path = ui.Path();
+/// Splits a list of GPS points into multiple [Polyline] segments, breaking
+/// the line wherever two consecutive points are more than [gapThresholdMeters]
+/// apart. This eliminates the long "crow-fly" drift lines that appear when
+/// the GPS tracker loses signal for a while.
+List<Polyline> _splitPolyline({
+  required List<LatLng> points,
+  required Color color,
+  double strokeWidth = 4.5,
+  double gapThresholdMeters = 1000,
+}) {
+  if (points.length < 2) return const <Polyline>[];
 
-    // Circle centered at (w/2, w/2) with radius w/2
-    final double r = w / 2;
+  const Distance _dist = Distance();
+  final List<Polyline> segments = <Polyline>[];
+  List<LatLng> current = <LatLng>[points.first];
 
-    // Start at bottom tip
-    path.moveTo(w / 2, h);
-    // Draw left side tangent line to the circle
-    path.quadraticBezierTo(w * 0.1, h * 0.6, 0, r);
-    // Draw top circle arc
-    path.arcToPoint(
-      Offset(w, r),
-      radius: Radius.circular(r),
-      clockwise: true,
-    );
-    // Draw right side tangent line back to bottom tip
-    path.quadraticBezierTo(w * 0.9, h * 0.6, w / 2, h);
-    path.close();
-
-    return path;
+  for (int i = 1; i < points.length; i++) {
+    final double d = _dist(points[i - 1], points[i]);
+    if (d > gapThresholdMeters) {
+      if (current.length >= 2) {
+        segments.add(Polyline(
+          points: List<LatLng>.of(current),
+          strokeWidth: strokeWidth,
+          color: color,
+        ));
+      }
+      current = <LatLng>[points[i]];
+    } else {
+      current.add(points[i]);
+    }
   }
 
-  @override
-  bool shouldReclip(covariant CustomClipper<ui.Path> oldClipper) => false;
+  if (current.length >= 2) {
+    segments.add(Polyline(
+      points: current,
+      strokeWidth: strokeWidth,
+      color: color,
+    ));
+  }
+
+  return segments;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,7 +389,7 @@ class _MessageBubblePainter extends CustomPainter {
     canvas.drawPath(tail, fill);
 
     final Paint border = Paint()
-      ..color = Colors.white.withOpacity(0.80)
+      ..color = Colors.white.withValues(alpha: 0.80)
       ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
     canvas.drawRRect(body, border);

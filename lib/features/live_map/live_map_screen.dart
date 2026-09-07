@@ -1,10 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
@@ -50,9 +48,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   String? _selectedId;
   String? _followingId;
   String? _pendingFocusId;
-  MapStyle _style = MapStyle.standard;
+  MapStyle _style = MapStyle.google;
   bool _mapReady = false;
   bool _userInteracting = false;
+  bool _isHistoryMode = false;
 
   /// India-centred default until the first fix arrives.
   static const LatLng _fallbackCenter = LatLng(17.385, 78.4867);
@@ -61,12 +60,29 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (!mounted) return;
     setState(() {
       _followingId = id;
+      _isHistoryMode = false; // Reset to Live mode when selecting/following vehicle
     });
     Future.microtask(() {
       if (mounted) {
         ref.read(activeFollowingVehicleIdProvider.notifier).state = id;
       }
     });
+  }
+
+  void _toggleHistoryMode(bool history) {
+    final String activeId = _selectedId ?? _followingId ?? '';
+    if (history && activeId.isNotEmpty) {
+      context.push('/vehicle/$activeId?tab=history');
+    } else {
+      setState(() {
+        _isHistoryMode = false;
+      });
+      final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+      final Vehicle? v = vehicles.cast<Vehicle?>().firstWhere((v) => v?.id == activeId, orElse: () => null);
+      if (v != null && v.hasLocation && _mapReady) {
+        _move(LatLng(v.latitude!, v.longitude!), zoom: 17.0);
+      }
+    }
   }
 
   @override
@@ -285,7 +301,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final FleetState fleet = ref.watch(fleetProvider);
     final List<Vehicle> vehicles = fleet.vehicles;
 
@@ -316,34 +331,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     final String activeId = _selectedId ?? _followingId ?? '';
     final AsyncValue<VehicleDailyData> dailyDataAsync =
         ref.watch(vehicleDailyHistoryProvider(activeId));
-
-    ref.listen<AsyncValue<VehicleDailyData>>(vehicleDailyHistoryProvider(activeId), (previous, next) {
-      if (!_mapReady || _userInteracting) return;
-      final data = next.valueOrNull;
-      if (data != null && data.route.isNotEmpty) {
-        final points = data.route
-            .where((p) => p.latitude != null && p.longitude != null)
-            .map((p) => LatLng(p.latitude!, p.longitude!))
-            .toList();
-        if (following != null && following.hasLocation) {
-          points.add(LatLng(following.latitude!, following.longitude!));
-        }
-        if (points.isNotEmpty) {
-          final bounds = LatLngBounds.fromPoints(points);
-          _map.fitCamera(
-            CameraFit.bounds(
-              bounds: bounds,
-              padding: const EdgeInsets.only(
-                left: 50,
-                right: 50,
-                top: 150,
-                bottom: 180,
-              ),
-            ),
-          );
-        }
-      }
-    });
 
     // If the user is actively following or viewing a specific vehicle (activeId),
     // hide all other vehicles to prevent map clutter.
@@ -413,13 +400,21 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               locatedCount: located,
               totalCount: vehicles.length,
               followingName: following?.displayName,
+              isHistoryMode: _isHistoryMode,
               onStopFollowing: () => _setFollowingId(null),
+              onToggleHistoryMode: _toggleHistoryMode,
               onRecenter: following != null && following.hasLocation
                   ? () => _move(
                         LatLng(following.latitude!, following.longitude!),
                         zoom: 17,
                       )
                   : null,
+              onRefresh: () {
+                ref.invalidate(fleetProvider);
+                if (activeId.isNotEmpty) {
+                  ref.invalidate(vehicleDailyHistoryProvider(activeId));
+                }
+              },
             ),
           ),
 
@@ -501,57 +496,160 @@ class _MapHeader extends StatelessWidget {
     required this.locatedCount,
     required this.totalCount,
     required this.followingName,
+    required this.isHistoryMode,
     required this.onStopFollowing,
+    required this.onToggleHistoryMode,
     this.onRecenter,
+    this.onRefresh,
   });
 
   final int locatedCount;
   final int totalCount;
   final String? followingName;
+  final bool isHistoryMode;
   final VoidCallback onStopFollowing;
+  final ValueChanged<bool> onToggleHistoryMode;
   final VoidCallback? onRecenter;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
     if (followingName != null) {
-      return Material(
-        color: theme.colorScheme.primary,
-        borderRadius: Corners.rPill,
-        child: InkWell(
-          borderRadius: Corners.rPill,
-          onTap: onRecenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(Gap.lg, 10, 6, 10),
-            child: Row(
-              children: <Widget>[
-                Icon(Icons.gps_fixed_rounded,
-                    size: 16, color: theme.colorScheme.onPrimary),
-                const SizedBox(width: Gap.sm),
-                Expanded(
-                  child: Text(
-                    'Following $followingName',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onPrimary,
-                      fontWeight: FontWeight.w700,
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B).withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.30),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Row(
+          children: <Widget>[
+            // Left: Back/Close Arrow Button
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.arrow_back_rounded, size: 20, color: Colors.white),
+              onPressed: onStopFollowing,
+            ),
+            const SizedBox(width: 4),
+
+            // Vehicle Name (Truncated)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: Text(
+                followingName!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Center: [ Live | History ] Segmented Switch Control
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Live Button
+                  GestureDetector(
+                    onTap: () => onToggleHistoryMode(false),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: !isHistoryMode ? const Color(0xFF38BDF8) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'Live',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: !isHistoryMode ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  constraints:
-                      const BoxConstraints(minWidth: 34, minHeight: 34),
-                  padding: EdgeInsets.zero,
-                  icon: Icon(Icons.close_rounded,
-                      size: 18, color: theme.colorScheme.onPrimary),
-                  onPressed: onStopFollowing,
-                ),
-              ],
+
+                  // History Button
+                  GestureDetector(
+                    onTap: () => onToggleHistoryMode(true),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isHistoryMode ? const Color(0xFF38BDF8) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'History',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: isHistoryMode ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            const Spacer(),
+
+            // Right: Green Live Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF052E16).withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.wifi_tethering_rounded, size: 12, color: Color(0xFF22C55E)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Live',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF22C55E),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+
+            // Refresh Button
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.refresh_rounded, size: 19, color: Colors.white),
+              onPressed: onRefresh ?? onRecenter,
+            ),
+          ],
         ),
       );
     }

@@ -426,6 +426,35 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     _map.move(_currentPoint.latLng, zoom);
   }
 
+  /// Bearing in radians (clockwise from north) from the previous point to
+  /// the current playback position, computed from raw coordinates so it
+  /// always reflects the actual direction of travel — not the stale GPS
+  /// heading field, which lags behind or is often zero.
+  double get _currentBearing {
+    if (_points.length < 2) return 0;
+    final int idx = _playbackProgress.floor().clamp(0, _points.length - 1);
+    // Use previous → current if we are at a real point, else current → next.
+    final LatLng from = idx > 0 ? _points[idx - 1].latLng : _points[0].latLng;
+    final LatLng to = idx < _points.length - 1
+        ? _points[idx + 1].latLng
+        : _points[_points.length - 1].latLng;
+
+    if (from.latitude == to.latitude && from.longitude == to.longitude) {
+      return 0;
+    }
+
+    final double lat1 = from.latitude * math.pi / 180;
+    final double lat2 = to.latitude * math.pi / 180;
+    final double dLng = (to.longitude - from.longitude) * math.pi / 180;
+
+    final double y = math.sin(dLng) * math.cos(lat2);
+    final double x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+
+    // atan2 gives bearing in radians, already clockwise-from-north convention.
+    return math.atan2(y, x);
+  }
+
   /// Cumulative distance in km from first point to current progress.
   double get _distanceCovered {
     if (_points.length < 2 || _playbackProgress == 0) return 0;
@@ -744,42 +773,75 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
   /// Full route dimmed underneath, travelled portion highlighted on top with status colors.
   List<Widget> _routeLayers(ThemeData theme) {
-    final List<LatLng> all =
-        _points.map((TrackPoint p) => p.latLng).toList(growable: false);
     final int idx = _playbackProgress.floor().clamp(0, _points.length - 1);
     final List<TrackPoint> travelledPoints = _points.sublist(0, idx + 1);
     if (_playbackProgress > idx && idx < _points.length - 1) {
       travelledPoints.add(_currentPoint);
     }
 
+    // Split polylines on gaps > 1 km to avoid long crow-fly drift lines
+    final List<LatLng> allPoints = _points.map((TrackPoint p) => p.latLng).toList(growable: false);
+    final List<LatLng> travelledLatLng = travelledPoints.map((TrackPoint p) => p.latLng).toList();
 
-    final List<Polyline<Object>> travelledPolylines = <Polyline<Object>>[
-      Polyline<Object>(
-        points: travelledPoints.map((TrackPoint p) => p.latLng).toList(),
-        color: const Color(0xFF1565C0),
-        strokeWidth: 5,
-        strokeCap: StrokeCap.round,
-        strokeJoin: StrokeJoin.round,
-      ),
-    ];
+    final List<Polyline<Object>> ghostSegments = _splitPlaybackPolyline(
+      points: allPoints,
+      color: const Color(0xFF4B5563),
+      strokeWidth: 3.5,
+    );
+
+    final List<Polyline<Object>> travelledSegments = _splitPlaybackPolyline(
+      points: travelledLatLng,
+      color: const Color(0xFF0A7C4E),
+      strokeWidth: 5,
+    );
 
     return <Widget>[
-      PolylineLayer<Object>(
-        polylines: <Polyline<Object>>[
-          Polyline<Object>(
-            points: all,
-            color: const Color(0xFF1565C0).withOpacity(0.24),
-            strokeWidth: 4,
-            strokeCap: StrokeCap.round,
-            strokeJoin: StrokeJoin.round,
-          ),
-        ],
-      ),
-      PolylineLayer<Object>(
-        polylines: travelledPolylines,
-      ),
+      PolylineLayer<Object>(polylines: ghostSegments),
+      PolylineLayer<Object>(polylines: travelledSegments),
     ];
   }
+
+  /// Splits GPS points into multiple polyline segments at gaps > [gapMeters].
+  /// Prevents the long straight "drift" lines when the tracker loses signal.
+  static List<Polyline<Object>> _splitPlaybackPolyline({
+    required List<LatLng> points,
+    required Color color,
+    double strokeWidth = 4.0,
+    double gapMeters = 1000,
+  }) {
+    if (points.length < 2) return const <Polyline<Object>>[];
+
+    const Distance _dist = Distance();
+    final List<Polyline<Object>> segments = <Polyline<Object>>[];
+    List<LatLng> current = <LatLng>[points.first];
+
+    for (int i = 1; i < points.length; i++) {
+      final double d = _dist(points[i - 1], points[i]);
+      if (d > gapMeters) {
+        if (current.length >= 2) {
+          segments.add(Polyline<Object>(
+            points: List<LatLng>.of(current),
+            color: color,
+            strokeWidth: strokeWidth,
+          ));
+        }
+        current = <LatLng>[points[i]];
+      } else {
+        current.add(points[i]);
+      }
+    }
+
+    if (current.length >= 2) {
+      segments.add(Polyline<Object>(
+        points: current,
+        color: color,
+        strokeWidth: strokeWidth,
+      ));
+    }
+
+    return segments;
+  }
+
 
   List<Marker> _routeMarkers(ThemeData theme) {
     if (_points.isEmpty) return const <Marker>[];
@@ -793,13 +855,19 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         if (_points.length < 100 || i % (_points.length ~/ 100) == 0)
           Marker(
             point: _points[i].latLng,
-            width: 8,
-            height: 8,
+            width: 9,
+            height: 9,
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1565C0),
+                color: const Color(0xFF0A7C4E), // dark green dots matching trail
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.2),
+                border: Border.all(color: Colors.white, width: 1.5),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: const Color(0xFF0A7C4E).withOpacity(0.5),
+                    blurRadius: 3,
+                  ),
+                ],
               ),
             ),
           ),
@@ -821,35 +889,35 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
           icon: Icons.flag_rounded,
         ),
       ),
-      // Stoppage Markers (P)
-      for (final StoppageEvent stop in _stoppages)
+      // Stoppage Markers
+      for (int i = 0; i < _stoppages.length; i++)
         Marker(
-          point: LatLng(stop.lat, stop.lng),
+          point: LatLng(_stoppages[i].lat, _stoppages[i].lng),
           width: 26,
           height: 26,
           child: GestureDetector(
             onTap: () {
               final int pIdx = _points.indexWhere((TrackPoint pt) =>
-                  pt.timestamp.isAfter(stop.startTime) ||
-                  pt.timestamp.isAtSameMomentAs(stop.startTime));
+                  pt.timestamp.isAfter(_stoppages[i].startTime) ||
+                  pt.timestamp.isAtSameMomentAs(_stoppages[i].startTime));
               if (pIdx != -1) {
                 setState(() => _playbackProgress = pIdx.toDouble());
                 _followCamera();
               }
             },
-            child: _StoppagePin(duration: stop.duration),
+            child: _StoppagePin(duration: _stoppages[i].duration, number: i + 1),
           ),
         ),
       Marker(
         point: cursor.latLng,
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         alignment: Alignment.center,
         child: Transform.rotate(
-          angle: cursor.heading * 3.1415926535897932 / 180,
+          angle: _currentBearing, // computed from actual track coordinates
           child: const Icon(
             Icons.navigation,
-            size: 36,
+            size: 38,
             color: Colors.blueAccent,
           ),
         ),
@@ -859,9 +927,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 }
 
 class _StoppagePin extends StatelessWidget {
-  const _StoppagePin({required this.duration});
+  const _StoppagePin({required this.duration, required this.number});
 
   final Duration duration;
+  final int number;
 
   @override
   Widget build(BuildContext context) {
@@ -880,12 +949,12 @@ class _StoppagePin extends StatelessWidget {
           ),
         ],
       ),
-      child: const Center(
+      child: Center(
         child: Text(
-          'P',
+          number.toString(),
           style: TextStyle(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: number > 9 ? 10.5 : 12.0,
             fontWeight: FontWeight.w900,
             height: 1,
           ),

@@ -694,6 +694,15 @@ class _AddressTextState extends State<_AddressText> {
   }
 }
 
+/// Returns true for alert types that represent a stoppage / parking / idle
+/// event — these cards should display Start, End, and Duration rows.
+bool _isStoppageType(String type) {
+  const Set<String> stoppageTypes = <String>{
+    'stoppage', 'idle', 'excessive_idle', 'excessive_idling', 'parking',
+  };
+  return stoppageTypes.contains(type.toLowerCase());
+}
+
 class AlertTile extends StatelessWidget {
   const AlertTile({
     required this.alert,
@@ -807,6 +816,7 @@ class AlertTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: Gap.sm),
+                      // ── Timestamp row(s) ──────────────────────
                       Row(
                         children: <Widget>[
                           if (alert.vehicleName != null) ...<Widget>[
@@ -830,12 +840,52 @@ class AlertTile extends StatelessWidget {
                               color: theme.colorScheme.onSurfaceVariant),
                           const SizedBox(width: 4),
                           Text(
-                            Fmt.full(alert.createdAt),
+                            // Show 'Start' label only for stoppage-type alerts
+                            _isStoppageType(alert.type)
+                                ? 'Start: ${Fmt.full(alert.createdAt)}'
+                                : Fmt.full(alert.createdAt),
                             style: theme.textTheme.labelSmall
                                 ?.copyWith(letterSpacing: 0),
                           ),
                         ],
                       ),
+                      // End time row — stoppage alerts only
+                      if (_isStoppageType(alert.type) && alert.endTime != null) ...<Widget>[
+                        const SizedBox(height: 3),
+                        Row(
+                          children: <Widget>[
+                            Icon(Icons.flag_rounded,
+                                size: 12,
+                                color: theme.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 4),
+                            Text(
+                              'End: ${Fmt.full(alert.endTime)}',
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(letterSpacing: 0),
+                            ),
+                          ],
+                        ),
+                      ],
+                      // Duration row — stoppage alerts only
+                      if (_isStoppageType(alert.type) && alert.durationMinutes != null) ...<Widget>[
+                        const SizedBox(height: 3),
+                        Row(
+                          children: <Widget>[
+                            Icon(Icons.timelapse_rounded,
+                                size: 12,
+                                color: theme.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Duration: ${Fmt.duration(Duration(minutes: alert.durationMinutes!))}',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                letterSpacing: 0,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.idle,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       _AddressText(alert),
                       if (alert.hasLocation) ...<Widget>[
                         const SizedBox(height: 8),

@@ -21,9 +21,10 @@ import 'vehicle_settings_sheet.dart';
 /// dispose it leaves the room again — an important server-load and battery
 /// consideration when a customer opens many vehicles in a session.
 class VehicleDetailScreen extends ConsumerStatefulWidget {
-  const VehicleDetailScreen({required this.vehicleId, super.key});
+  const VehicleDetailScreen({required this.vehicleId, this.initialTab = 0, super.key});
 
   final String vehicleId;
+  final int initialTab;
 
   @override
   ConsumerState<VehicleDetailScreen> createState() =>
@@ -32,11 +33,16 @@ class VehicleDetailScreen extends ConsumerStatefulWidget {
 
 class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 4, vsync: this);
+  late final TabController _tabs;
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 3),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(socketServiceProvider).joinVehicle(widget.vehicleId);
       ref.read(secureStoreProvider).setLastVehicleId(widget.vehicleId);

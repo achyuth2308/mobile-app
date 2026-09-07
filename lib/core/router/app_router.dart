@@ -171,8 +171,21 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/vehicle/:id',
         parentNavigatorKey: _rootKey,
-        builder: (BuildContext c, GoRouterState s) =>
-            VehicleDetailScreen(vehicleId: s.pathParameters['id'] ?? ''),
+        builder: (BuildContext c, GoRouterState s) {
+          final String tabParam = s.uri.queryParameters['tab'] ?? '';
+          int initialTab = 0;
+          if (tabParam == 'history' || tabParam == '1') {
+            initialTab = 1;
+          } else if (tabParam == 'alerts' || tabParam == '2') {
+            initialTab = 2;
+          } else if (tabParam == 'info' || tabParam == '3') {
+            initialTab = 3;
+          }
+          return VehicleDetailScreen(
+            vehicleId: s.pathParameters['id'] ?? '',
+            initialTab: initialTab,
+          );
+        },
       ),
       GoRoute(
         path: '/geofences',

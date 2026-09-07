@@ -85,14 +85,7 @@ class NotificationPreferencesSheet extends ConsumerWidget {
               value: prefs.ignition,
               onChanged: (_) => notifier.toggleIgnition(),
             ),
-            _buildPreferenceTile(
-              context: context,
-              icon: Icons.warning_amber_rounded,
-              title: 'Harsh Driving Events',
-              subtitle: 'Harsh braking or rapid acceleration',
-              value: prefs.harsh,
-              onChanged: (_) => notifier.toggleHarsh(),
-            ),
+
             
             const SizedBox(height: Gap.xl),
             FilledButton(

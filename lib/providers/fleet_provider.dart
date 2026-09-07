@@ -151,7 +151,12 @@ class FleetController extends Notifier<FleetState> {
         for (final Vehicle v in state.vehicles) v.id: v,
       };
 
-      final List<Vehicle> merged = vehicles.map((Vehicle incoming) {
+      // Deduplicate incoming API response by ID to prevent duplicate ValueKey crashes
+      final Map<String, Vehicle> incomingMap = <String, Vehicle>{
+        for (final Vehicle v in vehicles) v.id: v,
+      };
+
+      final List<Vehicle> merged = incomingMap.values.map((Vehicle incoming) {
         final Vehicle? existing = current[incoming.id];
         if (existing == null) return incoming;
         final DateTime? a = existing.lastPacketAt;

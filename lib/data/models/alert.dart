@@ -17,6 +17,8 @@ class FleetAlert extends Equatable {
     this.address,
     this.speed,
     this.createdAt,
+    this.endTime,
+    this.durationMinutes,
     this.isRead = false,
   });
 
@@ -34,6 +36,10 @@ class FleetAlert extends Equatable {
   final String? address;
   final double? speed;
   final DateTime? createdAt;
+  /// End time of a stoppage/idle event (if provided by the API).
+  final DateTime? endTime;
+  /// Duration in minutes for stoppage/idle events.
+  final int? durationMinutes;
   final bool isRead;
 
   bool get hasLocation => latitude != null && longitude != null;
@@ -88,8 +94,32 @@ class FleetAlert extends Equatable {
       speed: asDoubleOrNull(json, <String>['speed']),
       createdAt: asDate(json,
           <String>['createdAt', 'created_at', 'timestamp', 'time', 'occurredAt', 'occurred_at', 'date', 'locTime', 'loc_time', 'deviceTime', 'device_time', 'serverTime', 'server_time']),
+      endTime: asDate(json,
+          <String>['endTime', 'end_time', 'stoppageEnd', 'stoppage_end', 'endAt', 'end_at']),
+      durationMinutes: _parseDurationMinutes(json),
       isRead: asBool(json, <String>['isRead', 'is_read', 'read', 'seen']),
     );
+  }
+
+  /// Tries to extract a duration in minutes from various API shapes.
+  static int? _parseDurationMinutes(Map<String, dynamic> json) {
+    // Try direct integer fields first
+    for (final String key in <String>['durationMinutes', 'duration_minutes', 'stoppageDuration', 'stoppage_duration']) {
+      final dynamic v = json[key];
+      if (v is int) return v;
+      if (v is double) return v.round();
+      if (v is String) {
+        final int? parsed = int.tryParse(v);
+        if (parsed != null) return parsed;
+      }
+    }
+    // Try a 'duration' field that might be seconds or minutes
+    for (final String key in <String>['duration', 'elapsed', 'idleDuration', 'idle_duration']) {
+      final dynamic v = json[key];
+      if (v is int) return v > 1440 ? (v ~/ 60) : v; // assume seconds if > 24h in minutes
+      if (v is double) return v > 1440 ? (v ~/ 60).round() : v.round();
+    }
+    return null;
   }
 
   static String titleFor(String type) => switch (type.toLowerCase()) {
@@ -132,10 +162,12 @@ class FleetAlert extends Equatable {
         address: address,
         speed: speed,
         createdAt: createdAt,
+        endTime: endTime,
+        durationMinutes: durationMinutes,
         isRead: isRead ?? this.isRead,
       );
 
   @override
   List<Object?> get props =>
-      <Object?>[id, type, title, message, vehicleId, createdAt, isRead];
+      <Object?>[id, type, title, message, vehicleId, createdAt, endTime, durationMinutes, isRead];
 }

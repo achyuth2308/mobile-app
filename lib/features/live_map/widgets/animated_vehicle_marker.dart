@@ -97,12 +97,12 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
       // Calculate animation duration based on distance. 
       // We cap it so teleports don't take forever, but it glides smoothly.
-      int ms = 1500;
+      int ms = 3500;
       if (meters > 5000) {
         // Massive teleport, snap almost instantly
         ms = 300;
-      } else if (meters > 100) {
-        // Long distance jump, glide slightly longer so it looks smooth
+      } else if (meters > 500) {
+        // Long distance jump
         ms = 2500;
       }
 

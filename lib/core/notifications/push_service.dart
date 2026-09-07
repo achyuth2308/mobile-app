@@ -88,7 +88,9 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         break;
       case 'harsh_braking':
       case 'harsh_acceleration':
-        enabled = prefs.getBool('ft_notif_harsh') ?? true;
+      case 'harsh_driving':
+      case 'harsh':
+        enabled = false;
         break;
     }
 
@@ -126,10 +128,13 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
       body += '\nTime: $timeStr';
     }
     
-    final String lat = (data['lat'] ?? '').toString();
-    final String lng = (data['lng'] ?? '').toString();
-    if (lat.isNotEmpty && lng.isNotEmpty) {
-      body += '\nLocation: $lat, $lng';
+    // Append address if available, otherwise skip location entirely
+    final String address = (data['address'] as String?) ??
+        (data['location'] as String?) ??
+        (data['place'] as String?) ??
+        '';
+    if (address.isNotEmpty) {
+      body += '\n📍 $address';
     }
 
     final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
@@ -185,12 +190,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           actions: <AndroidNotificationAction>[
             const AndroidNotificationAction(
               'view_maps',
-              'View on Google Maps',
-              showsUserInterface: true,
-            ),
-            const AndroidNotificationAction(
-              'view_app',
-              'View in App',
+              '🗺️ View on Google Maps',
               showsUserInterface: true,
             ),
           ],
@@ -459,10 +459,13 @@ class PushService {
       body += '\nTime: $timeStr';
     }
     
-    final String lat = (data['lat'] ?? '').toString();
-    final String lng = (data['lng'] ?? '').toString();
-    if (lat.isNotEmpty && lng.isNotEmpty) {
-      body += '\nLocation: $lat, $lng';
+    // Append address if available, otherwise skip location entirely
+    final String address = (data['address'] as String?) ??
+        (data['location'] as String?) ??
+        (data['place'] as String?) ??
+        '';
+    if (address.isNotEmpty) {
+      body += '\n📍 $address';
     }
     final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow']
@@ -489,15 +492,11 @@ class PushService {
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(body),
           actions: <AndroidNotificationAction>[
-            const AndroidNotificationAction(
+            AndroidNotificationAction(
               'view_maps',
-              'View on Google Maps',
+              '🗺️ View on Google Maps',
               showsUserInterface: true,
-            ),
-            const AndroidNotificationAction(
-              'view_app',
-              'View in App',
-              showsUserInterface: true,
+              icon: const DrawableResourceAndroidBitmap('@drawable/ic_notification'),
             ),
           ],
         ),

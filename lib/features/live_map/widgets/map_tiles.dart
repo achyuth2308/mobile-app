@@ -67,17 +67,17 @@ extension MapStyleX on MapStyle {
 
   String get urlTemplate => switch (this) {
         MapStyle.standard =>
-          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         MapStyle.satellite =>
-          'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2', // Google Hybrid (Satellite + Labels) high-res
+          'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2', // Google Hybrid (Satellite + Labels) high-res
         MapStyle.google =>
-          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2', // Google Maps high-res
+          'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2', // Google Maps high-res
       };
 
   List<String> get subdomains => switch (this) {
-        MapStyle.standard => const <String>[],
-        MapStyle.satellite => const <String>[],
-        MapStyle.google => const <String>[],
+        MapStyle.standard => const <String>['a', 'b', 'c'],
+        MapStyle.satellite => const <String>['mt0', 'mt1', 'mt2', 'mt3'],
+        MapStyle.google => const <String>['mt0', 'mt1', 'mt2', 'mt3'],
       };
 
   /// Max zoom the source serves.
@@ -95,7 +95,7 @@ extension MapStyleX on MapStyle {
 
   static MapStyle fromKey(String key) => MapStyle.values.firstWhere(
         (MapStyle s) => s.name == key,
-        orElse: () => MapStyle.standard,
+        orElse: () => MapStyle.google,
       );
 }
 
@@ -114,7 +114,7 @@ TileLayer buildTileLayer(MapStyle style, {bool retina = false}) {
     maxNativeZoom: style.maxZoom.toInt(),
     maxZoom: 22.0, // Scale up the native tiles when zoomed in closely
     userAgentPackageName: AppConfig.tileUserAgent,
-    tileProvider: kIsWeb ? CancellableNetworkTileProvider() : FastCachedTileProvider(),
+    tileProvider: kIsWeb ? null : FastCachedTileProvider(),
     retinaMode: style == MapStyle.standard, // OSM needs z+1 scaling, Google provides native high-res (scale=2)
     panBuffer: 2, // Preload 2-tile perimeter so panning is instant without blank squares
     keepBuffer: 8, // Keep 8 buffer levels in RAM to avoid reload flickers

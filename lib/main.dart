@@ -173,7 +173,7 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
             'idle' ||
             'stoppage' =>
               prefs.ignition,
-            'harsh_braking' || 'harsh_acceleration' => prefs.harsh,
+            'harsh_braking' || 'harsh_acceleration' || 'harsh_driving' || 'harsh' => false,
             _ => true,
           };
         },

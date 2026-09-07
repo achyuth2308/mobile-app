@@ -446,6 +446,13 @@ class VehicleCard extends ConsumerWidget {
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
+          if (borderColor != Colors.transparent)
+            BoxShadow(
+              color: borderColor.withOpacity(isDark ? 0.4 : 0.35),
+              blurRadius: 14,
+              spreadRadius: 1.5,
+              offset: const Offset(0, 0),
+            ),
         ],
       ),
       child: InkWell(
