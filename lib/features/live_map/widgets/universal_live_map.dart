@@ -141,7 +141,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
               point: LatLng(v.latitude!, v.longitude!),
               width: 28,
               height: 36,
-              alignment: Alignment.bottomCenter,
+              alignment: Alignment.topCenter,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => widget.onSelectVehicle(v),
@@ -166,7 +166,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
               point: markerPos,
               width: 28,
               height: 36,
-              alignment: Alignment.bottomCenter,
+              alignment: Alignment.topCenter,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => widget.onSelectVehicle(activeV),
@@ -221,7 +221,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
           point: LatLng(lat, lng),
           width: 44,
           height: 44,
-          alignment: Alignment.bottomCenter,
+          alignment: Alignment.topCenter,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {
@@ -352,7 +352,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                         point: markerPos,
                         width: 28,
                         height: 36,
-                        alignment: Alignment.bottomCenter,
+                        alignment: Alignment.topCenter,
                         child: AnimatedVehicleMarker(
                           point: LatLng(v.latitude!, v.longitude!),
                           heading: v.heading,
