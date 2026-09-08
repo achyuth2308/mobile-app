@@ -96,13 +96,10 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       }
 
       // Calculate animation duration based on distance. Fast responsive glide.
-      int ms = 800;
+      int ms = 10000;
       if (meters > 5000) {
-        // Massive teleport, snap almost instantly
-        ms = 200;
-      } else if (meters > 500) {
-        // Long distance jump
-        ms = 1200;
+        // Massive teleport, snap quickly
+        ms = 1500;
       }
 
       _controller.duration = Duration(milliseconds: ms);

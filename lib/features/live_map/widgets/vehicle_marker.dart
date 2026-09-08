@@ -133,9 +133,9 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               child: Transform.rotate(
                 angle: headingRad,
                 child: const Icon(
-                  Icons.directions_car_rounded,
+                  Icons.navigation,
                   color: Colors.white,
-                  size: 15,
+                  size: 16,
                 ),
               ),
             ),
