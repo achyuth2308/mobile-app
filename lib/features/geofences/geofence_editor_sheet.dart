@@ -12,6 +12,10 @@ import '../../providers/core_providers.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/auth_provider.dart';
+
+import '../../shared/map/app_map.dart';
+import '../../shared/map/app_map_controller.dart';
+import '../../shared/map/app_map_models.dart';
 import '../live_map/widgets/map_tiles.dart';
 
 /// Create a circular geofence by dragging the map and sizing the radius.
@@ -29,7 +33,7 @@ class GeofenceEditorSheet extends ConsumerStatefulWidget {
 
 class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
   final TextEditingController _name = TextEditingController();
-  final MapController _map = MapController();
+  final AppMapControllerWrapper _map = AppMapControllerWrapper();
   final TextEditingController _latController = TextEditingController();
   final TextEditingController _lngController = TextEditingController();
 
@@ -82,7 +86,7 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
       if (newCenter.latitude != _center.latitude ||
           newCenter.longitude != _center.longitude) {
         _center = newCenter;
-        _map.move(_center, _map.camera.zoom);
+        _map.move(_center, _map.getZoom());
       }
     }
   }
@@ -102,7 +106,7 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
     _lngController.addListener(_onCoordinateInputChanged);
 
     if (moveMap) {
-      _map.move(newCenter, _map.camera.zoom);
+      _map.move(newCenter, _map.getZoom());
     }
     setState(() {});
   }
@@ -175,6 +179,15 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  static Color _parseColor(String hex) {
+    try {
+      final String clean = hex.replaceAll('#', '');
+      return Color(int.parse('FF$clean', radix: 16));
+    } catch (_) {
+      return AppColors.brand;
     }
   }
 
@@ -263,86 +276,79 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: <Widget>[
-                        FlutterMap(
-                          mapController: _map,
-                          options: MapOptions(
-                            initialCenter: _center,
-                            initialZoom: 14.5,
-                            minZoom: 3,
-                            maxZoom: 19,
-                            interactionOptions: const InteractionOptions(
-                              flags: InteractiveFlag.all &
-                                  ~InteractiveFlag.rotate,
-                            ),
-                            onTap: (TapPosition tapPosition, LatLng point) {
-                              if (_shape == GeofenceShape.circle) {
-                                _updateCenter(point, moveMap: true);
-                              } else {
-                                setState(() {
-                                  _polygonPoints.add(point);
-                                });
-                              }
-                            },
-                            onPositionChanged:
-                                (MapCamera camera, bool hasGesture) {
-                              if (_shape == GeofenceShape.circle) {
-                                _center = camera.center;
-                                if (hasGesture) {
-                                  _latController.removeListener(_onCoordinateInputChanged);
-                                  _lngController.removeListener(_onCoordinateInputChanged);
-                                  _latController.text = _center.latitude.toStringAsFixed(6);
-                                  _lngController.text = _center.longitude.toStringAsFixed(6);
-                                  _latController.addListener(_onCoordinateInputChanged);
-                                  _lngController.addListener(_onCoordinateInputChanged);
-                                }
-                              }
-                              if (hasGesture) setState(() {});
-                            },
-                          ),
-                          children: <Widget>[
-                            buildTileLayer(
-                              MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
-                              apiKey: ref.read(authProvider).user?.apiKey,
-                            ),
+                        AppMap(
+                          mapType: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType).name,
+                          apiKey: ref.read(authProvider).user?.apiKey,
+                          initialCenter: _center,
+                          initialZoom: 14.5,
+                          onMapCreated: (controller) => _map.setInner(controller),
+                          onTap: (LatLng point) {
+                            if (_shape == GeofenceShape.circle) {
+                              _updateCenter(point, moveMap: true);
+                            } else {
+                              setState(() {
+                                _polygonPoints.add(point);
+                              });
+                            }
+                          },
+                          circles: [
                             if (_shape == GeofenceShape.circle)
-                              CircleLayer<Object>(
-                                circles: <CircleMarker<Object>>[
-                                  CircleMarker<Object>(
-                                    point: _center,
-                                    radius: _radius,
-                                    useRadiusInMeter: true,
-                                    color: color.withOpacity(0.18),
-                                    borderColor: color,
-                                    borderStrokeWidth: 2,
-                                  ),
-                                ],
+                              AppCircle(
+                                id: 'edit_circle',
+                                center: _center,
+                                radiusMeters: _radius,
+                                fillColor: _parseColor(_color).withOpacity(0.15),
+                                strokeColor: _parseColor(_color),
+                                strokeWidth: 2,
                               ),
-                            if (_shape == GeofenceShape.polygon && _polygonPoints.isNotEmpty) ...<Widget>[
-                              PolygonLayer(
-                                polygons: <Polygon>[
-                                  Polygon(
-                                    points: _polygonPoints,
-                                    color: color.withOpacity(0.18),
-                                    borderColor: color,
-                                    borderStrokeWidth: 2,
-                                  ),
-                                ],
+                          ],
+                          polygons: [
+                            if (_shape == GeofenceShape.polygon && _polygonPoints.isNotEmpty)
+                              AppPolygon(
+                                id: 'edit_polygon',
+                                points: _polygonPoints,
+                                fillColor: _parseColor(_color).withOpacity(0.15),
+                                strokeColor: _parseColor(_color),
+                                strokeWidth: 2,
                               ),
-                              MarkerLayer(
-                                markers: _polygonPoints.asMap().entries.map((MapEntry<int, LatLng> entry) {
-                                  return Marker(
-                                    point: entry.value,
-                                    width: 16,
-                                    height: 16,
+                          ],
+                          markers: [
+                            if (_shape == GeofenceShape.circle)
+                              AppMarker(
+                                id: 'center_pin',
+                                position: _center,
+                                width: 24,
+                                height: 24,
+                                alignment: Alignment.center,
+                                widget: Icon(
+                                  Icons.adjust_rounded,
+                                  color: _parseColor(_color),
+                                  size: 24,
+                                ),
+                              ),
+                            if (_shape == GeofenceShape.polygon)
+                              for (int i = 0; i < _polygonPoints.length; i++)
+                                AppMarker(
+                                  id: 'poly_node_$i',
+                                  position: _polygonPoints[i],
+                                  width: 20,
+                                  height: 20,
+                                  alignment: Alignment.center,
+                                  widget: GestureDetector(
+                                    onLongPress: () {
+                                      setState(() {
+                                        _polygonPoints.removeAt(i);
+                                      });
+                                    },
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: color,
+                                        color: _parseColor(_color),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 1.5),
+                                        border: Border.all(color: Colors.white, width: 2),
                                       ),
                                       child: Center(
                                         child: Text(
-                                          '${entry.key + 1}',
+                                          '${i + 1}',
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 9,
@@ -351,15 +357,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                                         ),
                                       ),
                                     ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                            const Align(
-                              alignment: Alignment.bottomRight,
-                              child: OsmAttribution(
-                                  style: MapStyle.standard, compact: true),
-                            ),
+                                  ),
+                                ),
                           ],
                         ),
                         // Fixed crosshair — only show for Circle mode

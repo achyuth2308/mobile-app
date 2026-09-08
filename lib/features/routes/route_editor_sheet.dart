@@ -13,6 +13,10 @@ import '../../providers/route_provider.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/auth_provider.dart';
 
+import '../../shared/map/app_map.dart';
+import '../../shared/map/app_map_controller.dart';
+import '../../shared/map/app_map_models.dart';
+
 /// Full-screen sheet for drawing a route on the map and assigning it
 /// to one or more vehicles. Opened from [RoutesScreen].
 class RouteEditorSheet extends ConsumerStatefulWidget {
@@ -26,7 +30,7 @@ class RouteEditorSheet extends ConsumerStatefulWidget {
 }
 
 class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
-  final MapController _mapCtrl = MapController();
+  final AppMapControllerWrapper _mapCtrl = AppMapControllerWrapper();
   final TextEditingController _nameCtrl = TextEditingController();
 
   final List<LatLng> _waypoints = <LatLng>[];
@@ -118,8 +122,11 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
 
   // ── Map tap → add waypoint ─────────────────────────────────────────────────
 
-  void _onTap(TapPosition _, LatLng latlng) {
-    setState(() => _waypoints.add(latlng));
+  void _onTap(LatLng point) {
+    if (_saving) return;
+    setState(() {
+      _waypoints.add(point);
+    });
   }
 
   void _removeWaypoint(int index) {
@@ -176,69 +183,57 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
             flex: 6,
             child: Stack(
               children: <Widget>[
-                FlutterMap(
-                  mapController: _mapCtrl,
-                  options: MapOptions(
-                    initialCenter: _waypoints.isNotEmpty
-                        ? _waypoints.first
-                        : const LatLng(17.385, 78.4867),
-                    initialZoom: 13,
-                    onTap: _onTap,
-                  ),
-                  children: <Widget>[
-                    buildTileLayer(
-                      MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
-                      apiKey: ref.read(authProvider).user?.apiKey,
-                    ),
-                    // Route polyline
+                AppMap(
+                  mapType: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType).name,
+                  apiKey: ref.read(authProvider).user?.apiKey,
+                  initialCenter: _waypoints.isNotEmpty
+                      ? _waypoints.first
+                      : const LatLng(17.385, 78.4867),
+                  initialZoom: 13,
+                  onMapCreated: (controller) => _mapCtrl.setInner(controller),
+                  onTap: _onTap,
+                  polylines: [
                     if (_waypoints.length >= 2)
-                      PolylineLayer(
-                        polylines: <Polyline>[
-                          Polyline(
-                            points: _waypoints,
-                            color: AppColors.brand,
-                            strokeWidth: 4,
-                            borderColor: Colors.white.withOpacity(0.5),
-                            borderStrokeWidth: 1.5,
-                          ),
-                        ],
+                      AppPolyline(
+                        id: 'route_line',
+                        points: _waypoints,
+                        color: AppColors.brand,
+                        strokeWidth: 4,
                       ),
-                    // Waypoint markers
-                    MarkerLayer(
-                      markers: <Marker>[
-                        for (int i = 0; i < _waypoints.length; i++)
-                          Marker(
-                            point: _waypoints[i],
-                            width: 32,
-                            height: 32,
-                            child: GestureDetector(
-                              onLongPress: () => _removeWaypoint(i),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: i == 0
-                                      ? Colors.green
-                                      : i == _waypoints.length - 1
-                                          ? Colors.red
-                                          : AppColors.brand,
-                                  border: Border.all(
-                                      color: Colors.white, width: 2),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${i + 1}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
+                  ],
+                  markers: [
+                    for (int i = 0; i < _waypoints.length; i++)
+                      AppMarker(
+                        id: 'wp_$i',
+                        position: _waypoints[i],
+                        width: 32,
+                        height: 32,
+                        widget: GestureDetector(
+                          onLongPress: () => _removeWaypoint(i),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: i == 0
+                                  ? Colors.green
+                                  : i == _waypoints.length - 1
+                                      ? Colors.red
+                                      : AppColors.brand,
+                              border: Border.all(
+                                  color: Colors.white, width: 2),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${i + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                      ),
                   ],
                 ),
                 // Hint overlay

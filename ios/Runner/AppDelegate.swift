@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import UserNotifications
 import FirebaseCore
+import GoogleMaps
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -9,6 +10,7 @@ import FirebaseCore
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    GMSServices.provideAPIKey("AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk")
     // Initialize Firebase — must come first
     FirebaseApp.configure()
 

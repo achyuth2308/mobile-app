@@ -78,6 +78,8 @@ dependencies:
   flutter_map_marker_cluster: ^1.4.0
   flutter_map_cancellable_tile_provider: ^3.0.2
   pointer_interceptor: ^0.10.1+1
+  google_maps_flutter: ^2.14.2
+  widget_to_marker: ^1.0.6
 
 dev_dependencies:
   flutter_test:

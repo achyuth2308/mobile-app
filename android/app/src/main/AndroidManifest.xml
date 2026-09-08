@@ -79,8 +79,8 @@
             </intent-filter>
         </activity>
 
-        <!-- Maps need no API key: tiles are served from OpenStreetMap
-             via flutter_map. Nothing to provision, nothing to leak. -->
+        <meta-data android:name="com.google.android.geo.API_KEY"
+                   android:value="AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk"/>
 
         <!-- ── FCM defaults ────────────────────────────────────────────
              Alerts must arrive while the app is closed, because the

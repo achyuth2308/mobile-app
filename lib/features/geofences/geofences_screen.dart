@@ -215,39 +215,30 @@ class _GeofenceCard extends ConsumerWidget {
                           child: Icon(Icons.map_outlined, size: 26),
                         ),
                       )
-                    : FlutterMap(
-                        options: MapOptions(
-                          initialCenter: fence.center!,
-                          initialZoom: _zoomFor(fence),
-                          interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.none,
-                          ),
-                        ),
-                        children: <Widget>[
-                          buildTileLayer(MapStyle.standard),
+                    : AppMap(
+                        mapType: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType).name,
+                        apiKey: ref.read(authProvider).user?.apiKey,
+                        initialCenter: fence.center!,
+                        initialZoom: _zoomFor(fence),
+                        circles: [
                           if (fence.shape == GeofenceShape.circle)
-                            CircleLayer<Object>(
-                              circles: <CircleMarker<Object>>[
-                                CircleMarker<Object>(
-                                  point: fence.center!,
-                                  radius: fence.radiusMeters,
-                                  useRadiusInMeter: true,
-                                  color: color.withOpacity(0.18),
-                                  borderColor: color,
-                                  borderStrokeWidth: 2,
-                                ),
-                              ],
+                            AppCircle(
+                              id: 'fence_circle',
+                              center: fence.center!,
+                              radiusMeters: fence.radiusMeters,
+                              fillColor: color.withOpacity(0.18),
+                              strokeColor: color,
+                              strokeWidth: 2,
                             ),
+                        ],
+                        polygons: [
                           if (fence.shape == GeofenceShape.polygon)
-                            PolygonLayer<Object>(
-                              polygons: <Polygon<Object>>[
-                                Polygon<Object>(
-                                  points: fence.points,
-                                  color: color.withOpacity(0.18),
-                                  borderColor: color,
-                                  borderStrokeWidth: 2,
-                                ),
-                              ],
+                            AppPolygon(
+                              id: 'fence_polygon',
+                              points: fence.points,
+                              fillColor: color.withOpacity(0.18),
+                              strokeColor: color,
+                              strokeWidth: 2,
                             ),
                         ],
                       ),
