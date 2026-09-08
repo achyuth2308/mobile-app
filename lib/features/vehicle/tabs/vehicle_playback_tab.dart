@@ -100,11 +100,13 @@ class VehiclePlaybackTab extends ConsumerStatefulWidget {
 }
 
 class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   final MapController _map = MapController();
   bool _ready = false;
 
   List<TrackPoint> _points = <TrackPoint>[];
+  List<LatLng> _allLatLng = <LatLng>[];
+  List<Polyline<Object>> _cachedGhostSegments = <Polyline<Object>>[];
   List<StoppageEvent> _stoppages = <StoppageEvent>[];
   bool _loading = false;
   String? _error;
@@ -112,64 +114,51 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   double _playbackProgress = 0.0;
   bool _playing = false;
   double _speedMultiplier = 1;
-  Timer? _ticker;
-  int? _activeStoppageStartIdx;
-  DateTime? _stoppagePauseStartTime;
+  late AnimationController _animController;
+  DateTime? _lastTickTime;
 
   static List<StoppageEvent> _computeStoppages(List<TrackPoint> points) {
     if (points.isEmpty) return <StoppageEvent>[];
     final List<StoppageEvent> stops = <StoppageEvent>[];
     TrackPoint? stopStart;
     TrackPoint? stopEnd;
-    int movingCount = 0;
 
     for (int i = 0; i < points.length; i++) {
       final TrackPoint p = points[i];
       if (p.speed <= 3) {
         stopStart ??= p;
         stopEnd = p;
-        movingCount = 0;
       } else {
         if (stopStart != null && stopEnd != null) {
-          movingCount++;
-          // Only break the stop if we have 2 consecutive points > 3 km/h
-          if (movingCount >= 2) {
-            final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
-            if (diff.inMinutes >= 5) {
-              // Ignore the initial stoppage if it starts exactly at the beginning of the route
-              if (stopStart.timestamp != points.first.timestamp) {
-                stops.add(StoppageEvent(
-                  lat: stopStart.latitude,
-                  lng: stopStart.longitude,
-                  startTime: stopStart.timestamp,
-                  endTime: stopEnd.timestamp,
-                  duration: diff,
-                  address: stopStart.address,
-                ));
-              }
-            }
-            stopStart = null;
-            stopEnd = null;
-            movingCount = 0;
+          final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
+          if (diff.inMinutes >= 5 && stopStart.timestamp != points.first.timestamp) {
+            stops.add(StoppageEvent(
+              lat: stopStart.latitude,
+              lng: stopStart.longitude,
+              startTime: stopStart.timestamp,
+              endTime: stopEnd.timestamp,
+              duration: diff,
+              address: stopStart.address,
+            ));
           }
+          stopStart = null;
+          stopEnd = null;
         }
       }
     }
 
     if (stopStart != null && stopEnd != null) {
       final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
-      if (diff.inMinutes >= 5) {
-        if (stopStart.timestamp != points.first.timestamp) {
-          stops.add(StoppageEvent(
-            lat: stopStart.latitude,
-            lng: stopStart.longitude,
-            startTime: stopStart.timestamp,
-            endTime: stopEnd.timestamp,
-            duration: diff,
-            address: stopStart.address,
-            isOngoing: true,
-          ));
-        }
+      if (diff.inMinutes >= 5 && stopStart.timestamp != points.first.timestamp) {
+        stops.add(StoppageEvent(
+          lat: stopStart.latitude,
+          lng: stopStart.longitude,
+          startTime: stopStart.timestamp,
+          endTime: stopEnd.timestamp,
+          duration: diff,
+          address: stopStart.address,
+          isOngoing: true,
+        ));
       }
     }
 
@@ -209,20 +198,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       ),
     );
 
-    StoppageEvent? stoppage;
-    for (final StoppageEvent s in _stoppages) {
-      if (!currentTimestamp.isBefore(s.startTime) &&
-          !currentTimestamp.isAfter(s.endTime)) {
-        stoppage = s;
-        break;
-      }
-    }
-
-    final bool lockPos = stoppage != null;
-
     return TrackPoint(
-      latitude: lockPos ? stoppage.lat : a.latitude + (b.latitude - a.latitude) * t,
-      longitude: lockPos ? stoppage.lng : a.longitude + (b.longitude - a.longitude) * t,
+      latitude: a.latitude + (b.latitude - a.latitude) * t,
+      longitude: a.longitude + (b.longitude - a.longitude) * t,
       timestamp: currentTimestamp,
       speed: a.speed + (b.speed - a.speed) * t,
       heading: a.heading + (b.heading - a.heading) * t,
@@ -254,12 +232,15 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController.unbounded(vsync: this);
+    _animController.addListener(_onAnimationTick);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    _animController.stop();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -268,9 +249,8 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       _loading = true;
       _error = null;
       _playing = false;
-      _ticker?.cancel();
-      _activeStoppageStartIdx = null;
-      _stoppagePauseStartTime = null;
+      _animController.stop();
+      _lastTickTime = null;
     });
 
     try {
@@ -311,21 +291,31 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       // Compute actual stoppages from full in-range points before downsampling
       final List<StoppageEvent> computedStops = _computeStoppages(inRangePoints);
 
-      // Filter consecutive duplicates to keep map path clean
+      // Filter consecutive duplicates & micro-jitter to keep map path clean and smooth
       final List<TrackPoint> cleanPoints = <TrackPoint>[];
+      const Distance distanceCalc = Distance();
       for (final TrackPoint p in inRangePoints) {
         if (cleanPoints.isEmpty) {
           cleanPoints.add(p);
         } else {
           final TrackPoint last = cleanPoints.last;
-          if (p.latitude != last.latitude || p.longitude != last.longitude) {
+          if (distanceCalc(last.latLng, p.latLng) >= 2.0) {
             cleanPoints.add(p);
           }
         }
       }
 
+      final List<LatLng> cachedLatLng = cleanPoints.map((TrackPoint p) => p.latLng).toList(growable: false);
+      final List<Polyline<Object>> ghostSegs = _splitPlaybackPolyline(
+        points: cachedLatLng,
+        color: const Color(0xFF4B5563),
+        strokeWidth: 3.5,
+      );
+
       setState(() {
         _points = cleanPoints;
+        _allLatLng = cachedLatLng;
+        _cachedGhostSegments = ghostSegs;
         _stoppages = computedStops;
         _playbackProgress = 0.0;
         _loading = false;
@@ -363,15 +353,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
   void _togglePlay() {
     if (_playing) {
-      _ticker?.cancel();
+      _animController.stop();
+      _lastTickTime = null;
       setState(() => _playing = false);
       return;
     }
 
     if (_playbackProgress >= _points.length - 1) _playbackProgress = 0.0;
 
+    _lastTickTime = DateTime.now();
     setState(() => _playing = true);
-    _startTicker();
+    _animController.repeat(min: 0.0, max: 1.0, period: const Duration(seconds: 1));
   }
 
   double get _effectiveSpeedMultiplier {
@@ -389,97 +381,81 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     }
   }
 
-  void _startTicker() {
-    _ticker?.cancel();
+  void _onAnimationTick() {
+    if (!_playing || _points.isEmpty || !mounted) return;
 
-    // Replay tick runs at ~30 FPS (33ms) for sub-point smooth animation
-    _ticker = Timer.periodic(const Duration(milliseconds: 33), (Timer t) {
-      if (!mounted || _playbackProgress >= _points.length - 1) {
-        t.cancel();
-        if (mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _playing = false);
-          });
-        }
-        return;
+    final DateTime now = DateTime.now();
+    if (_lastTickTime == null) {
+      _lastTickTime = now;
+      return;
+    }
+
+    final double deltaSec = now.difference(_lastTickTime!).inMicroseconds / 1000000.0;
+    _lastTickTime = now;
+
+    // Smooth constant progression step per VSYNC frame (60/120Hz)
+    final double step = deltaSec * 1.2 * _effectiveSpeedMultiplier;
+
+    setState(() {
+      _playbackProgress += step;
+      if (_playbackProgress >= _points.length - 1) {
+        _playbackProgress = (_points.length - 1).toDouble();
+        _playing = false;
+        _animController.stop();
+        _lastTickTime = null;
       }
-
-      final int idx = _playbackProgress.floor();
-      final TrackPoint currentPt = _points[idx];
-
-      // Enforce 5-second pause when vehicle is stopped (speed <= 1 km/h)
-      if (currentPt.speed <= 1) {
-        int blockStartIdx = idx;
-        while (blockStartIdx > 0 && _points[blockStartIdx - 1].speed <= 1) {
-          blockStartIdx--;
-        }
-
-        if (_activeStoppageStartIdx != blockStartIdx) {
-          _activeStoppageStartIdx = blockStartIdx;
-          _stoppagePauseStartTime = DateTime.now();
-        }
-
-        final int targetPauseMs = (5000 / _effectiveSpeedMultiplier).round().clamp(1000, 5000);
-        final int elapsedMs = DateTime.now().difference(_stoppagePauseStartTime!).inMilliseconds;
-        if (elapsedMs < targetPauseMs) {
-          if (!mounted) return;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() {});
-            _followCamera();
-          });
-          return;
-        }
-      } else {
-        _activeStoppageStartIdx = null;
-        _stoppagePauseStartTime = null;
-      }
-
-      final TrackPoint a = _points[idx];
-      final TrackPoint b = _points[idx + 1];
-      final int diffMs = b.timestamp.difference(a.timestamp).inMilliseconds;
-      int effectiveDiffMs = (diffMs / 10).round();
-      effectiveDiffMs = effectiveDiffMs.clamp(50, 3000);
-
-      final double step = (33.0 / effectiveDiffMs) * _effectiveSpeedMultiplier;
-
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() {
-          _playbackProgress += step;
-          if (_playbackProgress >= _points.length - 1) {
-            _playbackProgress = (_points.length - 1).toDouble();
-          }
-        });
-        _followCamera();
-      });
     });
+
+    _followCamera();
   }
 
-  void _followCamera() {
+  void _followCamera({bool force = false}) {
     if (!_ready || _points.isEmpty) return;
-    // Zoom 16.0 — street level with building footprints and narrow roads visible.
+    final LatLng current = _currentPoint.latLng;
     final double zoom = _map.camera.zoom < 15.0 ? 16.0 : _map.camera.zoom;
-    _map.move(_currentPoint.latLng, zoom);
+    _map.move(current, zoom);
   }
 
-  /// Bearing in radians (clockwise from north) from the previous point to
-  /// the current playback position, computed from raw coordinates so it
-  /// always reflects the actual direction of travel — not the stale GPS
-  /// heading field, which lags behind or is often zero.
+  /// Bearing in radians (clockwise from north) with smooth angle interpolation
+  /// across corners for continuous Rapido-like vehicle motion.
   double get _currentBearing {
     if (_points.length < 2) return 0;
     final int idx = _playbackProgress.floor().clamp(0, _points.length - 1);
-    // Use previous → current if we are at a real point, else current → next.
-    final LatLng from = idx > 0 ? _points[idx - 1].latLng : _points[0].latLng;
-    final LatLng to = idx < _points.length - 1
-        ? _points[idx + 1].latLng
-        : _points[_points.length - 1].latLng;
-
-    if (from.latitude == to.latitude && from.longitude == to.longitude) {
-      return 0;
+    if (idx >= _points.length - 1) {
+      final LatLng p1 = _points[_points.length - 2].latLng;
+      final LatLng p2 = _points.last.latLng;
+      return _calculateBearing(p1, p2);
     }
 
+    final LatLng from = _points[idx].latLng;
+    final LatLng to = _points[idx + 1].latLng;
+
+    if (from.latitude == to.latitude && from.longitude == to.longitude) {
+      return _points[idx].heading * math.pi / 180;
+    }
+
+    final double currentSegBearing = _calculateBearing(from, to);
+
+    // Smooth angle interpolation across corners when approaching next point
+    if (idx < _points.length - 2) {
+      final LatLng nextTo = _points[idx + 2].latLng;
+      if (to.latitude != nextTo.latitude || to.longitude != nextTo.longitude) {
+        final double nextSegBearing = _calculateBearing(to, nextTo);
+        final double t = (_playbackProgress - idx).clamp(0.0, 1.0);
+
+        // Shortest path angle diff in radians
+        double diff = (nextSegBearing - currentSegBearing) % (2 * math.pi);
+        if (diff > math.pi) diff -= 2 * math.pi;
+        if (diff < -math.pi) diff += 2 * math.pi;
+
+        return currentSegBearing + (diff * t);
+      }
+    }
+
+    return currentSegBearing;
+  }
+
+  static double _calculateBearing(LatLng from, LatLng to) {
     final double lat1 = from.latitude * math.pi / 180;
     final double lat2 = to.latitude * math.pi / 180;
     final double dLng = (to.longitude - from.longitude) * math.pi / 180;
@@ -488,7 +464,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final double x = math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
 
-    // atan2 gives bearing in radians, already clockwise-from-north convention.
     return math.atan2(y, x);
   }
 
@@ -720,7 +695,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             onTogglePlay: _togglePlay,
             onSpeedChange: (double s) {
               setState(() => _speedMultiplier = s);
-              if (_playing) _startTicker();
             },
             onRestart: () {
               setState(() => _playbackProgress = 0.0);
@@ -816,21 +790,16 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
   /// Full route dimmed underneath, travelled portion highlighted on top with status colors.
   List<Widget> _routeLayers(ThemeData theme) {
-    final int idx = _playbackProgress.floor().clamp(0, _points.length - 1);
-    final List<TrackPoint> travelledPoints = _points.sublist(0, idx + 1);
-    if (_playbackProgress > idx && idx < _points.length - 1) {
-      travelledPoints.add(_currentPoint);
+    if (_allLatLng.isEmpty) return const <Widget>[];
+
+    final int idx = _playbackProgress.floor().clamp(0, _allLatLng.length - 1);
+    final List<LatLng> travelledLatLng = <LatLng>[];
+    for (int i = 0; i <= idx && i < _allLatLng.length; i++) {
+      travelledLatLng.add(_allLatLng[i]);
     }
-
-    // Split polylines on gaps > 1 km to avoid long crow-fly drift lines
-    final List<LatLng> allPoints = _points.map((TrackPoint p) => p.latLng).toList(growable: false);
-    final List<LatLng> travelledLatLng = travelledPoints.map((TrackPoint p) => p.latLng).toList();
-
-    final List<Polyline<Object>> ghostSegments = _splitPlaybackPolyline(
-      points: allPoints,
-      color: const Color(0xFF4B5563),
-      strokeWidth: 3.5,
-    );
+    if (_playbackProgress > idx && idx < _allLatLng.length - 1) {
+      travelledLatLng.add(_currentPoint.latLng);
+    }
 
     final List<Polyline<Object>> travelledSegments = _splitPlaybackPolyline(
       points: travelledLatLng,
@@ -839,7 +808,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     );
 
     return <Widget>[
-      PolylineLayer<Object>(polylines: ghostSegments),
+      PolylineLayer<Object>(polylines: _cachedGhostSegments),
       PolylineLayer<Object>(polylines: travelledSegments),
     ];
   }
@@ -854,12 +823,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   }) {
     if (points.length < 2) return const <Polyline<Object>>[];
 
-    const Distance _dist = Distance();
+    const Distance distanceCalc = Distance();
     final List<Polyline<Object>> segments = <Polyline<Object>>[];
     List<LatLng> current = <LatLng>[points.first];
 
     for (int i = 1; i < points.length; i++) {
-      final double d = _dist(points[i - 1], points[i]);
+      final double d = distanceCalc(points[i - 1], points[i]);
       if (d > gapMeters) {
         if (current.length >= 2) {
           segments.add(Polyline<Object>(
@@ -931,21 +900,78 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         ),
       Marker(
         point: cursor.latLng,
-        width: 40,
-        height: 52,
-        // topCenter pins the very tip of the custom arrow to the coordinate
-        alignment: Alignment.topCenter,
-        child: Transform.rotate(
-          angle: _currentBearing,
-          // rotate around the tip so it stays fixed on the coordinate
-          alignment: Alignment.topCenter,
-          child: CustomPaint(
-            size: const Size(40, 52),
-            painter: _NavArrowPainter(color: Colors.blueAccent),
-          ),
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        child: _PlaybackVehicleMarker(
+          speed: cursor.speed,
+          bearingRad: _currentBearing,
+          playing: _playing,
         ),
       ),
     ];
+  }
+}
+
+class _PlaybackVehicleMarker extends StatelessWidget {
+  const _PlaybackVehicleMarker({
+    required this.speed,
+    required this.bearingRad,
+    required this.playing,
+  });
+
+  final double speed;
+  final double bearingRad;
+  final bool playing;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMoving = speed > 3;
+    final bool isIdle = speed > 0 && speed <= 3;
+    final Color markerColor = isMoving
+        ? const Color(0xFF00C853) // Green (Moving)
+        : isIdle
+            ? const Color(0xFFFFAB00) // Amber (Idle)
+            : const Color(0xFF2979FF); // Blue (Stopped)
+
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        if (playing && isMoving)
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: markerColor.withOpacity(0.25),
+            ),
+          ),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: markerColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Transform.rotate(
+            angle: bearingRad,
+            child: const Icon(
+              Icons.navigation_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1008,47 +1034,6 @@ class _RouteEndpoint extends StatelessWidget {
       );
 }
 
-/// Simple animated vehicle cursor — just a dot + navigation arrow.
-class _VehicleCursor extends StatelessWidget {
-  const _VehicleCursor({required this.heading});
-
-  final double heading;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.signal.withOpacity(0.20),
-            ),
-          ),
-          Transform.rotate(
-            angle: heading * math.pi / 180,
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: AppColors.signal,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.5),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: AppColors.signal.withOpacity(0.45),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.navigation_rounded,
-                  size: 13, color: Colors.white),
-            ),
-          ),
-        ],
-      );
-}
 
 /// Circular speed gauge — mirrors the web app's bottom-left speedometer.
 class _SpeedGauge extends StatelessWidget {
@@ -1579,8 +1564,6 @@ class _PlaybackFloatingCard extends StatefulWidget {
 class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   String? _address;
   Timer? _debounce;
-  DateTime? _lastFetchTime;
-  LatLng? _lastFetchLatLng;
   int _lastRequestId = 0;
 
   @override
@@ -1598,43 +1581,27 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   @override
   void didUpdateWidget(covariant _PlaybackFloatingCard old) {
     super.didUpdateWidget(old);
-    
-    final LatLng target = widget.point.latLng;
-    final DateTime now = DateTime.now();
 
     if (widget.point.address != null &&
         widget.point.address!.trim().isNotEmpty) {
       _debounce?.cancel();
-      setState(() => _address = widget.point.address);
+      if (_address != widget.point.address) {
+        setState(() => _address = widget.point.address);
+      }
       return;
     }
 
-    // 1. If paused / scrubbing (user is seeking):
-    // Resolve location instantly with a very brief debounce (150ms) to ensure smooth scrub feeling
-    if (!widget.playing) {
-      _debounce?.cancel();
-      _debounce = Timer(const Duration(milliseconds: 150), () {
-        if (mounted) _resolveAddress();
-      });
+    // 1. If playing: do NOT fire background HTTP geocoding requests during live animation
+    // (prevents network thread blocks and 2-4s UI freezes)
+    if (widget.playing) {
       return;
     }
 
-    // 2. If playing (running playback animation):
-    // Throttled: Fetch every 150 meters OR every 3 seconds to keep it highly dynamic but rate-limited
-    final bool firstFetch = _lastFetchTime == null || _lastFetchLatLng == null;
-    final double distSq = firstFetch ? 0.0 :
-        (target.latitude - _lastFetchLatLng!.latitude) * (target.latitude - _lastFetchLatLng!.latitude) +
-        (target.longitude - _lastFetchLatLng!.longitude) * (target.longitude - _lastFetchLatLng!.longitude);
-
-    final bool significantlyMoved = distSq > 0.0000022; // ~150 meters squared
-    final bool cooldownOver = _lastFetchTime == null || now.difference(_lastFetchTime!) > const Duration(seconds: 3);
-
-    if (firstFetch || (significantlyMoved && cooldownOver)) {
-      _debounce?.cancel();
-      _lastFetchTime = now;
-      _lastFetchLatLng = target;
-      _resolveAddress();
-    }
+    // 2. If paused / scrubbing: resolve location with a brief 150ms debounce
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 150), () {
+      if (mounted && !widget.playing) _resolveAddress();
+    });
   }
 
   void _resolveAddress() {
@@ -2054,39 +2021,4 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
   }
 }
 
-/// Paints a navigation-arrow shape whose TIP is precisely at (size.width/2, 0)
-/// — the top-center of the canvas. Pair this with a Marker that has
-/// alignment: Alignment.topCenter so the tip touches the map coordinate.
-class _NavArrowPainter extends CustomPainter {
-  const _NavArrowPainter({required this.color});
-  final Color color;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double cx = size.width / 2;
-    final Paint fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    final Paint stroke = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeJoin = StrokeJoin.round;
-
-    // Arrow path — tip at (cx, 0)
-    final Path path = Path()
-      ..moveTo(cx, 0)                        // tip
-      ..lineTo(size.width, size.height * 0.58) // right shoulder
-      ..lineTo(cx * 1.28, size.height * 0.44) // right notch
-      ..lineTo(cx, size.height * 0.62)        // bottom center
-      ..lineTo(cx * 0.72, size.height * 0.44) // left notch
-      ..lineTo(0, size.height * 0.58)         // left shoulder
-      ..close();
-
-    canvas.drawPath(path, fill);
-    canvas.drawPath(path, stroke);
-  }
-
-  @override
-  bool shouldRepaint(_NavArrowPainter old) => old.color != color;
-}
