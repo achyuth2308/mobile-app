@@ -34,9 +34,10 @@ import 'widgets/navigation_hud.dart';
 ///  * clustering is handled by a maintained package rather than my own
 ///    hand-rolled grid, and it animates on zoom
 class LiveMapScreen extends ConsumerStatefulWidget {
-  const LiveMapScreen({this.focusVehicleId, super.key});
+  const LiveMapScreen({this.focusVehicleId, this.showTrail = false, super.key});
 
   final String? focusVehicleId;
+  final bool showTrail;
 
   @override
   ConsumerState<LiveMapScreen> createState() => _LiveMapScreenState();
@@ -235,54 +236,44 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   }
 
   void _showMapStylePicker() {
-    showModalBottomSheet(
+    showDialog<void>(
       context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      barrierDismissible: true,
       builder: (BuildContext ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+        final ThemeData theme = Theme.of(context);
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 8,
+          child: Container(
+            width: 320,
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  child: Text(
-                    'Map Type',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
-                ...MapStyle.values.map((MapStyle s) {
-                  final bool isSelected = s == _style;
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                    leading: Icon(
-                      s.icon,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      s.label,
-                      style: TextStyle(
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.onSurface,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Map Type',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
                     ),
-                    trailing: isSelected
-                        ? Icon(Icons.check,
-                            color: Theme.of(context).colorScheme.primary)
-                        : null,
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ...MapStyle.values.map((MapStyle s) {
+                  final bool isSelected = s == _style;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
                     onTap: () async {
                       Navigator.pop(ctx);
                       setState(() {
@@ -290,8 +281,53 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                       });
                       await ref.read(secureStoreProvider).setMapType(s.name);
                     },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            s.icon,
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              s.label,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                color: isSelected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_circle_rounded,
+                              color: theme.colorScheme.primary,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -334,12 +370,12 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     final AsyncValue<VehicleDailyData> dailyDataAsync =
         ref.watch(vehicleDailyHistoryProvider(activeId));
 
-    // If the user is actively following or viewing a specific vehicle (activeId),
-    // hide all other vehicles to prevent map clutter.
-    // Otherwise, show the full fleet.
-    final List<Vehicle> visibleVehicles = activeId.isNotEmpty
-        ? vehicles.where((v) => v.id == activeId).toList()
-        : vehicles;
+    // If focusVehicleId is passed (e.g. Live Tracking from Vehicle Detail),
+    // show only that specific vehicle. Otherwise show all fleet vehicles.
+    final List<Vehicle> visibleVehicles =
+        widget.focusVehicleId != null && widget.focusVehicleId!.isNotEmpty
+            ? vehicles.where((v) => v.id == widget.focusVehicleId).toList()
+            : vehicles;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -377,8 +413,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               if (_selectedId != null) setState(() => _selectedId = null);
             },
             onSelectVehicle: _selectVehicle,
-            route: dailyDataAsync.valueOrNull?.route ?? [],
-            stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
+            route: _isHistoryMode ? (dailyDataAsync.valueOrNull?.route ?? []) : [],
+            stoppages: _isHistoryMode ? (dailyDataAsync.valueOrNull?.stoppages ?? []) : [],
+            showTrail: true,
             onTapStoppage: _showStoppageCard,
           ),
 
@@ -404,7 +441,13 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               totalCount: vehicles.length,
               followingName: following?.displayName,
               isHistoryMode: _isHistoryMode,
-              onStopFollowing: () => _setFollowingId(null),
+              onStopFollowing: () {
+                if (widget.focusVehicleId != null && context.canPop()) {
+                  context.pop();
+                } else {
+                  _setFollowingId(null);
+                }
+              },
               onToggleHistoryMode: _toggleHistoryMode,
               onRecenter: following != null && following.hasLocation
                   ? () => _move(
@@ -520,137 +563,44 @@ class _MapHeader extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     if (followingName != null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B).withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.30),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
+      return Align(
+        alignment: Alignment.centerLeft,
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            // Left: Back/Close Arrow Button
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.arrow_back_rounded, size: 20, color: Colors.white),
-              onPressed: onStopFollowing,
+            // Back button with shadow so it's visible over any map
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.35),
+              ),
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.arrow_back_rounded, size: 20, color: Colors.white),
+                onPressed: onStopFollowing,
+              ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
 
-            // Vehicle Name (Truncated)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 110),
+            // Vehicle Name — white text with dark shadow for readability
+            Flexible(
               child: Text(
                 followingName!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  shadows: <Shadow>[
+                    Shadow(color: Colors.black, blurRadius: 6, offset: Offset(0, 1)),
+                    Shadow(color: Colors.black, blurRadius: 12, offset: Offset(0, 2)),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-
-            // Center: [ Live | History ] Segmented Switch Control
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Live Button
-                  GestureDetector(
-                    onTap: () => onToggleHistoryMode(false),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: !isHistoryMode ? const Color(0xFF38BDF8) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        'Live',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                          color: !isHistoryMode ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // History Button
-                  GestureDetector(
-                    onTap: () => onToggleHistoryMode(true),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: isHistoryMode ? const Color(0xFF38BDF8) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        'History',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                          color: isHistoryMode ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            // Right: Green Live Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF052E16).withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.wifi_tethering_rounded, size: 12, color: Color(0xFF22C55E)),
-                  SizedBox(width: 4),
-                  Text(
-                    'Live',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF22C55E),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 4),
-
-            // Refresh Button
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.refresh_rounded, size: 19, color: Colors.white),
-              onPressed: onRefresh ?? onRecenter,
             ),
           ],
         ),

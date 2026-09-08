@@ -235,14 +235,17 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
 
   @override
   Widget build(BuildContext context) {
-    final GoRouter router = ref.watch(routerProvider);
+    // IMPORTANT: Use ref.read (not ref.watch) so MaterialApp.router is never
+    // rebuilt by Riverpod state changes. Auth-driven redirects are handled
+    // internally by GoRouter's refreshListenable (_authNotifier), which does
+    // NOT trigger a widget rebuild — only GoRouter's own redirect logic runs.
+    final GoRouter router = ref.read(routerProvider);
     final ThemeMode themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
       title: 'FuelTracks',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      scaffoldMessengerKey: scaffoldMessengerKey,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,

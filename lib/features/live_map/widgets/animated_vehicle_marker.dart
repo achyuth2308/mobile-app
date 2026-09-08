@@ -54,9 +54,9 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500), // Standard glide time
+      duration: const Duration(milliseconds: 1000), // Responsive smooth glide time
     );
-    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.linear);
 
     _controller.addListener(_onAnimationTick);
     
@@ -95,15 +95,14 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
         _toHeading = widget.heading;
       }
 
-      // Calculate animation duration based on distance. 
-      // We cap it so teleports don't take forever, but it glides smoothly.
-      int ms = 3500;
+      // Calculate animation duration based on distance. Fast responsive glide.
+      int ms = 800;
       if (meters > 5000) {
         // Massive teleport, snap almost instantly
-        ms = 300;
+        ms = 200;
       } else if (meters > 500) {
         // Long distance jump
-        ms = 2500;
+        ms = 1200;
       }
 
       _controller.duration = Duration(milliseconds: ms);
@@ -141,27 +140,10 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
   @override
   Widget build(BuildContext context) {
-    final MapCamera camera = MapCamera.of(context);
-
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {
-        final LatLng current = _interpolatedPoint;
-
-        final math.Point<double> targetPos =
-            camera.latLngToScreenPoint(_toPoint);
-        final math.Point<double> currentPos =
-            camera.latLngToScreenPoint(current);
-
-        final Offset offset = Offset(
-          currentPos.x - targetPos.x,
-          currentPos.y - targetPos.y,
-        );
-
-        return Transform.translate(
-          offset: offset,
-          child: widget.builder(context, _interpolatedHeading),
-        );
+        return widget.builder(context, _interpolatedHeading);
       },
     );
   }

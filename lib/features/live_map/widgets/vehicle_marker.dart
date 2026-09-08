@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
@@ -62,13 +63,13 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
   static Color statusColor(VehicleStatus status) {
     switch (status) {
       case VehicleStatus.moving:
-        return const Color(0xFF00A651); // Vibrant green matching screenshot
+        return const Color(0xFF00A651); // Green (Moving)
       case VehicleStatus.idle:
-        return const Color(0xFFF59E0B); // Amber / Yellow
+        return const Color(0xFFF59E0B); // Yellow (Idle)
       case VehicleStatus.stopped:
-        return const Color(0xFFEF4444); // Red
+        return const Color(0xFF64748B); // Gray (Parking)
       case VehicleStatus.offline:
-        return const Color(0xFF64748B); // Slate grey
+        return const Color(0xFFEF4444); // Red (Offline)
     }
   }
 
@@ -76,36 +77,33 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
   Widget build(BuildContext context) {
     final Color pinColor = statusColor(widget.vehicle.status);
 
-    // Marker dimensions
-    const double pinWidth = 40.0;
-    const double pinHeight = 50.0;
+    // Teardrop Marker dimensions — 28px width, 36px height
+    const double pinWidth = 28.0;
+    const double pinHeight = 36.0;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.showLabel) ...[
-          _Label(
-            text: widget.vehicle.displayName,
-            color: pinColor,
-          ),
-          const SizedBox(height: 2),
-        ],
-        SizedBox(
-          width: pinWidth,
-          height: pinHeight,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              // Pulse effect when selected
-              if (widget.selected)
-                AnimatedBuilder(
+    final double headingDeg = widget.headingOverride ?? widget.vehicle.heading;
+    final double headingRad = headingDeg * (math.pi / 180.0);
+
+    final Widget pinWidget = SizedBox(
+      width: pinWidth,
+      height: pinHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          // Pulse effect when selected (pulsing ring around the head circle)
+          if (widget.selected)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, child) {
-                    final double scale = 1.0 + (_pulseController.value * 0.20);
+                    final double scale = 1.0 + (_pulseController.value * 0.35);
                     return Transform.scale(
                       scale: scale,
-                      alignment: Alignment.topCenter,
                       child: Container(
                         width: pinWidth + 6,
                         height: pinWidth + 6,
@@ -117,31 +115,46 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
                     );
                   },
                 ),
-
-              // Main Teardrop Pin Shape
-              CustomPaint(
-                size: const Size(pinWidth, pinHeight),
-                painter: _TeardropPinPainter(color: pinColor),
               ),
+            ),
 
-              // White Vehicle Icon in center of the pin circle
-              const Positioned(
-                top: 4.5,
-                child: SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: Center(
-                    child: Icon(
-                      Icons.directions_car_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
+          // Custom Teardrop Pin Shape (Tip at bottom center 14, 36) — ALWAYS UPRIGHT
+          CustomPaint(
+            size: const Size(pinWidth, pinHeight),
+            painter: _TeardropPinPainter(color: pinColor),
+          ),
+
+          // White Vehicle Icon in center of top circular head — rotates inside head to indicate direction
+          Positioned(
+            top: 6.5,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Transform.rotate(
+                angle: headingRad,
+                child: const Icon(
+                  Icons.directions_car_rounded,
+                  color: Colors.white,
+                  size: 15,
                 ),
               ),
-            ],
+            ),
           ),
+        ],
+      ),
+    );
+
+    if (!widget.showLabel) return pinWidget;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Label(
+          text: widget.vehicle.displayName,
+          color: pinColor,
         ),
+        const SizedBox(height: 2),
+        pinWidget,
       ],
     );
   }
@@ -159,39 +172,36 @@ class _TeardropPinPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
-    final double r = w / 2;
+    final double strokeWidth = 1.5;
+    // Outer stroke edge lands at exactly y = 36.0 to align perfectly with Alignment.bottomCenter
+    final double tipY = h - (strokeWidth / 2.0); // 35.25
+    final double tipX = w / 2.0; // 14.0
+    final double r = w / 2.0; // 14.0
 
+    // Build the teardrop path — sharp tip at bottom center (14.0, 35.25)
     final Path path = Path();
-    // Start at bottom tip
-    path.moveTo(w / 2, h);
-    // Left curve up to left edge of top circle
-    path.cubicTo(w * 0.08, h * 0.65, 0, r * 1.35, 0, r);
-    // Top circle arc
-    path.arcToPoint(
-      Offset(w, r),
-      radius: Radius.circular(r),
-      clockwise: true,
-    );
-    // Right curve back down to bottom tip
-    path.cubicTo(w, r * 1.35, w * 0.92, h * 0.65, w / 2, h);
+    path.moveTo(tipX, tipY);
+    path.cubicTo(w * 0.10, tipY * 0.72, 0.0, r * 1.4, 0.0, r);
+    path.arcToPoint(Offset(w, r), radius: Radius.circular(r), clockwise: true);
+    path.cubicTo(w, r * 1.4, w * 0.90, tipY * 0.72, tipX, tipY);
     path.close();
 
-    // Soft drop shadow
+    // Subtle shadow behind pin
     final Paint shadowPaint = Paint()
       ..color = Colors.black.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    canvas.drawPath(path.shift(const Offset(0, 2)), shadowPaint);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
+    canvas.drawPath(path.shift(const Offset(0.0, 0.5)), shadowPaint);
 
-    // Main pin body fill
+    // Pin body fill
     final Paint fillPaint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
     canvas.drawPath(path, fillPaint);
 
-    // Subtle crisp white border stroke
+    // White border stroke
     final Paint borderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
-      ..strokeWidth = 1.2
+      ..color = Colors.white.withValues(alpha: 0.95)
+      ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke;
     canvas.drawPath(path, borderPaint);
   }

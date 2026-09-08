@@ -15,7 +15,7 @@ class NavigationHUD extends StatelessWidget {
     return Positioned(
       left: 16,
       right: 16,
-      bottom: 96, // Positioned safely above standard bottom nav bars
+      bottom: 24 + MediaQuery.paddingOf(context).bottom, // Clears system safe area
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(

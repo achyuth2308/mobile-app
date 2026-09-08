@@ -1,13 +1,15 @@
 import '../../core/config/backend_capabilities.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/storage/secure_store.dart';
 import '../models/alert.dart';
 import '../models/json_utils.dart';
 
 class AlertRepository {
-  AlertRepository(this._api);
+  AlertRepository(this._api, this._store);
 
   final ApiClient _api;
+  final SecureStore _store;
 
   Future<List<FleetAlert>> getAlerts({
     int page = 1,
@@ -21,23 +23,29 @@ class AlertRepository {
     // shows an honest "not enabled" state instead of a red error.
     if (!BackendCapabilities.alertsHistory) return const <FleetAlert>[];
 
-    final String url = vehicleId != null ? '/vehicles/$vehicleId/alerts' : '/alerts';
-    final dynamic res = await _api.get<dynamic>(
-      url,
-      query: <String, dynamic>{
-        'page': page,
-        'limit': limit,
-        if (type != null) 'alertType': type,
-        if (type != null) 'type': type,
-        if (start != null) 'startDate': start.toUtc().toIso8601String(),
-        if (end != null) 'endDate': end.toUtc().toIso8601String(),
-      },
-    );
+    final Set<String> deletedIds = _store.getDeletedAlertIds();
 
-    return asMapList(res)
-        .map(FleetAlert.fromJson)
-        .where((FleetAlert a) => a.id.isNotEmpty)
-        .toList(growable: false);
+    final String url = vehicleId != null ? '/vehicles/$vehicleId/alerts' : '/alerts';
+    try {
+      final dynamic res = await _api.get<dynamic>(
+        url,
+        query: <String, dynamic>{
+          'page': page,
+          'limit': limit,
+          if (type != null) 'alertType': type,
+          if (type != null) 'type': type,
+          if (start != null) 'startDate': start.toUtc().toIso8601String(),
+          if (end != null) 'endDate': end.toUtc().toIso8601String(),
+        },
+      );
+
+      return asMapList(res)
+          .map(FleetAlert.fromJson)
+          .where((FleetAlert a) => a.id.isNotEmpty && !deletedIds.contains(a.id))
+          .toList(growable: false);
+    } catch (_) {
+      return const <FleetAlert>[];
+    }
   }
 
   Future<int> getUnreadCount() async {
@@ -85,9 +93,19 @@ class AlertRepository {
   }
 
   Future<void> deleteAlert(String alertId) async {
+    await _store.addDeletedAlertId(alertId);
     try {
       await _api.delete<dynamic>('/alerts/$alertId');
     } on ApiException {/* non-critical */}
+  }
+
+  Future<void> deleteAlerts(Iterable<String> alertIds) async {
+    await _store.addDeletedAlertIds(alertIds);
+    for (final String id in alertIds) {
+      try {
+        await _api.delete<dynamic>('/alerts/$id');
+      } catch (_) {}
+    }
   }
 
   Future<void> clearVehicleAlerts(String vehicleId) async {

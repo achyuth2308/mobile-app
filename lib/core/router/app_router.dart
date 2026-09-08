@@ -19,31 +19,59 @@ import '../../features/splash/splash_screen.dart';
 import '../../features/routes/routes_screen.dart';
 import '../../features/trips/trips_screen.dart';
 import '../../features/vehicle/vehicle_detail_screen.dart';
+import '../../features/vehicle/vehicle_menu_screen.dart';
+import '../../features/vehicle/screens/vehicle_live_screen.dart';
+import '../../features/vehicle/screens/vehicle_playback_screen.dart';
+import '../../features/vehicle/screens/vehicle_info_screen.dart';
+import '../../features/vehicle/screens/vehicle_alerts_screen.dart';
+import '../../features/vehicle/screens/vehicle_settings_screen.dart';
 import '../../providers/auth_provider.dart';
 
+// ── Stable navigator keys (top-level singletons — never recreated) ───────────
+// These must NEVER be created inside a function/provider, or hot-reload
+// and Riverpod rebuilds will instantiate duplicate keys that GoRouter places
+// into the same widget-child list, causing !keyReservation assertion failures.
 final GlobalKey<NavigatorState> _rootKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
 
+// ── Auth-change notifier (used only as GoRouter.refreshListenable) ────────────
+// Decoupled from Riverpod rebuilds so that authProvider changes only trigger
+// GoRouter's internal redirect logic — NOT a rebuild of MaterialApp.
+final _AuthNotifier _authNotifier = _AuthNotifier();
 
+class _AuthNotifier extends ChangeNotifier {
+  AuthStage _stage = AuthStage.unknown;
+  AuthStage get stage => _stage;
 
+  void update(AuthStage stage) {
+    if (_stage == stage) return;
+    _stage = stage;
+    notifyListeners();
+  }
+}
+
+// ── Riverpod provider that wires auth → notifier (no GoRouter recreation) ─────
+// routerProvider is read ONCE in main.dart (ref.read, not ref.watch).
+// This means MaterialApp.router is never rebuilt by Riverpod.
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
-  final ValueNotifier<AuthStage> stage =
-      ValueNotifier<AuthStage>(ref.read(authProvider).stage);
+  ref.keepAlive();
 
+  // Keep the singleton notifier in sync with Riverpod auth state.
   ref.listen<AuthState>(authProvider, (AuthState? _, AuthState next) {
-    stage.value = next.stage;
+    _authNotifier.update(next.stage);
   });
 
-  ref.onDispose(stage.dispose);
+  // Seed current stage immediately (in case provider is read after login).
+  _authNotifier.update(ref.read(authProvider).stage);
 
   return GoRouter(
     navigatorKey: _rootKey,
     initialLocation: '/splash',
     debugLogDiagnostics: false,
-    refreshListenable: stage,
+    refreshListenable: _authNotifier,
 
     redirect: (BuildContext context, GoRouterState state) {
-      final AuthStage current = ref.read(authProvider).stage;
+      final AuthStage current = _authNotifier.stage;
       final String path = state.matchedLocation;
 
       const Set<String> publicPaths = <String>{
@@ -53,7 +81,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       };
       final bool isPublic = publicPaths.any(path.startsWith);
 
-      // Still resolving the token — hold on the splash.
       if (current == AuthStage.unknown) {
         return path == '/splash' ? null : '/splash';
       }
@@ -62,7 +89,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         return isPublic ? null : '/login';
       }
 
-      // Authenticated: never leave the user stranded on splash/login.
       if (path == '/splash' || path == '/login') return '/dashboard';
 
       return null;
@@ -113,6 +139,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
                 path: '/map',
                 builder: (BuildContext c, GoRouterState s) => LiveMapScreen(
                   focusVehicleId: s.uri.queryParameters['focus'],
+                  showTrail: s.uri.queryParameters['trail'] == 'true',
                 ),
               ),
             ],
@@ -127,21 +154,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
                   initialVehicleId: s.uri.queryParameters['vehicle'],
                 ),
                 routes: <RouteBase>[
-                  GoRoute(
-                    path: ':type',
-                    parentNavigatorKey: _rootKey,
-                    builder: (BuildContext c, GoRouterState s) {
-                      final String raw = s.pathParameters['type'] ?? '';
-                      final ReportType type = ReportType.values.firstWhere(
-                        (ReportType t) => t.name == raw,
-                        orElse: () => ReportType.trip,
-                      );
-                      return ReportDetailScreen(
-                        type: type,
-                        initialVehicleId: s.uri.queryParameters['vehicle'],
-                      );
-                    },
-                  ),
+                  // Report details moved to top-level to avoid shell routing conflicts
                 ],
               ),
             ],
@@ -171,21 +184,43 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/vehicle/:id',
         parentNavigatorKey: _rootKey,
-        builder: (BuildContext c, GoRouterState s) {
-          final String tabParam = s.uri.queryParameters['tab'] ?? '';
-          int initialTab = 0;
-          if (tabParam == 'history' || tabParam == '1') {
-            initialTab = 1;
-          } else if (tabParam == 'alerts' || tabParam == '2') {
-            initialTab = 2;
-          } else if (tabParam == 'info' || tabParam == '3') {
-            initialTab = 3;
-          }
-          return VehicleDetailScreen(
-            vehicleId: s.pathParameters['id'] ?? '',
-            initialTab: initialTab,
-          );
-        },
+        builder: (BuildContext c, GoRouterState s) => VehicleMenuScreen(
+          vehicleId: s.pathParameters['id'] ?? '',
+        ),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'detail',
+            builder: (BuildContext c, GoRouterState s) => VehicleDetailScreen(
+              vehicleId: s.pathParameters['id'] ?? '',
+              initialTab: int.tryParse(s.uri.queryParameters['tab'] ?? '') ?? 0,
+            ),
+          ),
+          GoRoute(
+            path: 'live',
+            builder: (BuildContext c, GoRouterState s) =>
+                VehicleLiveScreen(vehicleId: s.pathParameters['id'] ?? ''),
+          ),
+          GoRoute(
+            path: 'history',
+            builder: (BuildContext c, GoRouterState s) =>
+                VehiclePlaybackScreen(vehicleId: s.pathParameters['id'] ?? ''),
+          ),
+          GoRoute(
+            path: 'info',
+            builder: (BuildContext c, GoRouterState s) =>
+                VehicleInfoScreen(vehicleId: s.pathParameters['id'] ?? ''),
+          ),
+          GoRoute(
+            path: 'alerts',
+            builder: (BuildContext c, GoRouterState s) =>
+                VehicleAlertsScreen(vehicleId: s.pathParameters['id'] ?? ''),
+          ),
+          GoRoute(
+            path: 'settings',
+            builder: (BuildContext c, GoRouterState s) =>
+                VehicleSettingsScreen(vehicleId: s.pathParameters['id'] ?? ''),
+          ),
+        ],
       ),
       GoRoute(
         path: '/geofences',
@@ -201,6 +236,36 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         path: '/routes',
         parentNavigatorKey: _rootKey,
         builder: (BuildContext c, GoRouterState s) => const RoutesScreen(),
+      ),
+      GoRoute(
+        path: '/report-detail/:type',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) {
+          final String raw = s.pathParameters['type'] ?? '';
+          final ReportType type = ReportType.values.firstWhere(
+            (ReportType t) => t.name == raw,
+            orElse: () => ReportType.trip,
+          );
+          return ReportDetailScreen(
+            type: type,
+            initialVehicleId: s.uri.queryParameters['vehicle'],
+          );
+        },
+      ),
+      // Dedicated push-able profile & settings route from dashboard
+      GoRoute(
+        path: '/profile-settings',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => const ProfileScreen(),
+      ),
+      // Dedicated push-able map route for vehicle menu (avoids shell GlobalKey conflict)
+      GoRoute(
+        path: '/vehicle-map',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => LiveMapScreen(
+          focusVehicleId: s.uri.queryParameters['focus'],
+          showTrail: s.uri.queryParameters['trail'] == 'true',
+        ),
       ),
     ],
 

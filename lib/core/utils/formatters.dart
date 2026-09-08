@@ -36,6 +36,32 @@ class Fmt {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// Format duration for vehicle status since metrics: "24s", "4m 12s", "2h 15m", "3d 4h"
+  static String statusDuration(DateTime? d) {
+    if (d == null) return '-';
+    final Duration diff = DateTime.now().difference(d);
+    if (diff.isNegative) return '0s';
+
+    final int seconds = diff.inSeconds;
+    if (seconds < 60) return '${seconds}s';
+
+    final int minutes = diff.inMinutes;
+    if (minutes < 60) {
+      final int remSec = seconds % 60;
+      return remSec > 0 ? '${minutes}m ${remSec}s' : '${minutes}m';
+    }
+
+    final int hours = diff.inHours;
+    if (hours < 24) {
+      final int remMin = minutes % 60;
+      return remMin > 0 ? '${hours}h ${remMin}m' : '${hours}h';
+    }
+
+    final int days = diff.inDays;
+    final int remHours = hours % 24;
+    return remHours > 0 ? '${days}d ${remHours}h' : '${days}d';
+  }
+
   /// "just now", "4m ago", "2h ago", "3d ago" — the primary freshness signal
   /// on every vehicle card.
   static String relative(DateTime? d) {

@@ -79,6 +79,7 @@ class _AppLifecycleObserverState extends ConsumerState<AppLifecycleObserver>
 
     debugPrint('[lifecycle] → background: pausing socket');
     ref.read(socketServiceProvider).pauseForBackground();
+    ref.read(fleetProvider.notifier).detachSocket();
   }
 
   Future<void> _onForeground() async {

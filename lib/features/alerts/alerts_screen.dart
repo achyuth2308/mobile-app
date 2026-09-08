@@ -300,6 +300,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     if (proceed == true) {
       unawaited(HapticFeedback.heavyImpact());
       try {
+        final List<String> currentIds = _alerts.map((a) => a.id).where((id) => id.isNotEmpty).toList();
+        await ref.read(alertRepositoryProvider).deleteAlerts(currentIds);
         if (widget.vehicleId.isNotEmpty) {
           await ref.read(alertRepositoryProvider).clearVehicleAlerts(widget.vehicleId);
         } else {
@@ -840,34 +842,16 @@ class AlertTile extends StatelessWidget {
                               color: theme.colorScheme.onSurfaceVariant),
                           const SizedBox(width: 4),
                           Text(
-                            // Show 'Start' label only for stoppage-type alerts
                             _isStoppageType(alert.type)
-                                ? 'Start: ${Fmt.full(alert.createdAt)}'
+                                ? 'Start: ${Fmt.full(alert.createdAt)}${alert.endTime != null ? ' – ${Fmt.time(alert.endTime)}' : (alert.durationMinutes != null ? ' – ${Fmt.time(alert.createdAt?.add(Duration(minutes: alert.durationMinutes!)))}' : '')}'
                                 : Fmt.full(alert.createdAt),
                             style: theme.textTheme.labelSmall
                                 ?.copyWith(letterSpacing: 0),
                           ),
                         ],
                       ),
-                      // End time row — stoppage alerts only
-                      if (_isStoppageType(alert.type) && alert.endTime != null) ...<Widget>[
-                        const SizedBox(height: 3),
-                        Row(
-                          children: <Widget>[
-                            Icon(Icons.flag_rounded,
-                                size: 12,
-                                color: theme.colorScheme.onSurfaceVariant),
-                            const SizedBox(width: 4),
-                            Text(
-                              'End: ${Fmt.full(alert.endTime)}',
-                              style: theme.textTheme.labelSmall
-                                  ?.copyWith(letterSpacing: 0),
-                            ),
-                          ],
-                        ),
-                      ],
                       // Duration row — stoppage alerts only
-                      if (_isStoppageType(alert.type) && alert.durationMinutes != null) ...<Widget>[
+                      if (_isStoppageType(alert.type)) ...<Widget>[
                         const SizedBox(height: 3),
                         Row(
                           children: <Widget>[
@@ -876,7 +860,7 @@ class AlertTile extends StatelessWidget {
                                 color: theme.colorScheme.onSurfaceVariant),
                             const SizedBox(width: 4),
                             Text(
-                              'Duration: ${Fmt.duration(Duration(minutes: alert.durationMinutes!))}',
+                              'Duration: ${alert.formattedStoppageDuration}',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 letterSpacing: 0,
                                 fontWeight: FontWeight.w600,

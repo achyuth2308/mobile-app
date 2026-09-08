@@ -93,6 +93,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
               actions: <Widget>[
+                IconButton(
+                  tooltip: 'Profile & Settings',
+                  icon: const Icon(Icons.account_circle_outlined),
+                  onPressed: () => context.push('/profile'),
+                ),
                 const SizedBox(width: Gap.sm),
                 IconButton(
                   tooltip: 'Search fleet',
@@ -250,19 +255,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     return VehicleCard(
                       key: ValueKey<String>(v.id),
                       vehicle: v,
-                      onTap: () {
+                      onTap: () => context.push('/vehicle/${v.id}'),
+                      onTrack: () {
                         if (v.hasLocation) {
                           context.go('/map?focus=${v.id}');
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Vehicle has no location data yet'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
                         }
                       },
-                      onTrack: () => context.push('/vehicle/${v.id}'),
                     );
                   },
                 ),

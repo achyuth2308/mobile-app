@@ -141,4 +141,25 @@ class SecureStore {
 
   bool get notifHarsh => _prefs.getBool('ft_notif_harsh') ?? true;
   Future<void> setNotifHarsh(bool v) => _prefs.setBool('ft_notif_harsh', v);
+
+  // ── Deleted Alert Persistence ──────────────────────────────────────
+  static const _kDeletedAlerts = 'ft_deleted_alerts';
+
+  Set<String> getDeletedAlertIds() {
+    final List<String>? list = _prefs.getStringList(_kDeletedAlerts);
+    return list?.toSet() ?? <String>{};
+  }
+
+  Future<void> addDeletedAlertId(String id) async {
+    if (id.isEmpty) return;
+    final Set<String> current = getDeletedAlertIds();
+    current.add(id);
+    await _prefs.setStringList(_kDeletedAlerts, current.toList());
+  }
+
+  Future<void> addDeletedAlertIds(Iterable<String> ids) async {
+    final Set<String> current = getDeletedAlertIds();
+    current.addAll(ids.where((String id) => id.isNotEmpty));
+    await _prefs.setStringList(_kDeletedAlerts, current.toList());
+  }
 }

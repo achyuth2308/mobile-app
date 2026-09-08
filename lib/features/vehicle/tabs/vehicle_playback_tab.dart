@@ -113,6 +113,8 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   bool _playing = false;
   double _speedMultiplier = 1;
   Timer? _ticker;
+  int? _activeStoppageStartIdx;
+  DateTime? _stoppagePauseStartTime;
 
   static List<StoppageEvent> _computeStoppages(List<TrackPoint> points) {
     if (points.isEmpty) return <StoppageEvent>[];
@@ -267,6 +269,8 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       _error = null;
       _playing = false;
       _ticker?.cancel();
+      _activeStoppageStartIdx = null;
+      _stoppagePauseStartTime = null;
     });
 
     try {
@@ -392,31 +396,63 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     _ticker = Timer.periodic(const Duration(milliseconds: 33), (Timer t) {
       if (!mounted || _playbackProgress >= _points.length - 1) {
         t.cancel();
-        if (mounted) setState(() => _playing = false);
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _playing = false);
+          });
+        }
         return;
       }
 
       final int idx = _playbackProgress.floor();
+      final TrackPoint currentPt = _points[idx];
+
+      // Enforce 5-second pause when vehicle is stopped (speed <= 1 km/h)
+      if (currentPt.speed <= 1) {
+        int blockStartIdx = idx;
+        while (blockStartIdx > 0 && _points[blockStartIdx - 1].speed <= 1) {
+          blockStartIdx--;
+        }
+
+        if (_activeStoppageStartIdx != blockStartIdx) {
+          _activeStoppageStartIdx = blockStartIdx;
+          _stoppagePauseStartTime = DateTime.now();
+        }
+
+        final int targetPauseMs = (5000 / _effectiveSpeedMultiplier).round().clamp(1000, 5000);
+        final int elapsedMs = DateTime.now().difference(_stoppagePauseStartTime!).inMilliseconds;
+        if (elapsedMs < targetPauseMs) {
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() {});
+            _followCamera();
+          });
+          return;
+        }
+      } else {
+        _activeStoppageStartIdx = null;
+        _stoppagePauseStartTime = null;
+      }
+
       final TrackPoint a = _points[idx];
       final TrackPoint b = _points[idx + 1];
       final int diffMs = b.timestamp.difference(a.timestamp).inMilliseconds;
-      // Make base playback proportional to real time (1x = 10x real speed).
-      // This ensures 18 km/h visually moves faster across the map than 2 km/h,
-      // regardless of the GPS tracker's polling frequency.
       int effectiveDiffMs = (diffMs / 10).round();
-      // Clamp to avoid waiting forever on massive gaps, and prevent divide-by-zero
       effectiveDiffMs = effectiveDiffMs.clamp(50, 3000);
 
-      // Calculate step size so that progress smoothly advances
       final double step = (33.0 / effectiveDiffMs) * _effectiveSpeedMultiplier;
 
-      setState(() {
-        _playbackProgress += step;
-        if (_playbackProgress >= _points.length - 1) {
-          _playbackProgress = (_points.length - 1).toDouble();
-        }
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _playbackProgress += step;
+          if (_playbackProgress >= _points.length - 1) {
+            _playbackProgress = (_points.length - 1).toDouble();
+          }
+        });
+        _followCamera();
       });
-      _followCamera();
     });
   }
 
@@ -856,28 +892,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final TrackPoint cursor = _currentPoint;
 
     return <Marker>[
-      // Playback waypoints — actual GPS fixes as blue dots.
-      // Dynamically sample to avoid clutter on massive routes, but show all on short routes.
-      for (int i = 0; i < _points.length; i++)
-        if (_points.length < 100 || i % (_points.length ~/ 100) == 0)
-          Marker(
-            point: _points[i].latLng,
-            width: 9,
-            height: 9,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A7C4E), // dark green dots matching trail
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.5),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: const Color(0xFF0A7C4E).withOpacity(0.5),
-                    blurRadius: 3,
-                  ),
-                ],
-              ),
-            ),
-          ),
       Marker(
         point: _points.first.latLng,
         width: 26,
@@ -918,14 +932,16 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       Marker(
         point: cursor.latLng,
         width: 40,
-        height: 40,
-        alignment: Alignment.center,
+        height: 52,
+        // topCenter pins the very tip of the custom arrow to the coordinate
+        alignment: Alignment.topCenter,
         child: Transform.rotate(
-          angle: _currentBearing, // computed from actual track coordinates
-          child: const Icon(
-            Icons.navigation,
-            size: 38,
-            color: Colors.blueAccent,
+          angle: _currentBearing,
+          // rotate around the tip so it stays fixed on the coordinate
+          alignment: Alignment.topCenter,
+          child: CustomPaint(
+            size: const Size(40, 52),
+            painter: _NavArrowPainter(color: Colors.blueAccent),
           ),
         ),
       ),
@@ -2036,4 +2052,41 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
       ),
     );
   }
+}
+
+/// Paints a navigation-arrow shape whose TIP is precisely at (size.width/2, 0)
+/// — the top-center of the canvas. Pair this with a Marker that has
+/// alignment: Alignment.topCenter so the tip touches the map coordinate.
+class _NavArrowPainter extends CustomPainter {
+  const _NavArrowPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double cx = size.width / 2;
+    final Paint fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final Paint stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeJoin = StrokeJoin.round;
+
+    // Arrow path — tip at (cx, 0)
+    final Path path = Path()
+      ..moveTo(cx, 0)                        // tip
+      ..lineTo(size.width, size.height * 0.58) // right shoulder
+      ..lineTo(cx * 1.28, size.height * 0.44) // right notch
+      ..lineTo(cx, size.height * 0.62)        // bottom center
+      ..lineTo(cx * 0.72, size.height * 0.44) // left notch
+      ..lineTo(0, size.height * 0.58)         // left shoulder
+      ..close();
+
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(_NavArrowPainter old) => old.color != color;
 }

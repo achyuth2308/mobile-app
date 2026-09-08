@@ -44,6 +44,17 @@ class FleetAlert extends Equatable {
 
   bool get hasLocation => latitude != null && longitude != null;
 
+  /// Formatted duration string for stoppage alerts (e.g. "1 hr", "2 hrs", "3 hrs")
+  String get formattedStoppageDuration {
+    if (durationMinutes == null || durationMinutes! <= 0) return '1 hr';
+    final int hrs = durationMinutes! ~/ 60;
+    final int remMins = durationMinutes! % 60;
+    if (hrs >= 1) {
+      return remMins > 0 ? '${hrs} hr ${remMins}m' : '${hrs} hr${hrs > 1 ? 's' : ''}';
+    }
+    return '${durationMinutes!} mins';
+  }
+
   AlertSeverity get severity => switch (type.toLowerCase()) {
         'sos' ||
         'panic' ||

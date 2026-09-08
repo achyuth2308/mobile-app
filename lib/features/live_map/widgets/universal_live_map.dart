@@ -27,8 +27,9 @@ class UniversalLiveMap extends StatefulWidget {
     required this.onTapMap,
     required this.onSelectVehicle,
     this.pendingFocusId,
-    this.route = const [],
-    this.stoppages = const [],
+    this.route = const <TrackPoint>[],
+    this.stoppages = const <ReportRow>[],
+    this.showTrail = false,
     this.onTapStoppage,
   });
 
@@ -46,6 +47,7 @@ class UniversalLiveMap extends StatefulWidget {
   final ValueChanged<Vehicle> onSelectVehicle;
   final List<TrackPoint> route;
   final List<ReportRow> stoppages;
+  final bool showTrail;
   final void Function(ReportRow, int)? onTapStoppage;
 
   @override
@@ -54,9 +56,21 @@ class UniversalLiveMap extends StatefulWidget {
 
 class _UniversalLiveMapState extends State<UniversalLiveMap> {
   final ValueNotifier<LatLng?> _activeVisualPosition = ValueNotifier(null);
+  final List<LatLng> _sessionTrail = <LatLng>[];
   bool _isUserInteracting = false;
 
   bool _showLoadingOverlay = true;
+
+  void _recordSessionPoint(LatLng point) {
+    if (_sessionTrail.isEmpty) {
+      _sessionTrail.add(point);
+    } else {
+      const Distance dist = Distance();
+      if (dist(_sessionTrail.last, point) > 2.0) {
+        _sessionTrail.add(point);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -88,16 +102,14 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     super.dispose();
   }
 
-  List<Marker> _buildMarkers(String? activeId) {
+  List<Marker> _buildStaticMarkers(String? activeId) {
     final bool manyVehicles = widget.vehicles.length > 50;
 
     return widget.vehicles
-        .where((Vehicle v) => v.hasLocation)
+        .where((Vehicle v) => v.hasLocation && v.id != activeId)
         .map(
           (Vehicle v) {
             final bool isSelected = v.id == widget.selectedId;
-            final bool isActive = v.id == activeId;
-            final bool useAnimation = isActive || !manyVehicles;
 
             Widget markerChild = VehicleMarkerPin(
               vehicle: v,
@@ -107,14 +119,13 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
               headingOverride: v.heading,
             );
 
-            if (useAnimation) {
+            if (!manyVehicles) {
               markerChild = AnimatedVehicleMarker(
                 key: ValueKey<String>('anim_${v.id}'),
                 point: LatLng(v.latitude!, v.longitude!),
                 heading: v.heading,
                 status: v.status,
                 speed: v.speed,
-                visualPositionNotifier: isActive ? _activeVisualPosition : null,
                 builder: (BuildContext context, double animatedHeading) => VehicleMarkerPin(
                   vehicle: v,
                   selected: isSelected,
@@ -128,16 +139,13 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             return Marker(
               key: ValueKey<String>(v.id),
               point: LatLng(v.latitude!, v.longitude!),
-              width: 40,
-              height: 50,
+              width: 28,
+              height: 36,
+              alignment: Alignment.bottomCenter,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => widget.onSelectVehicle(v),
-                // Shift the marker UP by half its height (25px) so the bottom tip (y=50) 
-                // anchors exactly on the GPS coordinate.
-                child: Transform.translate(
-                  offset: const Offset(0, -25),
-                  child: markerChild,
-                ),
+                child: markerChild,
               ),
             );
           },
@@ -145,13 +153,51 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         .toList();
   }
 
+  Widget _buildActiveMarkerLayer(Vehicle activeV, bool isSelected) {
+    return ValueListenableBuilder<LatLng?>(
+      valueListenable: _activeVisualPosition,
+      builder: (BuildContext context, LatLng? visualPos, Widget? child) {
+        final LatLng markerPos = visualPos ?? LatLng(activeV.latitude!, activeV.longitude!);
+
+        return MarkerLayer(
+          markers: [
+            Marker(
+              key: ValueKey<String>('active_${activeV.id}'),
+              point: markerPos,
+              width: 28,
+              height: 36,
+              alignment: Alignment.bottomCenter,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => widget.onSelectVehicle(activeV),
+                child: AnimatedVehicleMarker(
+                  key: ValueKey<String>('anim_${activeV.id}'),
+                  point: LatLng(activeV.latitude!, activeV.longitude!),
+                  heading: activeV.heading,
+                  status: activeV.status,
+                  speed: activeV.speed,
+                  visualPositionNotifier: _activeVisualPosition,
+                  builder: (BuildContext context, double animatedHeading) => VehicleMarkerPin(
+                    vehicle: activeV,
+                    selected: isSelected,
+                    showLabel: false,
+                    useSprite: true,
+                    headingOverride: animatedHeading,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-
     final String? activeId = widget.selectedId ?? widget.followingId;
 
-    final List<Marker> markers = _buildMarkers(activeId);
     final List<ReportRow> filteredStoppages = widget.stoppages.toList();
 
     // Collect special point markers (Stoppages)
@@ -233,10 +279,12 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                 valueListenable: _activeVisualPosition,
                 builder: (BuildContext context, LatLng? visualPos, Widget? child) {
                   final List<LatLng> trailPoints = [];
-                  
+                  final LatLng? activeVisualPos = (activeV != null && activeV.hasLocation)
+                      ? (visualPos ?? LatLng(activeV.latitude!, activeV.longitude!))
+                      : null;
+
                   if (activeV != null && activeV.hasLocation) {
-                    final LatLng finalBackendPos = LatLng(activeV.latitude!, activeV.longitude!);
-                    final LatLng targetPos = visualPos ?? finalBackendPos;
+                    final LatLng currentPos = activeVisualPos!;
 
                     if (widget.route.isNotEmpty) {
                       int cutIdx = -1;
@@ -247,7 +295,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                         final TrackPoint tp = widget.route[i];
                         if (!tp.isValid) continue;
 
-                        final double d = dist(tp.latLng, targetPos);
+                        final double d = dist(tp.latLng, currentPos);
                         if (d < minDistance) {
                           minDistance = d;
                           cutIdx = i;
@@ -270,9 +318,19 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                           }
                         }
                       }
+                      if (trailPoints.isEmpty) {
+                        trailPoints.add(currentPos);
+                      } else {
+                        trailPoints.add(currentPos);
+                      }
+                    } else {
+                      // Live session trail: record only up to current animated marker position
+                      _recordSessionPoint(currentPos);
+                      trailPoints.addAll(_sessionTrail);
                     }
-                    if (trailPoints.isEmpty || trailPoints.last != targetPos) {
-                      trailPoints.add(targetPos);
+                    if (trailPoints.isNotEmpty) {
+                      // Clamp the tip of the trail to the exact current visual position of the marker pin
+                      trailPoints[trailPoints.length - 1] = currentPos;
                     }
                   } else if (widget.route.isNotEmpty) {
                     for (final TrackPoint tp in widget.route) {
@@ -280,34 +338,63 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                     }
                   }
 
-                  if (trailPoints.length < 2) return const SizedBox.shrink();
+                  final List<Marker> vehicleMarkers = <Marker>[];
+                  for (final Vehicle v in widget.vehicles) {
+                    if (!v.hasLocation) continue;
+                    final bool isActive = (v.id == activeId);
+                    final LatLng markerPos = isActive
+                        ? (activeVisualPos ?? LatLng(v.latitude!, v.longitude!))
+                        : LatLng(v.latitude!, v.longitude!);
 
-                  return PolylineLayer(
-                    polylines: _splitPolyline(
-                      points: trailPoints,
-                      color: const Color(0xFF10B981),
-                      strokeWidth: 4.5,
-                    ),
+                    vehicleMarkers.add(
+                      Marker(
+                        key: ValueKey<String>('marker_${v.id}'),
+                        point: markerPos,
+                        width: 28,
+                        height: 36,
+                        alignment: Alignment.bottomCenter,
+                        child: AnimatedVehicleMarker(
+                          point: LatLng(v.latitude!, v.longitude!),
+                          heading: v.heading,
+                          status: v.status,
+                          speed: v.speed,
+                          visualPositionNotifier:
+                              isActive ? _activeVisualPosition : null,
+                          builder: (BuildContext context, double heading) => GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => widget.onSelectVehicle(v),
+                            child: VehicleMarkerPin(
+                              vehicle: v,
+                              selected: v.id == widget.selectedId,
+                              showLabel: false,
+                              useSprite: true,
+                              headingOverride: heading,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Stack(
+                    children: <Widget>[
+                      if (widget.showTrail && trailPoints.length >= 2)
+                        PolylineLayer(
+                          polylines: _splitPolyline(
+                            points: trailPoints,
+                            color: const Color(0xFF10B981),
+                            strokeWidth: 4.5,
+                          ),
+                        ),
+                      MarkerLayer(markers: vehicleMarkers),
+                    ],
                   );
                 },
               ),
-              if (markers.isNotEmpty)
-                MarkerLayer(markers: markers),
-              if (pointMarkers.isNotEmpty)
+              if (widget.showTrail && pointMarkers.isNotEmpty)
                 MarkerLayer(markers: pointMarkers),
             ],
           ),
-          
-          // Loading overlay that hides the map while tiles are being downloaded
-          if (_showLoadingOverlay)
-            Positioned.fill(
-              child: Container(
-                color: theme.colorScheme.surface,
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            ),
       ],
     );
   }

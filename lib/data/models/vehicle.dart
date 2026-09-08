@@ -18,6 +18,13 @@ extension VehicleStatusX on VehicleStatus {
         VehicleStatus.offline => 'Offline',
       };
 
+  String get sinceLabel => switch (this) {
+        VehicleStatus.moving => 'Moving Since',
+        VehicleStatus.idle => 'Idling Since',
+        VehicleStatus.stopped => 'Parking Since',
+        VehicleStatus.offline => 'Offline Since',
+      };
+
   String get description => switch (this) {
         VehicleStatus.moving => 'Ignition on and in motion',
         VehicleStatus.idle => 'Ignition on, not moving',

@@ -116,9 +116,12 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                               Marker(
                                 point: LatLng(
                                     vehicle.latitude!, vehicle.longitude!),
-                                width: 120,
-                                height: 120,
-                                alignment: Alignment.center,
+                                // Match the actual pin dimensions (28×36).
+                                // bottomCenter anchors the teardrop TIP
+                                // exactly on the GPS coordinate.
+                                width: 28,
+                                height: 36,
+                                alignment: Alignment.bottomCenter,
                                 child: GestureDetector(
                                   onTap: () => context.go('/map?focus=${vehicle.id}'),
                                   child: VehicleMarkerPin(
@@ -195,77 +198,99 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
           ),
         ),
 
-        if (vehicle.status == VehicleStatus.stopped || vehicle.speed <= 1) ...<Widget>[
-          const SizedBox(height: Gap.md),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: Gap.md),
-            decoration: BoxDecoration(
-              color: AppColors.danger.withOpacity(0.08),
-              borderRadius: Corners.rMd,
-              border: Border.all(color: AppColors.danger.withOpacity(0.25), width: 1),
-            ),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withOpacity(0.15),
-                    shape: BoxShape.circle,
+        const SizedBox(height: Gap.md),
+        Builder(
+          builder: (context) {
+            final Color statusAccent = AppColors.forStatus(vehicle.status.key);
+            final String titleText = switch (vehicle.status) {
+              VehicleStatus.moving => 'Vehicle Moving',
+              VehicleStatus.idle => 'Vehicle Idling',
+              VehicleStatus.stopped => 'Vehicle Stopped',
+              VehicleStatus.offline => 'Vehicle Offline',
+            };
+            final String sinceText = switch (vehicle.status) {
+              VehicleStatus.moving => 'Moving since',
+              VehicleStatus.idle => 'Idling since',
+              VehicleStatus.stopped => 'Stopped since',
+              VehicleStatus.offline => 'Offline since',
+            };
+            final IconData statusIcon = switch (vehicle.status) {
+              VehicleStatus.moving => Icons.play_circle_filled_rounded,
+              VehicleStatus.idle => Icons.pause_circle_filled_rounded,
+              VehicleStatus.stopped => Icons.pause_circle_filled_rounded,
+              VehicleStatus.offline => Icons.cloud_off_rounded,
+            };
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: Gap.md),
+              decoration: BoxDecoration(
+                color: statusAccent.withOpacity(0.08),
+                borderRadius: Corners.rMd,
+                border: Border.all(color: statusAccent.withOpacity(0.25), width: 1),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: statusAccent.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      statusIcon,
+                      size: 18,
+                      color: statusAccent,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.pause_circle_filled_rounded,
-                    size: 18,
-                    color: AppColors.danger,
-                  ),
-                ),
-                const SizedBox(width: Gap.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          const Text(
-                            'Vehicle Stopped',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.danger,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              vehicle.ignition ? 'Ignition ON' : 'Ignition OFF',
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.danger,
+                  const SizedBox(width: Gap.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Text(
+                              titleText,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: statusAccent,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Stopped since ${Fmt.time(vehicle.lastPacketAt)} (${Fmt.relative(vehicle.lastPacketAt)})',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontSize: 11,
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: statusAccent.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                vehicle.ignition ? 'Ignition ON' : 'Ignition OFF',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: statusAccent,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '$sinceText ${Fmt.time(vehicle.lastPacketAt)} (${Fmt.relative(vehicle.lastPacketAt)})',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ],
+                ],
+              ),
+            );
+          },
+        ),
 
         const SizedBox(height: Gap.lg),
 

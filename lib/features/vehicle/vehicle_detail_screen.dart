@@ -1,49 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_spacing.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
-import '../alerts/alerts_screen.dart';
+import 'screens/vehicle_alerts_screen.dart';
 import 'tabs/vehicle_info_tab.dart';
 import 'tabs/vehicle_live_tab.dart';
 import 'tabs/vehicle_playback_tab.dart';
-import 'vehicle_settings_sheet.dart';
 
-/// Four-tab vehicle workspace: Live, History, Alerts, Info.
-///
-/// On mount it joins `vehicle:{id}` for a higher-frequency stream, and on
-/// dispose it leaves the room again — an important server-load and battery
-/// consideration when a customer opens many vehicles in a session.
+/// Comprehensive Tabbed Vehicle Detail Screen (Live, History, Alerts, Info)
 class VehicleDetailScreen extends ConsumerStatefulWidget {
-  const VehicleDetailScreen({required this.vehicleId, this.initialTab = 0, super.key});
+  const VehicleDetailScreen({
+    required this.vehicleId,
+    this.initialTab = 0,
+    super.key,
+  });
 
   final String vehicleId;
   final int initialTab;
 
   @override
-  ConsumerState<VehicleDetailScreen> createState() =>
-      _VehicleDetailScreenState();
+  ConsumerState<VehicleDetailScreen> createState() => _VehicleDetailScreenState();
 }
 
 class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(
+    _tabController = TabController(
       length: 4,
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 3),
     );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(socketServiceProvider).joinVehicle(widget.vehicleId);
       ref.read(secureStoreProvider).setLastVehicleId(widget.vehicleId);
     });
@@ -51,9 +50,12 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
 
   @override
   void dispose() {
-    // Leave the room so the server stops streaming this vehicle to us.
-    ref.read(socketServiceProvider).leaveVehicle(widget.vehicleId);
-    _tabs.dispose();
+    _tabController.dispose();
+    final socketService = ref.read(socketServiceProvider);
+    final vId = widget.vehicleId;
+    Future.microtask(() {
+      socketService.leaveVehicle(vId);
+    });
     super.dispose();
   }
 
@@ -62,6 +64,15 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
     final Vehicle? vehicle = ref.watch(vehicleByIdProvider(widget.vehicleId));
 
     if (vehicle == null) {
+      final bool isLoading = ref.watch(fleetProvider).isLoading;
+      if (isLoading) {
+        return Scaffold(
+          appBar: AppBar(),
+          body: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
       return Scaffold(
         appBar: AppBar(),
         body: EmptyState(
@@ -75,112 +86,88 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
       );
     }
 
-    final Color statusColor = AppColors.forStatus(vehicle.status.key);
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color statusColor = AppColors.forStatus(vehicle.status.key);
 
     return Scaffold(
-      body: NestedScrollView(
-        headerSliverBuilder: (BuildContext context, bool _) => <Widget>[
-          SliverAppBar(
-            pinned: true,
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.circle, size: 12, color: statusColor),
-                const SizedBox(width: Gap.sm),
-                Text(
-                  vehicle.displayName.toUpperCase(),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/dashboard');
-                }
-              },
-            ),
-            actions: <Widget>[
-              IconButton(
-                tooltip: 'Share on WhatsApp',
-                icon: const Icon(Icons.share_rounded),
-                onPressed: () async {
-                  if (vehicle.latitude == null || vehicle.longitude == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Vehicle location is currently unavailable'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    return;
-                  }
-                  
-                  final String text = Uri.encodeComponent(
-                    '📍 Location of ${vehicle.displayName}:\nhttps://maps.google.com/?q=${vehicle.latitude},${vehicle.longitude}'
-                  );
-                  
-                  final Uri waUrl = Uri.parse('whatsapp://send?text=$text');
-                  final Uri fallbackUrl = Uri.parse('https://wa.me/?text=$text');
-                  
-                  try {
-                    final bool launched = await launchUrl(waUrl, mode: LaunchMode.externalApplication);
-                    if (!launched) {
-                      await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
-                    }
-                  } catch (_) {
-                    await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
-                  }
-                },
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/vehicle/${widget.vehicleId}');
+            }
+          },
+        ),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            Icon(Icons.circle, size: 10, color: statusColor),
+            const SizedBox(width: 8),
+            Text(
+              vehicle.displayName.toUpperCase(),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
               ),
-              IconButton(
-                tooltip: 'Vehicle settings',
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () {
-                  showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (_) => VehicleSettingsSheet(vehicleId: widget.vehicleId),
-                  );
-                },
-              ),
-              IconButton(
-                tooltip: 'Live zoomed tracking',
-                icon: const Icon(Icons.gps_fixed_rounded),
-                onPressed: vehicle.hasLocation
-                    ? () => context.go('/map?focus=${vehicle.id}')
-                    : null,
-              ),
-              const SizedBox(width: Gap.xs),
-            ],
-            bottom: TabBar(
-              controller: _tabs,
-              tabs: const <Widget>[
-                Tab(text: 'Live'),
-                Tab(text: 'History'),
-                Tab(text: 'Alerts'),
-                Tab(text: 'Info'),
-              ],
             ),
-          ),
-        ],
-        body: TabBarView(
-          controller: _tabs,
-          children: <Widget>[
-            VehicleLiveTab(vehicleId: widget.vehicleId),
-            VehiclePlaybackTab(vehicleId: widget.vehicleId),
-            AlertsScreen(vehicleId: widget.vehicleId),
-            VehicleInfoTab(vehicleId: widget.vehicleId),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined, size: 20),
+            tooltip: 'Share Location',
+            onPressed: () {
+              final String text = '${vehicle.displayName}: ${vehicle.address ?? "Location unavailable"} (${vehicle.latitude}, ${vehicle.longitude})';
+              Clipboard.setData(ClipboardData(text: text));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Vehicle details copied to clipboard!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, size: 20),
+            tooltip: 'Vehicle Settings',
+            onPressed: () => context.push('/vehicle/${widget.vehicleId}/settings'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.my_location_rounded, size: 20),
+            tooltip: 'Focus on Map',
+            onPressed: () => context.push('/vehicle-map?focus=${widget.vehicleId}'),
+          ),
+          const SizedBox(width: 4),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          indicatorColor: theme.colorScheme.primary,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          tabs: const [
+            Tab(text: 'Live'),
+            Tab(text: 'History'),
+            Tab(text: 'Alerts'),
+            Tab(text: 'Info'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          VehicleLiveTab(vehicleId: widget.vehicleId),
+          VehiclePlaybackTab(vehicleId: widget.vehicleId),
+          VehicleAlertsScreen(vehicleId: widget.vehicleId),
+          VehicleInfoTab(vehicleId: widget.vehicleId),
+        ],
       ),
     );
   }
 }
-

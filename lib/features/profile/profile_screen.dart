@@ -56,6 +56,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (user == null) return const SizedBox.shrink();
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile & Settings'),
+        centerTitle: true,
+      ),
       body: SafeArea(
         bottom: false,
         child: ListView(

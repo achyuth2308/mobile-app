@@ -3,6 +3,8 @@ import 'dart:convert' as dart_convert;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as flutter_local_notifications;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -122,12 +124,15 @@ class FleetController extends Notifier<FleetState> {
   StreamSubscription<SocketEvent>? _socketSub;
   Timer? _flushTimer;
   Timer? _staleTimer;
+  bool _mounted = true;
 
   final Map<String, Vehicle> _pending = <String, Vehicle>{};
 
   @override
   FleetState build() {
+    _mounted = true;
     ref.onDispose(() {
+      _mounted = false;
       _socketSub?.cancel();
       _flushTimer?.cancel();
       _staleTimer?.cancel();
@@ -138,17 +143,27 @@ class FleetController extends Notifier<FleetState> {
   // ── Loading ──────────────────────────────────────────────────────
 
   Future<void> load({bool silent = false}) async {
+    if (!_mounted) return;
     if (!silent) {
-      state = state.copyWith(isLoading: state.vehicles.isEmpty, isRefreshing: true, clearError: true);
+      _safeSetState(state.copyWith(
+        isLoading: state.vehicles.isEmpty,
+        isRefreshing: true,
+        clearError: true,
+      ));
     }
 
     try {
       final List<Vehicle> vehicles =
           await ref.read(vehicleRepositoryProvider).getVehicles();
 
-      // Preserve fresher socket data if a frame beat the HTTP response.
+      if (!_mounted) return;
+
+      // Preserve fresher socket data: prefer in-flight pending frames,
+      // then existing state, over the REST snapshot.
       final Map<String, Vehicle> current = <String, Vehicle>{
         for (final Vehicle v in state.vehicles) v.id: v,
+        // Pending frames are always fresher than anything REST returns.
+        ..._pending,
       };
 
       // Deduplicate incoming API response by ID to prevent duplicate ValueKey crashes
@@ -167,13 +182,14 @@ class FleetController extends Notifier<FleetState> {
 
       _sort(merged);
 
-      state = state.copyWith(
+      if (!_mounted) return;
+      _safeSetState(state.copyWith(
         vehicles: merged,
         isLoading: false,
         isRefreshing: false,
         lastSyncedAt: DateTime.now(),
         clearError: true,
-      );
+      ));
 
       final SocketService socket = ref.read(socketServiceProvider);
       for (final Vehicle v in merged) {
@@ -182,11 +198,19 @@ class FleetController extends Notifier<FleetState> {
 
       _startStaleTimer();
     } on ApiException catch (e) {
-      state = state.copyWith(
+      if (!_mounted) return;
+      _safeSetState(state.copyWith(
         isLoading: false,
         isRefreshing: false,
         error: e.message,
-      );
+      ));
+    } catch (e) {
+      if (!_mounted) return;
+      _safeSetState(state.copyWith(
+        isLoading: false,
+        isRefreshing: false,
+        error: e.toString(),
+      ));
     }
   }
 
@@ -293,18 +317,36 @@ class FleetController extends Notifier<FleetState> {
     _pending[existing.id] = existing.mergeLive(frame);
   }
 
+  /// Updates provider state safely post-frame so state mutations never collide
+  /// with widget unmounting or frame pipeline execution.
+  void _safeSetState(FleetState nextState) {
+    if (!_mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_mounted) {
+        try {
+          state = nextState;
+        } on Object catch (_) {}
+      }
+    });
+  }
+
+  /// Flush buffered socket frames. Snapshots _pending immediately (so new
+  /// events keep buffering), then merges onto the CURRENT state at
+  /// write-time — not at call-time — so a concurrent load() result is
+  /// never overwritten.
   void _flush() {
-    if (_pending.isEmpty) return;
+    if (!_mounted || _pending.isEmpty) return;
+
+    final Map<String, Vehicle> snapshot = Map<String, Vehicle>.from(_pending);
+    _pending.clear();
 
     final Map<String, Vehicle> next = <String, Vehicle>{
       for (final Vehicle v in state.vehicles) v.id: v,
-      ..._pending,
+      ...snapshot,
     };
-    _pending.clear();
-
     final List<Vehicle> list = next.values.toList();
     _sort(list);
-    state = state.copyWith(vehicles: list);
+    _safeSetState(state.copyWith(vehicles: list));
   }
 
   /// Vehicles go stale silently (no packet = no event), so we re-render
@@ -312,8 +354,8 @@ class FleetController extends Notifier<FleetState> {
   void _startStaleTimer() {
     _staleTimer?.cancel();
     _staleTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (state.vehicles.isEmpty) return;
-      state = state.copyWith(vehicles: List<Vehicle>.from(state.vehicles));
+      if (!_mounted || state.vehicles.isEmpty) return;
+      _safeSetState(state.copyWith(vehicles: List<Vehicle>.from(state.vehicles)));
     });
   }
 
@@ -349,7 +391,7 @@ class FleetController extends Notifier<FleetState> {
       // Reload fleet so changes reflect instantly in UI
       await load(silent: true);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      _safeSetState(state.copyWith(error: e.toString()));
       rethrow;
     }
   }
@@ -369,8 +411,16 @@ final Provider<FleetStats> fleetStatsProvider =
 final ProviderFamily<Vehicle?, String> vehicleByIdProvider =
     Provider.family<Vehicle?, String>((Ref ref, String id) {
   final List<Vehicle> list = ref.watch(fleetProvider).vehicles;
+  if (id.isEmpty) return null;
+  final String cleanId = Uri.decodeComponent(id).trim().toLowerCase();
   for (final Vehicle v in list) {
-    if (v.id == id) return v;
+    if (v.id == id ||
+        v.id.toLowerCase() == cleanId ||
+        v.registrationNumber.toLowerCase() == cleanId ||
+        v.displayName.toLowerCase() == cleanId ||
+        v.name.toLowerCase() == cleanId) {
+      return v;
+    }
   }
   return null;
 });

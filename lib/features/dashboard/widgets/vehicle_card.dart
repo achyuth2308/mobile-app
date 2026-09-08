@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -194,10 +195,11 @@ class VehicleCard extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 12),
                                     _MetricItem(
-                                      label: 'Since',
+                                      label: vehicle.status.sinceLabel,
                                       value: vehicle.lastPacketAt != null
-                                          ? Fmt.relative(vehicle.lastPacketAt!).replaceAll(' ago', '')
+                                          ? Fmt.statusDuration(vehicle.lastPacketAt)
                                           : '-',
+                                       valueWidget: vehicle.lastPacketAt != null ? _LiveStatusDuration(timestamp: vehicle.lastPacketAt) : null,
                                       dotColor: const Color(0xFF9C27B0), // Purple
                                     ),
                                     const SizedBox(height: 12),
@@ -261,10 +263,11 @@ class VehicleCard extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 12),
                                     _MetricItem(
-                                      label: 'Since',
+                                      label: vehicle.status.sinceLabel,
                                       value: vehicle.lastPacketAt != null
-                                          ? Fmt.relative(vehicle.lastPacketAt!).replaceAll(' ago', '')
+                                          ? Fmt.statusDuration(vehicle.lastPacketAt)
                                           : '-',
+                                       valueWidget: vehicle.lastPacketAt != null ? _LiveStatusDuration(timestamp: vehicle.lastPacketAt) : null,
                                       dotColor: const Color(0xFF9C27B0), // Purple
                                     ),
                                   ],
@@ -475,15 +478,75 @@ class VehicleCard extends ConsumerWidget {
   }
 }
 
+class _LiveStatusDuration extends StatefulWidget {
+  const _LiveStatusDuration({required this.timestamp});
+  final DateTime? timestamp;
+
+  @override
+  State<_LiveStatusDuration> createState() => _LiveStatusDurationState();
+}
+
+class _LiveStatusDurationState extends State<_LiveStatusDuration> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveStatusDuration oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.timestamp != widget.timestamp) {
+      _timer?.cancel();
+      _startTimer();
+    }
+  }
+
+  void _startTimer() {
+    if (widget.timestamp == null) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Text(
+      Fmt.statusDuration(widget.timestamp),
+      style: TextStyle(
+        color: isDark ? Colors.grey.shade200 : const Color(0xFF2E3355),
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
 class _MetricItem extends StatelessWidget {
   const _MetricItem({
     required this.label,
     required this.value,
     required this.dotColor,
+    this.valueWidget,
   });
 
   final String label;
   final String value;
+  final Widget? valueWidget;
   final Color dotColor;
 
   @override
@@ -497,16 +560,17 @@ class _MetricItem extends StatelessWidget {
             Icon(Icons.circle, size: 8, color: dotColor),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(
-                value,
-                style: TextStyle(
-                  color: isDark ? Colors.grey.shade200 : const Color(0xFF2E3355),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: valueWidget ??
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade200 : const Color(0xFF2E3355),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
             ),
           ],
         ),

@@ -48,7 +48,10 @@ final Provider<VehicleRepository> vehicleRepositoryProvider =
 
 final Provider<AlertRepository> alertRepositoryProvider =
     Provider<AlertRepository>(
-        (Ref ref) => AlertRepository(ref.watch(apiClientProvider)));
+        (Ref ref) => AlertRepository(
+          ref.watch(apiClientProvider),
+          ref.watch(secureStoreProvider),
+        ));
 
 final Provider<ReportRepository> reportRepositoryProvider =
     Provider<ReportRepository>(
@@ -288,6 +291,3 @@ final NotifierProvider<NotificationPreferencesNotifier, NotificationPreferences>
   NotificationPreferencesNotifier.new,
 );
 
-/// Global messenger key so services can surface a SnackBar without context.
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
-    GlobalKey<ScaffoldMessengerState>();
