@@ -421,7 +421,7 @@ List<Polyline> _splitPolyline({
     if (d > gapThresholdMeters) {
       if (current.length >= 2) {
         segments.add(Polyline(
-          points: List<LatLng>.of(current),
+          points: _smoothPoints(current),
           strokeWidth: strokeWidth,
           color: color,
         ));
@@ -434,13 +434,54 @@ List<Polyline> _splitPolyline({
 
   if (current.length >= 2) {
     segments.add(Polyline(
-      points: current,
+      points: _smoothPoints(current),
       strokeWidth: strokeWidth,
       color: color,
     ));
   }
 
   return segments;
+}
+
+/// Catmull-Rom spline interpolation for smooth, natural road-aligned GPS polyline rendering.
+List<LatLng> _smoothPoints(List<LatLng> pts) {
+  if (pts.length < 3) return pts;
+  final List<LatLng> smoothed = <LatLng>[pts.first];
+
+  for (int i = 0; i < pts.length - 1; i++) {
+    final LatLng p0 = i == 0 ? pts[i] : pts[i - 1];
+    final LatLng p1 = pts[i];
+    final LatLng p2 = pts[i + 1];
+    final LatLng p3 = (i + 2 < pts.length) ? pts[i + 2] : pts[i + 1];
+
+    const int steps = 4;
+    for (int t = 1; t <= steps; t++) {
+      final double u = t / steps;
+      final double u2 = u * u;
+      final double u3 = u2 * u;
+
+      final double lat = 0.5 * (
+        (2 * p1.latitude) +
+        (-p0.latitude + p2.latitude) * u +
+        (2 * p0.latitude - 5 * p1.latitude + 4 * p2.latitude - p3.latitude) * u2 +
+        (-p0.latitude + 3 * p1.latitude - 3 * p2.latitude + p3.latitude) * u3
+      );
+
+      final double lng = 0.5 * (
+        (2 * p1.longitude) +
+        (-p0.longitude + p2.longitude) * u +
+        (2 * p0.longitude - 5 * p1.longitude + 4 * p2.longitude - p3.longitude) * u2 +
+        (-p0.longitude + 3 * p1.longitude - 3 * p2.longitude + p3.longitude) * u3
+      );
+
+      smoothed.add(LatLng(lat, lng));
+    }
+  }
+
+  if (smoothed.isNotEmpty && pts.isNotEmpty) {
+    smoothed[smoothed.length - 1] = pts.last;
+  }
+  return smoothed;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
