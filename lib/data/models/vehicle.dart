@@ -57,6 +57,7 @@ class Vehicle extends Equatable {
     this.satellites,
     this.address,
     this.lastPacketAt,
+    this.statusChangedAt,
     this.expiryDate,
     this.speedLimit,
     this.overspeedDurationAlert,
@@ -96,6 +97,7 @@ class Vehicle extends Equatable {
   final int? satellites;
   final String? address;
   final DateTime? lastPacketAt;
+  final DateTime? statusChangedAt;
 
   // ── Commercial ───────────────────────────────────────────────────
   final DateTime? expiryDate;
@@ -552,6 +554,42 @@ class Vehicle extends Equatable {
             'Comm Time',
             'date'
           ]),
+      statusChangedAt: asDate(src, <String>[
+            'statusChangedAt',
+            'status_changed_at',
+            'stateChangedAt',
+            'state_changed_at',
+            'statusTime',
+            'status_time',
+            'stateTime',
+            'state_time',
+            'motionTime',
+            'motion_time',
+            'movingSince',
+            'moving_since',
+            'statusSince',
+            'status_since',
+            'startTime',
+            'start_time',
+          ]) ??
+          asDate(json, <String>[
+            'statusChangedAt',
+            'status_changed_at',
+            'stateChangedAt',
+            'state_changed_at',
+            'statusTime',
+            'status_time',
+            'stateTime',
+            'state_time',
+            'motionTime',
+            'motion_time',
+            'movingSince',
+            'moving_since',
+            'statusSince',
+            'status_since',
+            'startTime',
+            'start_time',
+          ]),
       expiryDate: asDate(json, <String>[
         'expiryDate',
         'expiresAt',
@@ -685,7 +723,7 @@ class Vehicle extends Equatable {
       }
     }
 
-    return copyWith(
+    final Vehicle mergedDraft = copyWith(
       latitude: acceptLocation ? (incoming.latitude ?? latitude) : latitude,
       longitude: acceptLocation ? (incoming.longitude ?? longitude) : longitude,
       speed: hasExplicitSpeed ? incoming.speed : (incoming.speed != 0 ? incoming.speed : speed),
@@ -701,8 +739,17 @@ class Vehicle extends Equatable {
       lastPacketAt: incoming.lastPacketAt ?? (hasExplicitSpeed || hasExplicitMotion || incoming.latitude != null ? DateTime.now() : lastPacketAt),
       todayDistanceKm: incoming.todayDistanceKm ?? todayDistanceKm,
       rawStatus: incoming.rawStatus ?? rawStatus,
-    raw: <String, dynamic>{...raw, ...frame},
+      raw: <String, dynamic>{...raw, ...frame},
     );
+
+    final VehicleStatus oldStatus = status;
+    final VehicleStatus newStatus = mergedDraft.status;
+
+    final DateTime? finalStatusChangedAt = (oldStatus != newStatus)
+        ? (incoming.statusChangedAt ?? DateTime.now())
+        : (statusChangedAt ?? incoming.statusChangedAt);
+
+    return mergedDraft.copyWith(statusChangedAt: finalStatusChangedAt);
   }
 
   Vehicle copyWith({
@@ -723,6 +770,7 @@ class Vehicle extends Equatable {
     int? satellites,
     String? address,
     DateTime? lastPacketAt,
+    DateTime? statusChangedAt,
     DateTime? expiryDate,
     double? speedLimit,
     double? overspeedDurationAlert,
@@ -756,6 +804,7 @@ class Vehicle extends Equatable {
         satellites: satellites ?? this.satellites,
         address: address ?? this.address,
         lastPacketAt: lastPacketAt ?? this.lastPacketAt,
+        statusChangedAt: statusChangedAt ?? this.statusChangedAt,
         expiryDate: expiryDate ?? this.expiryDate,
         speedLimit: speedLimit ?? this.speedLimit,
         overspeedDurationAlert: overspeedDurationAlert ?? this.overspeedDurationAlert,

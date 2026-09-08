@@ -196,10 +196,12 @@ class VehicleCard extends ConsumerWidget {
                                     const SizedBox(height: 12),
                                     _MetricItem(
                                       label: vehicle.status.sinceLabel,
-                                      value: vehicle.lastPacketAt != null
-                                          ? Fmt.statusDuration(vehicle.lastPacketAt)
+                                      value: (vehicle.statusChangedAt ?? vehicle.lastPacketAt) != null
+                                          ? Fmt.statusDuration(vehicle.statusChangedAt ?? vehicle.lastPacketAt)
                                           : '-',
-                                       valueWidget: vehicle.lastPacketAt != null ? _LiveStatusDuration(timestamp: vehicle.lastPacketAt) : null,
+                                      valueWidget: (vehicle.statusChangedAt ?? vehicle.lastPacketAt) != null
+                                          ? _LiveStatusDuration(timestamp: vehicle.statusChangedAt ?? vehicle.lastPacketAt)
+                                          : null,
                                       dotColor: const Color(0xFF9C27B0), // Purple
                                     ),
                                     const SizedBox(height: 12),

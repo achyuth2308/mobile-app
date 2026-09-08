@@ -277,7 +277,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$sinceText ${Fmt.time(vehicle.lastPacketAt)} (${Fmt.relative(vehicle.lastPacketAt)})',
+                          '$sinceText ${Fmt.time(vehicle.statusChangedAt ?? vehicle.lastPacketAt)} (${Fmt.statusDuration(vehicle.statusChangedAt ?? vehicle.lastPacketAt)})',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             fontSize: 11,

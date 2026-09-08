@@ -179,7 +179,7 @@ class _GeofencesScreenState extends ConsumerState<GeofencesScreen> {
   }
 }
 
-class _GeofenceCard extends StatelessWidget {
+class _GeofenceCard extends ConsumerWidget {
   const _GeofenceCard({
     required this.fence,
     required this.onDelete,
@@ -191,7 +191,7 @@ class _GeofenceCard extends StatelessWidget {
   final ValueChanged<bool> onToggle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final Color color = _parseColor(fence.colorHex);
 
@@ -224,10 +224,7 @@ class _GeofenceCard extends StatelessWidget {
                           ),
                         ),
                         children: <Widget>[
-                          buildTileLayer(
-                            MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
-                            apiKey: ref.read(authProvider).user?.apiKey,
-                          ),
+                          buildTileLayer(MapStyle.standard),
                           if (fence.shape == GeofenceShape.circle)
                             CircleLayer<Object>(
                               circles: <CircleMarker<Object>>[
