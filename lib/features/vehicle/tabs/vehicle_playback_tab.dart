@@ -116,6 +116,8 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   double _speedMultiplier = 1;
   late AnimationController _animController;
   DateTime? _lastTickTime;
+  StoppageEvent? _lastEncounteredStoppage;
+  double _stoppagePauseRemaining = 0.0;
 
   static List<StoppageEvent> _computeStoppages(List<TrackPoint> points) {
     if (points.isEmpty) return <StoppageEvent>[];
@@ -359,7 +361,11 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       return;
     }
 
-    if (_playbackProgress >= _points.length - 1) _playbackProgress = 0.0;
+    if (_playbackProgress >= _points.length - 1) {
+      _playbackProgress = 0.0;
+      _lastEncounteredStoppage = null;
+      _stoppagePauseRemaining = 0.0;
+    }
 
     _lastTickTime = DateTime.now();
     setState(() => _playing = true);
@@ -393,6 +399,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final double deltaSec = now.difference(_lastTickTime!).inMicroseconds / 1000000.0;
     _lastTickTime = now;
 
+    if (_stoppagePauseRemaining > 0) {
+      _stoppagePauseRemaining -= deltaSec;
+      if (_stoppagePauseRemaining > 0) {
+        _followCamera();
+        return;
+      }
+    }
+
     // Smooth constant progression step per VSYNC frame (60/120Hz)
     final double step = deltaSec * 1.2 * _effectiveSpeedMultiplier;
 
@@ -405,6 +419,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         _lastTickTime = null;
       }
     });
+
+    if (_isCurrentlyStopped) {
+      final StoppageEvent? s = _currentStoppage;
+      if (s != null && s != _lastEncounteredStoppage) {
+        _lastEncounteredStoppage = s;
+        _stoppagePauseRemaining = 3.5; // Pause for 3.5 seconds so user can read card
+      }
+    }
 
     _followCamera();
   }
@@ -689,7 +711,11 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             speed: _speedMultiplier,
             points: _points,
             onSeek: (double v) {
-              setState(() => _playbackProgress = v);
+              setState(() {
+                _playbackProgress = v;
+                _lastEncounteredStoppage = null;
+                _stoppagePauseRemaining = 0.0;
+              });
             },
             onSeekEnd: _followCamera,
             onTogglePlay: _togglePlay,
@@ -697,7 +723,11 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               setState(() => _speedMultiplier = s);
             },
             onRestart: () {
-              setState(() => _playbackProgress = 0.0);
+              setState(() {
+                _playbackProgress = 0.0;
+                _lastEncounteredStoppage = null;
+                _stoppagePauseRemaining = 0.0;
+              });
               _fitRoute();
             },
           ),
