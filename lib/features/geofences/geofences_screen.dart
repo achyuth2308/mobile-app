@@ -14,6 +14,9 @@ import '../../shared/widgets/glass_card.dart';
 import '../live_map/widgets/map_tiles.dart';
 import 'geofence_editor_sheet.dart';
 
+import '../../shared/map/app_map.dart';
+import '../../shared/map/app_map_models.dart';
+
 class GeofencesScreen extends ConsumerStatefulWidget {
   const GeofencesScreen({super.key});
 

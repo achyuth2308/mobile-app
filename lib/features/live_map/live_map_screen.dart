@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'widgets/map_tiles.dart';
-import '../../shared/map/app_map_controller.dart';
+
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -46,7 +46,7 @@ class LiveMapScreen extends ConsumerStatefulWidget {
 
 class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     with TickerProviderStateMixin {
-  final AppMapControllerWrapper _map = AppMapControllerWrapper();
+  final MapController _map = MapController();
 
   String? _selectedId;
   String? _followingId;
@@ -123,7 +123,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   void _move(LatLng target, {double? zoom}) {
     if (!_mapReady) return;
-    _map.move(target, zoom ?? _map.getZoom());
+    _map.move(target, zoom ?? _map.camera.zoom);
   }
 
   void _focusVehicle(String? vehicleId, {double zoom = 17.0}) {
@@ -164,10 +164,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       return;
     }
 
-    _map.fitBounds(
-      located.map((Vehicle v) => LatLng(v.latitude!, v.longitude!)).toList(),
-      padding: 60.0,
-    );
+    _map.fitCamera(CameraFit.bounds(
+      bounds: LatLngBounds.fromPoints(located.map((Vehicle v) => LatLng(v.latitude!, v.longitude!)).toList()),
+      padding: const EdgeInsets.all(60.0),
+    ));
   }
 
   void _selectVehicle(Vehicle v) {
@@ -483,8 +483,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                   tooltip: 'Zoom in',
                   onTap: () {
                     _map.move(
-                      _map.getCenter(),
-                      (_map.getZoom() + 1).clamp(2, _style.maxZoom),
+                      _map.camera.center,
+                      (_map.camera.zoom + 1).clamp(2, _style.maxZoom),
                     );
                   },
                 ),
@@ -494,8 +494,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                   tooltip: 'Zoom out',
                   onTap: () {
                     _map.move(
-                      _map.getCenter(),
-                      (_map.getZoom() - 1).clamp(2, _style.maxZoom),
+                      _map.camera.center,
+                      (_map.camera.zoom - 1).clamp(2, _style.maxZoom),
                     );
                   },
                 ),
