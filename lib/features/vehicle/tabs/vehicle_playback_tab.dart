@@ -215,7 +215,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   bool get _isCurrentlyStopped {
     if (_points.isEmpty) return false;
     final StoppageEvent? s = _currentStoppage;
-    return s != null && s.duration.inMinutes >= 5 && _currentPoint.speed <= 3;
+    return s != null && s.duration.inMinutes >= 5;
   }
 
   late DateTimeRange _range = _todayRange();
