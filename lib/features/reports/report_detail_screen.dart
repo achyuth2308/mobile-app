@@ -60,10 +60,20 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   @override
   void didUpdateWidget(covariant ReportDetailScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    bool shouldRun = false;
+    
     if (oldWidget.type != widget.type) {
-      setState(() {
-        _currentType = widget.type;
-      });
+      _currentType = widget.type;
+      shouldRun = true;
+    }
+    
+    if (oldWidget.initialVehicleId != widget.initialVehicleId) {
+      _vehicleId = widget.initialVehicleId;
+      shouldRun = true;
+    }
+    
+    if (shouldRun) {
+      setState(() {});
       _run();
     }
   }

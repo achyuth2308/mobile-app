@@ -317,7 +317,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             subtitle: 'Distance, trip summary, idle time & fuel reports',
             icon: Icons.assessment_rounded,
             accentColor: const Color(0xFF8B5CF6), // Purple
-            onTap: () => context.push('/reports?vehicle=${widget.vehicleId}'),
+            onTap: () => context.go('/reports?vehicle=${widget.vehicleId}'),
           ),
 
           _MenuItemCard(
