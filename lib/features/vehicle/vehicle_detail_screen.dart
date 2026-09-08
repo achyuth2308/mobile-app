@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/share_helper.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
@@ -119,17 +119,8 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined, size: 20),
-            tooltip: 'Share Location',
-            onPressed: () {
-              final String text = '${vehicle.displayName}: ${vehicle.address ?? "Location unavailable"} (${vehicle.latitude}, ${vehicle.longitude})';
-              Clipboard.setData(ClipboardData(text: text));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vehicle details copied to clipboard!'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
+            tooltip: 'Share Location via WhatsApp',
+            onPressed: () => _shareLocation(vehicle),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 20),
@@ -169,5 +160,9 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _shareLocation(Vehicle vehicle) async {
+    await ShareHelper.shareVehicleLocation(vehicle);
   }
 }

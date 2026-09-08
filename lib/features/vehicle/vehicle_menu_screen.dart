@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,12 +6,12 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/share_helper.dart';
 import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
-import '../../shared/widgets/glass_card.dart';
 import '../../shared/widgets/live_address.dart';
 
 /// Vehicle Menu Screen (Springboard for vehicle actions & navigation)
@@ -105,16 +104,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           IconButton(
             icon: const Icon(Icons.share_outlined, size: 20),
             tooltip: 'Share Location',
-            onPressed: () {
-              final String text = '${vehicle.displayName}: ${vehicle.address ?? "Location unavailable"} (${vehicle.latitude}, ${vehicle.longitude})';
-              Clipboard.setData(ClipboardData(text: text));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vehicle details copied to clipboard!'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
+            onPressed: () => ShareHelper.shareVehicleLocation(vehicle),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 20),
