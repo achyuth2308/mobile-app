@@ -82,9 +82,6 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
     const double pinWidth = 28.0;
     const double pinHeight = 36.0;
 
-    final double headingDeg = widget.headingOverride ?? widget.vehicle.heading;
-    final double headingRad = headingDeg * (math.pi / 180.0);
-
     final Widget pinWidget = SizedBox(
       width: pinWidth,
       height: pinHeight,
@@ -170,7 +167,7 @@ class _TeardropPinPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
-    final double strokeWidth = 1.5;
+    const double strokeWidth = 1.5;
     // Outer stroke edge lands at exactly y = 36.0 to align perfectly with Alignment.bottomCenter
     final double tipY = h - (strokeWidth / 2.0); // 35.25
     final double tipX = w / 2.0; // 14.0
