@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/vehicle_icons.dart';
 import '../../../data/models/vehicle.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,19 +125,16 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
             painter: _TeardropPinPainter(color: pinColor),
           ),
 
-          // White Vehicle Icon in center of top circular head — rotates inside head to indicate direction
+          // White Vehicle Icon in center of top circular head (matching user screenshot)
           Positioned(
             top: 6.5,
             left: 0,
             right: 0,
             child: Center(
-              child: Transform.rotate(
-                angle: headingRad,
-                child: const Icon(
-                  Icons.navigation,
-                  color: Colors.white,
-                  size: 16,
-                ),
+              child: Icon(
+                VehicleIcons.forType(widget.vehicle.type),
+                color: Colors.white,
+                size: 15,
               ),
             ),
           ),
