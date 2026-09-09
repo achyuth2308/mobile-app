@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
-import '../../core/utils/formatters.dart';
 import '../../core/utils/share_helper.dart';
 import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/vehicle.dart';
