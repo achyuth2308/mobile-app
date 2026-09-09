@@ -87,7 +87,7 @@
              Socket.io connection is intentionally torn down in background. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="fueltracks_alerts_v3"/>
+            android:value="fueltracks_alerts_v4"/>
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification"/>
