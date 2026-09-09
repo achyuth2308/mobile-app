@@ -132,7 +132,7 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               child: Icon(
                 VehicleIcons.forType(widget.vehicle.type),
                 color: Colors.white,
-                size: 13,
+                size: 14,
               ),
             ),
           ),
