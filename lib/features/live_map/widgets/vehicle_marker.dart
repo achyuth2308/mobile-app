@@ -78,9 +78,9 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
   Widget build(BuildContext context) {
     final Color pinColor = statusColor(widget.vehicle.status);
 
-    // Teardrop Marker dimensions — 28px width, 36px height
-    const double pinWidth = 28.0;
-    const double pinHeight = 36.0;
+    // Teardrop Marker dimensions — 24px width, 32px height
+    const double pinWidth = 24.0;
+    const double pinHeight = 32.0;
 
     final Widget pinWidget = SizedBox(
       width: pinWidth,
@@ -124,14 +124,14 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
 
           // White Vehicle Icon in center of top circular head (matching user screenshot)
           Positioned(
-            top: 6.5,
+            top: 5.0,
             left: 0,
             right: 0,
             child: Center(
               child: Icon(
                 VehicleIcons.forType(widget.vehicle.type),
                 color: Colors.white,
-                size: 15,
+                size: 13,
               ),
             ),
           ),
