@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_colors.dart';
@@ -171,6 +172,18 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), // Subtle light background like web
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else if (widget.initialVehicleId != null) {
+              context.go('/vehicle/${widget.initialVehicleId}');
+            } else {
+              context.go('/dashboard');
+            }
+          },
+        ),
         title: const Text(
           'Reports',
           style: TextStyle(

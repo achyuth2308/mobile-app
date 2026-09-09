@@ -240,23 +240,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
         const SizedBox(height: 24),
 
-        // Direct link to Reset Password if token already received
-        Center(
-          child: GestureDetector(
-            onTap: () => context.push('/reset-password'),
-            child: const Text(
-              'Already have a reset token? Enter it here',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF00D2FF),
-              ),
-            ),
-          ),
-        ),
 
-        const SizedBox(height: 16),
 
         Center(
           child: GestureDetector(
@@ -345,13 +329,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          _buildGradientButton(
-            label: 'ENTER RESET TOKEN',
-            icon: Icons.vpn_key_rounded,
-            onPressed: () => context.push('/reset-password'),
-            isLoading: false,
-          ),
-          const SizedBox(height: 16),
+
           TextButton(
             onPressed: () => setState(() => _sent = false),
             child: const Text(

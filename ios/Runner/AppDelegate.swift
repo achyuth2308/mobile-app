@@ -10,7 +10,7 @@ import GoogleMaps
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk")
+    GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY")
     // Initialize Firebase — must come first
     FirebaseApp.configure()
 

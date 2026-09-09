@@ -80,7 +80,7 @@
         </activity>
 
         <meta-data android:name="com.google.android.geo.API_KEY"
-                   android:value="AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk"/>
+                   android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
 
         <!-- ── FCM defaults ────────────────────────────────────────────
              Alerts must arrive while the app is closed, because the

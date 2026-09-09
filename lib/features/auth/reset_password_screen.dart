@@ -261,15 +261,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         ),
         const SizedBox(height: 32),
 
-        // Reset Token Input
-        if (!isTokenPreset) ...[
-          _buildInput(
-            controller: _tokenCtrl,
-            hint: 'Paste Reset Token',
-            icon: Icons.vpn_key_outlined,
-          ),
-          const SizedBox(height: 16),
-        ],
+
 
         // New Password
         _buildInput(

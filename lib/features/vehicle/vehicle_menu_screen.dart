@@ -182,21 +182,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.access_time_rounded, size: 12, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${vehicle.status.sinceLabel} ${Fmt.statusDuration(vehicle.statusChangedAt ?? vehicle.lastPacketAt)}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.grey.shade300 : const Color(0xFF5E657D),
-                                ),
-                              ),
-                            ],
-                          ),
+
                         ],
                       ),
                     ),

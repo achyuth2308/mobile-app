@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/backend_capabilities.dart';
 import '../../core/network/api_exception.dart';
@@ -875,13 +875,13 @@ class AlertTile extends StatelessWidget {
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
                           onPressed: () {
-                            final vid = alert.vehicleId;
-                            if (vid != null && vid.isNotEmpty) {
-                              context.push('/vehicle/$vid');
+                            if (alert.latitude != null && alert.longitude != null) {
+                              final Uri url = Uri.parse('https://maps.google.com/?q=${alert.latitude},${alert.longitude}');
+                              launchUrl(url, mode: LaunchMode.externalApplication);
                             }
                           },
                           icon: const Icon(Icons.map_rounded, size: 14),
-                          label: const Text('View in Map'),
+                          label: const Text('View in Google Maps'),
                           style: OutlinedButton.styleFrom(
                             visualDensity: VisualDensity.compact,
                             textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
