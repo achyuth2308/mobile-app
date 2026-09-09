@@ -122,11 +122,12 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
             painter: _TeardropPinPainter(color: pinColor),
           ),
 
-          // White Vehicle Icon in center of top circular head (matching user screenshot)
+          // White Vehicle Icon centered in top circular head
           Positioned(
-            top: 5.0,
+            top: 0,
             left: 0,
             right: 0,
+            height: pinWidth,
             child: Center(
               child: Icon(
                 VehicleIcons.forType(widget.vehicle.type),
