@@ -67,6 +67,7 @@ class Vehicle extends Equatable {
     this.rawStatus,
     this.raw = const <String, dynamic>{},
     this.isImmobilized = false,
+    this.isOnline = true,
   });
 
   final Map<String, dynamic> raw;
@@ -112,6 +113,9 @@ class Vehicle extends Equatable {
 
   /// Whether the engine is currently cut via relay command.
   final bool isImmobilized;
+
+  /// Whether the vehicle is currently online according to the server.
+  final bool isOnline;
 
   String get displayType {
     final String lowerType = type.toLowerCase().trim();
@@ -167,8 +171,21 @@ class Vehicle extends Equatable {
 
   /// Single source of truth for status across the app.
   VehicleStatus get status {
-    // If the server explicitly provided a status, trust it so the mobile app
-    // stays in perfect sync with the web dashboard.
+    // 0. If the server explicitly says it's offline, trust the server perfectly.
+    // This fixes timezone parsing issues where lastPacketAt evaluates to the future.
+    if (!isOnline) {
+      return VehicleStatus.offline;
+    }
+
+    // 1. Always evaluate if the packet is stale FIRST as a fallback.
+    // If we haven't heard from the device in 10 minutes, it's offline regardless.
+    final Duration? age = sinceLastPacket;
+    if (age == null || age > AppConfig.offlineThreshold) {
+      return VehicleStatus.offline;
+    }
+
+    // 2. If the server explicitly provided a status and it's NOT stale, trust it
+    // so the mobile app stays in perfect sync with the web dashboard.
     if (rawStatus != null) {
       final String rs = rawStatus!.toLowerCase().trim();
       if (rs == 'moving' ||
@@ -198,15 +215,11 @@ class Vehicle extends Equatable {
       }
     }
 
-    final Duration? age = sinceLastPacket;
-    if (age == null || age > AppConfig.offlineThreshold) {
-      return VehicleStatus.offline;
-    }
+    // 1. If vehicle is in motion (speed > 2.0 km/h), it is MOVING / RUNNING.
+    // This perfectly matches the logic in CustomerDashboard.jsx on the web app.
+    if (speed > 2.0) return VehicleStatus.moving;
 
-    // 1. If vehicle is in motion (speed >= 8 km/h), it is MOVING / RUNNING.
-    if (speed >= 8) return VehicleStatus.moving;
-
-    // 2. If stationary (speed < 8 km/h) and ignition is ON, it is IDLE.
+    // 2. If stationary (speed <= 2.0 km/h) and ignition is ON, it is IDLE.
     if (ignition) return VehicleStatus.idle;
 
     // 3. Stationary and ignition OFF:
@@ -450,6 +463,8 @@ class Vehicle extends Equatable {
       ignition: isIgnition,
       isMoving: isMotion,
       isImmobilized: isImmobilized,
+      isOnline: asBool(json, <String>['is_online', 'isOnline', 'online'], fallback: true) &&
+                asBool(src, <String>['is_online', 'isOnline', 'online'], fallback: true),
       odometer: () {
         double? val = asDoubleOrNull(
                 src, <String>['odometer', 'current_odometer', 'display_odometer', 'totalDistance', 'mileage', 'odo', 'total_distance', 'odokms', 'odometerReading', 'odometer_reading']) ??

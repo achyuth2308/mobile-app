@@ -589,7 +589,7 @@ class _MapHeader extends StatelessWidget {
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
                   fontSize: 15,
-                  shadows: <Shadow>[
+                  shadows: <Shadow> [
                     Shadow(color: Colors.black, blurRadius: 6, offset: Offset(0, 1)),
                     Shadow(color: Colors.black, blurRadius: 12, offset: Offset(0, 2)),
                   ],
@@ -601,27 +601,22 @@ class _MapHeader extends StatelessWidget {
       );
     }
 
-    return Row(
-      children: <Widget>[
-        GlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: 10),
-          borderRadius: Corners.rPill,
-          opacity: theme.brightness == Brightness.dark ? 0.4 : 0.65,
-          blur: 16,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.satellite_alt_rounded,
-                  size: 15, color: AppColors.signal),
-              const SizedBox(width: Gap.sm),
-              Text(
-                '$locatedCount of $totalCount tracked',
-                style: theme.textTheme.labelMedium,
-              ),
-            ],
-          ),
-        ),
-      ],
+    // Fleet view — just a back button replacing the tracked badge
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      borderRadius: Corners.rPill,
+      opacity: theme.brightness == Brightness.dark ? 0.4 : 0.65,
+      blur: 16,
+      onTap: () {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: const SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(Icons.arrow_back_rounded, size: 22, color: Colors.white),
+      ),
     );
   }
 }
