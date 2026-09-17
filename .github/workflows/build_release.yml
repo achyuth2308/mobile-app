@@ -37,12 +37,12 @@ jobs:
 
       - name: Create key.properties
         run: |
-          cat > android/key.properties << EOF
+          cat > android/key.properties <<EOF
           storePassword=${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=fueltracks-upload.jks
-          EOF
+          storeFile=../fueltracks-upload.jks
+EOF
 
       - name: Build Release AAB
         run: flutter build appbundle --release --android-skip-build-dependency-validation
