@@ -44,6 +44,10 @@ jobs:
           storeFile=../fueltracks-upload.jks
 EOF
 
+      - name: Decode Google Services
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+
       - name: Build Release AAB
         run: flutter build appbundle --release --android-skip-build-dependency-validation
 
