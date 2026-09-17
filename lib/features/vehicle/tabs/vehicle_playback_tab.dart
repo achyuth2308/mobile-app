@@ -81,7 +81,6 @@ String _toIstString(DateTime? d, String Function(DateTime) formatter) {
 }
 
 String _formatTime(DateTime? d) => _toIstString(d, Fmt.time);
-String _formatDate(DateTime? d) => _toIstString(d, Fmt.date);
 String _formatDateShort(DateTime? d) => _toIstString(d, Fmt.dateShort);
 
 /// Historical route playback.
@@ -231,12 +230,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     );
   }
 
+  bool _isInitialized = false;
+
   @override
   void initState() {
     super.initState();
     _animController = AnimationController.unbounded(vsync: this);
     _animController.addListener(_onAnimationTick);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    // REMOVED automatic _load() on init to allow initial selection screen
   }
 
   @override
@@ -513,37 +514,76 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     return total;
   }
 
-  Future<void> _pickRange() async {
-    final DateTimeRange? picked = await showDateRangePicker(
+  Future<void> _pickStartDate() async {
+    final DateTime? picked = await showDatePicker(
       context: context,
+      initialDate: _range.start,
       firstDate: DateTime.now().subtract(const Duration(days: 180)),
       lastDate: DateTime.now(),
-      initialDateRange: DateTimeRange(
-        start: DateTime(_range.start.year, _range.start.month, _range.start.day),
-        end: DateTime(_range.end.year, _range.end.month, _range.end.day),
-      ),
       builder: (BuildContext context, Widget? child) => Theme(
         data: Theme.of(context),
         child: child!,
       ),
     );
+    if (picked == null) return;
 
+    final DateTime newStart = DateTime(
+      picked.year, picked.month, picked.day,
+      _range.start.hour, _range.start.minute, 0,
+    );
+
+    if (newStart.isAfter(_range.end)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Start date must be before end time')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _range = DateTimeRange(start: newStart, end: _range.end));
+    if (_isInitialized) await _load();
+  }
+
+  Future<void> _pickEndDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _range.end,
+      firstDate: DateTime.now().subtract(const Duration(days: 180)),
+      lastDate: DateTime.now(),
+      builder: (BuildContext context, Widget? child) => Theme(
+        data: Theme.of(context),
+        child: child!,
+      ),
+    );
     if (picked == null) return;
 
     final DateTime now = DateTime.now();
-    final bool isEndToday = picked.end.year == now.year &&
-        picked.end.month == now.month &&
-        picked.end.day == now.day;
+    final bool isEndToday = picked.year == now.year &&
+        picked.month == now.month &&
+        picked.day == now.day;
 
-    setState(() {
-      _range = DateTimeRange(
-        start: DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0),
-        end: isEndToday
-            ? now
-            : DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59),
-      );
-    });
-    await _load();
+    // Use 23:59:59 if a past day was selected, or "now" if today was selected
+    DateTime newEnd = isEndToday
+        ? now
+        : DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+
+    // Maintain the old hour/minute if they just tapped End Date
+    // Actually, no, if it's today we use 'now', otherwise 23:59 is fine for end of day.
+    // However, if the user explicitly picked an end time previously, let's just keep the time:
+    newEnd = DateTime(picked.year, picked.month, picked.day, _range.end.hour, _range.end.minute, 59);
+    
+    if (newEnd.isBefore(_range.start)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('End date must be after start time')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _range = DateTimeRange(start: _range.start, end: newEnd));
+    if (_isInitialized) await _load();
   }
 
   @override
@@ -552,45 +592,61 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
     final ThemeData theme = Theme.of(context);
 
+    if (!_isInitialized) {
+      return _buildInitialSelectionScreen(theme);
+    }
+
     return Column(
       children: <Widget>[
         // ── Range selector ───────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.sm),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickRange,
-                  icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                  label: Text(
-                    _dateLabel(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          child: Column(
+            children: [
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickStartDate,
+                      icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                      label: Text(_formatDateShort(_range.start), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: Gap.xs),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickEndDate,
+                      icon: const Icon(Icons.event_rounded, size: 16),
+                      label: Text(_formatDateShort(_range.end), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                  const SizedBox(width: Gap.xs),
+                  IconButton.filledTonal(
+                    tooltip: 'Reload route',
+                    onPressed: _loading ? null : _load,
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                  ),
+                ],
               ),
-              const SizedBox(width: Gap.xs),
-              OutlinedButton(
-                onPressed: _pickStartTime,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                child: Text(_formatTime(_range.start)),
-              ),
-              const SizedBox(width: Gap.xs),
-              OutlinedButton(
-                onPressed: _pickEndTime,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                child: Text(_formatTime(_range.end)),
-              ),
-              const SizedBox(width: Gap.xs),
-              IconButton.filledTonal(
-                tooltip: 'Reload route',
-                onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh_rounded, size: 20),
+              const SizedBox(height: Gap.xs),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickStartTime,
+                      icon: const Icon(Icons.access_time_rounded, size: 16),
+                      label: Text(_formatTime(_range.start)),
+                    ),
+                  ),
+                  const SizedBox(width: Gap.xs),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickEndTime,
+                      icon: const Icon(Icons.access_time_filled_rounded, size: 16),
+                      label: Text(_formatTime(_range.end)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -665,7 +721,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       message: 'This vehicle did not report any positions in '
                           'the selected period.',
                       actionLabel: 'Choose another date',
-                      onAction: _pickRange,
+                      onAction: () => setState(() => _isInitialized = false),
                     ),
                   ),
                 ),
@@ -734,25 +790,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       ],
     );
   }
-
-  String _dateLabel() {
-    final DateTime istStart = _range.start.toUtc().add(const Duration(hours: 5, minutes: 30));
-    final DateTime istEnd = _range.end.toUtc().add(const Duration(hours: 5, minutes: 30));
-    final DateTime istNow = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
-
-    final bool sameDay = istStart.year == istEnd.year &&
-        istStart.month == istEnd.month &&
-        istStart.day == istEnd.day;
-
-    if (sameDay) {
-      final bool isToday = istStart.year == istNow.year &&
-          istStart.month == istNow.month &&
-          istStart.day == istNow.day;
-      return isToday ? 'Today' : _formatDate(_range.start);
-    }
-    return '${_formatDateShort(_range.start)} — ${_formatDateShort(_range.end)}';
-  }
-
   Future<void> _pickStartTime() async {
     final TimeOfDay? time = await showTimePicker(
       context: context,
@@ -782,7 +819,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     setState(() {
       _range = DateTimeRange(start: newStart, end: _range.end);
     });
-    await _load();
+    if (_isInitialized) await _load();
   }
 
   Future<void> _pickEndTime() async {
@@ -815,7 +852,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     setState(() {
       _range = DateTimeRange(start: _range.start, end: newEnd);
     });
-    await _load();
+    if (_isInitialized) await _load();
   }
 
   /// Full route dimmed underneath, travelled portion highlighted on top with status colors.
@@ -940,6 +977,216 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         ),
       ),
     ];
+  }
+
+  // ── Initial Selection Screen ──────────────────────────────────────────
+
+  Widget _buildInitialSelectionScreen(ThemeData theme) {
+    return Container(
+      color: theme.colorScheme.surfaceContainerLowest,
+      alignment: Alignment.center,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 450),
+          padding: const EdgeInsets.all(32.0),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(28.0),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: theme.colorScheme.shadow.withOpacity(0.06),
+                blurRadius: 32,
+                offset: const Offset(0, 12),
+              ),
+            ],
+            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.history_rounded, size: 48, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Playback & History',
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Select a precise date and time range to load the vehicle\'s historical route, path, and stoppages.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 36),
+              
+              // Start and End Date row
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _buildSelectionButton(
+                      icon: Icons.calendar_today_rounded,
+                      label: 'Start Date',
+                      value: _formatDateShort(_range.start),
+                      onTap: _pickStartDate,
+                      theme: theme,
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade400, Colors.blue.shade800],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSelectionButton(
+                      icon: Icons.event_rounded,
+                      label: 'End Date',
+                      value: _formatDateShort(_range.end),
+                      onTap: _pickEndDate,
+                      theme: theme,
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.shade400, Colors.purple.shade800],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Time pickers row
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _buildSelectionButton(
+                      icon: Icons.access_time_rounded,
+                      label: 'Start Time',
+                      value: _formatTime(_range.start),
+                      onTap: _pickStartTime,
+                      theme: theme,
+                      gradient: LinearGradient(
+                        colors: [Colors.orange.shade400, Colors.orange.shade800],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSelectionButton(
+                      icon: Icons.access_time_filled_rounded,
+                      label: 'End Time',
+                      value: _formatTime(_range.end),
+                      onTap: _pickEndTime,
+                      theme: theme,
+                      gradient: LinearGradient(
+                        colors: [Colors.pink.shade400, Colors.pink.shade800],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 40),
+              
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    setState(() => _isInitialized = true);
+                    _load();
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                  label: const Text('Load History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectionButton({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+    required ThemeData theme,
+    required Gradient gradient,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: gradient.colors.last.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(icon, size: 20, color: Colors.white.withOpacity(0.9)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label, 
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                value, 
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

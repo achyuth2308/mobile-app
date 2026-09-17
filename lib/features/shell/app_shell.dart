@@ -59,11 +59,39 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.dispose();
   }
 
+  DateTime? _lastPressedAt;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: widget.navigationShell,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+
+        if (widget.navigationShell.currentIndex != 0) {
+          widget.navigationShell.goBranch(0);
+          return;
+        }
+
+        final DateTime now = DateTime.now();
+        if (_lastPressedAt == null ||
+            now.difference(_lastPressedAt!) > const Duration(seconds: 2)) {
+          _lastPressedAt = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
+
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        extendBody: true,
+        body: widget.navigationShell,
+      ),
     );
   }
 }

@@ -64,9 +64,9 @@ android {
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-            // Upload R8 mapping file to Crashlytics after every release build.
+            // Mapping upload disabled — Firebase 503 was blocking builds. Re-enable when stable.
             firebaseCrashlytics {
-                mappingFileUploadEnabled true
+                mappingFileUploadEnabled false
             }
         }
         debug {
