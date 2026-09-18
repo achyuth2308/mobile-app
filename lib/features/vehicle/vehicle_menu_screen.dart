@@ -108,7 +108,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 20),
             tooltip: 'Vehicle Settings',
-            onPressed: () => context.push('/vehicle/${widget.vehicleId}/settings'),
+            onPressed: () =>
+                context.push('/vehicle/${widget.vehicleId}/settings'),
           ),
           const SizedBox(width: 4),
         ],
@@ -165,7 +166,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               ),
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: statusColor.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(10),
@@ -181,14 +183,15 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               ),
                             ],
                           ),
-
                         ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Divider(height: 1, color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+                Divider(
+                    height: 1,
+                    color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -200,18 +203,24 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                     ),
                     _HeroMetric(
                       label: 'Odometer',
-                      value: vehicle.odometer != null ? '${vehicle.odometer!.toStringAsFixed(0)} km' : 'N/A',
+                      value: vehicle.odometer != null
+                          ? '${vehicle.odometer!.toStringAsFixed(0)} km'
+                          : 'N/A',
                       color: Colors.cyan,
                     ),
                     _HeroMetric(
                       label: 'Battery',
-                      value: vehicle.batteryLevel != null ? '${vehicle.batteryLevel!.toStringAsFixed(1)} V' : 'N/A',
+                      value: vehicle.batteryLevel != null
+                          ? '${vehicle.batteryLevel!.toStringAsFixed(1)} V'
+                          : 'N/A',
                       color: Colors.orange,
                     ),
                     _HeroMetric(
                       label: 'Ignition',
                       value: vehicle.ignition ? 'ON' : 'OFF',
-                      color: vehicle.ignition ? AppColors.success : AppColors.danger,
+                      color: vehicle.ignition
+                          ? AppColors.success
+                          : AppColors.danger,
                     ),
                   ],
                 ),
@@ -219,7 +228,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.place_rounded, size: 16, color: theme.colorScheme.primary),
+                    Icon(Icons.place_rounded,
+                        size: 16, color: theme.colorScheme.primary),
                     const SizedBox(width: 6),
                     Expanded(
                       child: LiveAddress(
@@ -227,7 +237,9 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                         max: 100,
                         style: TextStyle(
                           fontSize: 11,
-                          color: isDark ? Colors.grey.shade300 : const Color(0xFF4A5568),
+                          color: isDark
+                              ? Colors.grey.shade300
+                              : const Color(0xFF4A5568),
                         ),
                       ),
                     ),
@@ -268,7 +280,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             subtitle: 'Replay past trips, route trails & stoppage analysis',
             icon: Icons.history_rounded,
             accentColor: const Color(0xFFF59E0B), // Amber
-            onTap: () => context.push('/vehicle/${widget.vehicleId}/detail?tab=1'),
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/detail?tab=1'),
           ),
 
           _MenuItemCard(
@@ -276,7 +289,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             subtitle: 'View overspeed, geofence, ignition & battery logs',
             icon: Icons.notifications_active_rounded,
             accentColor: const Color(0xFFEF4444), // Red
-            onTap: () => context.push('/vehicle/${widget.vehicleId}/detail?tab=2'),
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/detail?tab=2'),
           ),
 
           _MenuItemCard(
@@ -284,7 +298,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             subtitle: 'Hardware details, IMEI, driver assignment & docs',
             icon: Icons.info_outline_rounded,
             accentColor: const Color(0xFF06B6D4), // Cyan
-            onTap: () => context.push('/vehicle/${widget.vehicleId}/detail?tab=3'),
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/detail?tab=3'),
           ),
 
           _MenuItemCard(
@@ -419,7 +434,9 @@ class _MenuItemCard extends StatelessWidget {
                       subtitle,
                       style: TextStyle(
                         fontSize: 11,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

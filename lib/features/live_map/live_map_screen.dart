@@ -9,7 +9,6 @@ import 'package:latlong2/latlong.dart';
 
 import 'widgets/map_tiles.dart';
 
-
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/models/vehicle.dart';
@@ -63,7 +62,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (!mounted) return;
     setState(() {
       _followingId = id;
-      _isHistoryMode = false; // Reset to Live mode when selecting/following vehicle
+      _isHistoryMode =
+          false; // Reset to Live mode when selecting/following vehicle
     });
     Future.microtask(() {
       if (mounted) {
@@ -81,7 +81,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         _isHistoryMode = false;
       });
       final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
-      final Vehicle? v = vehicles.cast<Vehicle?>().firstWhere((v) => v?.id == activeId, orElse: () => null);
+      final Vehicle? v = vehicles
+          .cast<Vehicle?>()
+          .firstWhere((v) => v?.id == activeId, orElse: () => null);
       if (v != null && v.hasLocation && _mapReady) {
         _move(LatLng(v.latitude!, v.longitude!), zoom: 17.0);
       }
@@ -97,7 +99,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _style = MapStyleX.fromKey(ref.read(secureStoreProvider).mapType);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref.read(activeFollowingVehicleIdProvider.notifier).state = widget.focusVehicleId;
+        ref.read(activeFollowingVehicleIdProvider.notifier).state =
+            widget.focusVehicleId;
       }
     });
   }
@@ -165,7 +168,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     }
 
     _map.fitCamera(CameraFit.bounds(
-      bounds: LatLngBounds.fromPoints(located.map((Vehicle v) => LatLng(v.latitude!, v.longitude!)).toList()),
+      bounds: LatLngBounds.fromPoints(located
+          .map((Vehicle v) => LatLng(v.latitude!, v.longitude!))
+          .toList()),
       padding: const EdgeInsets.all(60.0),
     ));
   }
@@ -217,7 +222,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         alignment: Alignment.centerLeft, // Float on the left side
-        insetPadding: const EdgeInsets.only(left: 24, right: 24, top: 100, bottom: 100),
+        insetPadding:
+            const EdgeInsets.only(left: 24, right: 24, top: 100, bottom: 100),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 350),
           child: StoppageDetailCard(
@@ -236,7 +242,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       builder: (BuildContext ctx) {
         final ThemeData theme = Theme.of(context);
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           elevation: 8,
           child: Container(
             width: 320,
@@ -277,11 +284,13 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                     },
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                            : theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
@@ -304,7 +313,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                             child: Text(
                               s.label,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                                 color: isSelected
                                     ? theme.colorScheme.primary
                                     : theme.colorScheme.onSurface,
@@ -407,8 +418,11 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               if (_selectedId != null) setState(() => _selectedId = null);
             },
             onSelectVehicle: _selectVehicle,
-            route: _isHistoryMode ? (dailyDataAsync.valueOrNull?.route ?? []) : [],
-            stoppages: _isHistoryMode ? (dailyDataAsync.valueOrNull?.stoppages ?? []) : [],
+            route:
+                _isHistoryMode ? (dailyDataAsync.valueOrNull?.route ?? []) : [],
+            stoppages: _isHistoryMode
+                ? (dailyDataAsync.valueOrNull?.stoppages ?? [])
+                : [],
             showTrail: true,
             onTapStoppage: _showStoppageCard,
           ),
@@ -459,7 +473,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
           ),
 
           if (following != null) NavigationHUD(vehicle: following),
-
 
           Positioned(
             top: MediaQuery.paddingOf(context).top + 70,
@@ -573,7 +586,8 @@ class _MapHeader extends StatelessWidget {
               child: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                icon: const Icon(Icons.arrow_back_rounded, size: 20, color: Colors.white),
+                icon: const Icon(Icons.arrow_back_rounded,
+                    size: 20, color: Colors.white),
                 onPressed: onStopFollowing,
               ),
             ),
@@ -589,9 +603,15 @@ class _MapHeader extends StatelessWidget {
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
                   fontSize: 15,
-                  shadows: <Shadow> [
-                    Shadow(color: Colors.black, blurRadius: 6, offset: Offset(0, 1)),
-                    Shadow(color: Colors.black, blurRadius: 12, offset: Offset(0, 2)),
+                  shadows: <Shadow>[
+                    Shadow(
+                        color: Colors.black,
+                        blurRadius: 6,
+                        offset: Offset(0, 1)),
+                    Shadow(
+                        color: Colors.black,
+                        blurRadius: 12,
+                        offset: Offset(0, 2)),
                   ],
                 ),
               ),
@@ -653,7 +673,6 @@ class _MapButton extends StatelessWidget {
     );
   }
 }
-
 
 class _NoLocationCard extends StatelessWidget {
   const _NoLocationCard();

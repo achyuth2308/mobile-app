@@ -67,14 +67,14 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
       final bool isLoading = ref.watch(fleetProvider).isLoading;
       if (isLoading) {
         return Scaffold(
-          appBar: AppBar(),
+          appBar: _tabController.index == 1 ? null : AppBar(),
           body: const Center(
             child: CircularProgressIndicator(),
           ),
         );
       }
       return Scaffold(
-        appBar: AppBar(),
+        appBar: _tabController.index == 1 ? null : AppBar(),
         body: EmptyState(
           icon: Icons.help_outline_rounded,
           title: 'Vehicle unavailable',
@@ -91,7 +91,7 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: _tabController.index == 1 ? null : AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

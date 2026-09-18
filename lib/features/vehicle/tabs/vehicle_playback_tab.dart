@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as dart_ui;
+import 'dart:ui' as dart_ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,8 +15,10 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/trip.dart';
+import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/fleet_provider.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
 
@@ -106,12 +110,15 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   List<TrackPoint> _points = <TrackPoint>[];
   List<LatLng> _allLatLng = <LatLng>[];
   List<Polyline<Object>> _cachedGhostSegments = <Polyline<Object>>[];
+  List<bool> _pointGaps = <bool>[];
   List<StoppageEvent> _stoppages = <StoppageEvent>[];
+  int _overspeedCount = 0;
   bool _loading = false;
   String? _error;
 
   double _playbackProgress = 0.0;
   bool _playing = false;
+  bool _hasStartedPlayback = false;
   double _speedMultiplier = 1;
   late AnimationController _animController;
   DateTime? _lastTickTime;
@@ -294,6 +301,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       // Compute actual stoppages from full in-range points before downsampling
       final List<StoppageEvent> computedStops = _computeStoppages(inRangePoints);
 
+      int calculatedOverspeeds = 0;
+      bool wasOver = false;
+      for (final TrackPoint p in inRangePoints) {
+        if (p.speed > 80 && !wasOver) {
+          calculatedOverspeeds++;
+          wasOver = true;
+        } else if (p.speed <= 80) {
+          wasOver = false;
+        }
+      }
+
       // Filter consecutive duplicates & micro-jitter to keep map path clean and smooth
       final List<TrackPoint> cleanPoints = <TrackPoint>[];
       const Distance distanceCalc = Distance();
@@ -309,6 +327,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       }
 
       final List<LatLng> cachedLatLng = cleanPoints.map((TrackPoint p) => p.latLng).toList(growable: false);
+      
+      final List<bool> gaps = List<bool>.filled(cachedLatLng.length, false);
+      for (int i = 1; i < cachedLatLng.length; i++) {
+        if (distanceCalc(cachedLatLng[i - 1], cachedLatLng[i]) > 1000) {
+          gaps[i] = true;
+        }
+      }
+
       final List<Polyline<Object>> ghostSegs = _splitPlaybackPolyline(
         points: cachedLatLng,
         color: const Color(0xFF4B5563),
@@ -319,12 +345,24 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         _points = cleanPoints;
         _allLatLng = cachedLatLng;
         _cachedGhostSegments = ghostSegs;
+        _pointGaps = gaps;
         _stoppages = computedStops;
+        _overspeedCount = calculatedOverspeeds;
         _playbackProgress = 0.0;
-        _loading = false;
       });
 
-      if (cleanPoints.isNotEmpty) await _fitRoute();
+      if (cleanPoints.isNotEmpty) {
+        await _fitRoute();
+        // Allow time for map tiles to load at the new camera bounds 
+        // before removing the loading overlay.
+        await Future.delayed(const Duration(milliseconds: 800));
+      }
+
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     } catch (e, stack) {
       debugPrint('Error in _load: $e\n$stack');
       if (!mounted) return;
@@ -355,6 +393,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   }
 
   void _togglePlay() {
+    if (!_hasStartedPlayback) setState(() => _hasStartedPlayback = true);
     if (_playing) {
       _animController.stop();
       _lastTickTime = null;
@@ -493,25 +532,23 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   /// Cumulative distance in km from first point to current progress.
   double get _distanceCovered {
     if (_points.length < 2 || _playbackProgress == 0) return 0;
-    double total = 0;
+    double totalMeters = 0;
     const Distance calc = Distance();
     final int idx = _playbackProgress.floor().clamp(0, _points.length - 1);
     for (int i = 1; i <= idx && i < _points.length; i++) {
-      total += calc.as(
-        LengthUnit.Kilometer,
+      totalMeters += calc(
         _points[i - 1].latLng,
         _points[i].latLng,
       );
     }
     // Also add the small interpolated slice to the current position
     if (idx < _points.length - 1) {
-      total += calc.as(
-        LengthUnit.Kilometer,
+      totalMeters += calc(
         _points[idx].latLng,
         _currentPoint.latLng,
       );
     }
-    return total;
+    return totalMeters / 1000.0;
   }
 
   Future<void> _pickStartDate() async {
@@ -591,205 +628,274 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     super.build(context);
 
     final ThemeData theme = Theme.of(context);
+    final String mapTypeKey = ref.watch(secureStoreProvider).mapType;
+    final MapStyle mapType = MapStyleX.fromKey(mapTypeKey);
+    final bool isDarkMap = mapType == MapStyle.satellite;
 
-    if (!_isInitialized) {
-      return _buildInitialSelectionScreen(theme);
-    }
-
-    return Column(
+    final vehicle = ref.watch(vehicleByIdProvider(widget.vehicleId));
+    
+    return Stack(
       children: <Widget>[
-        // ── Range selector ───────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.sm),
-          child: Column(
-            children: [
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickStartDate,
-                      icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                      label: Text(_formatDateShort(_range.start), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ),
-                  ),
-                  const SizedBox(width: Gap.xs),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickEndDate,
-                      icon: const Icon(Icons.event_rounded, size: 16),
-                      label: Text(_formatDateShort(_range.end), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ),
-                  ),
-                  const SizedBox(width: Gap.xs),
-                  IconButton.filledTonal(
-                    tooltip: 'Reload route',
-                    onPressed: _loading ? null : _load,
-                    icon: const Icon(Icons.refresh_rounded, size: 20),
-                  ),
-                ],
+        // MAP
+        FlutterMap(
+          mapController: _map,
+          options: MapOptions(
+            initialCenter: const LatLng(17.385, 78.4867),
+            initialZoom: 11,
+            minZoom: 3,
+            maxZoom: 19,
+            backgroundColor: theme.colorScheme.surface,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+            ),
+            onMapReady: () {
+              if (mounted) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() => _ready = true);
+                    if (_points.isNotEmpty) {
+                      _fitRoute();
+                    }
+                  }
+                });
+              }
+            },
+          ),
+          children: <Widget>[
+            buildTileLayer(
+              MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+              apiKey: ref.read(authProvider).user?.apiKey,
+            ),
+            if (_points.length >= 2) ..._routeLayers(theme),
+            MarkerLayer(markers: _routeMarkers(theme)),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: OsmAttribution(
+                style: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
+                compact: true,
               ),
-              const SizedBox(height: Gap.xs),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickStartTime,
-                      icon: const Icon(Icons.access_time_rounded, size: 16),
-                      label: Text(_formatTime(_range.start)),
+            ),
+          ],
+        ),
+
+        if (_loading)
+          const Positioned.fill(
+            child: ColoredBox(
+              color: Color(0x99070B16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          )
+        else if (_error != null)
+          Positioned.fill(
+            child: ColoredBox(
+              color: theme.colorScheme.surface,
+              child: ErrorState(message: _error!, onRetry: _load),
+            ),
+          )
+        else if (_points.isEmpty)
+          Positioned.fill(
+            child: ColoredBox(
+              color: theme.colorScheme.surface,
+              child: EmptyState(
+                icon: Icons.timeline_rounded,
+                title: 'No route data',
+                message: 'This vehicle did not report any positions in '
+                    'the selected period.',
+                actionLabel: 'Choose another date',
+                onAction: () => setState(() => _isInitialized = false),
+              ),
+            ),
+          ),
+
+        // TOP FLOATING BAR (Back, Name)
+        Positioned(
+          top: MediaQuery.of(context).padding.top + Gap.md,
+          left: Gap.md,
+          right: Gap.md,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // BACK BUTTON PILL (Left)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(100),
+                child: BackdropFilter(
+                  filter: dart_ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDarkMap ? Colors.black.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDarkMap ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.arrow_back_rounded,
+                        color: isDarkMap ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF1E293B),
+                      ),
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                      },
                     ),
                   ),
-                  const SizedBox(width: Gap.xs),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickEndTime,
-                      icon: const Icon(Icons.access_time_filled_rounded, size: 16),
-                      label: Text(_formatTime(_range.end)),
+                ),
+              ),
+              
+              const Spacer(),
+              
+              // VEHICLE NAME PILL (Center)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: dart_ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDarkMap ? Colors.black.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isDarkMap ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Text(
+                        vehicle?.displayName.toUpperCase() ?? 'VEHICLE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: isDarkMap ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF1E293B),
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ),
-                ],
+                ),
+              ),
+              
+              const Spacer(),
+              
+              // CALENDAR BUTTON PILL (Right)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(100),
+                child: BackdropFilter(
+                  filter: dart_ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDarkMap ? Colors.black.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDarkMap ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.calendar_month_rounded,
+                        color: isDarkMap ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF1E293B),
+                      ),
+                      onPressed: () {
+                        setState(() => _isInitialized = false);
+                      },
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
 
-        // ── Map ──────────────────────────────────────────────────
-        Expanded(
-          child: Stack(
-            children: <Widget>[
-              FlutterMap(
-                mapController: _map,
-                options: MapOptions(
-                  initialCenter: const LatLng(17.385, 78.4867),
-                  initialZoom: 11,
-                  minZoom: 3,
-                  maxZoom: 19,
-                  backgroundColor: theme.colorScheme.surface,
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+        // FLOATING INFO CARD
+        if (_points.isNotEmpty && !_loading)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + Gap.md + 64 + Gap.md,
+            left: Gap.md,
+            right: Gap.md,
+            child: _PlaybackFloatingCard(
+              point: _currentPoint,
+              distKm: _distanceCovered,
+              playing: _playing,
+              overspeedCount: _overspeedCount,
+              stoppageCount: _stoppages.length,
+            ),
+          ),
+          
+        // SPEEDOMETER (Animated Reveal)
+        if (_points.isNotEmpty && !_loading)
+          Positioned(
+            bottom: Gap.md + 80 + Gap.md, // Above the playback controls
+            left: Gap.md,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 500),
+              opacity: _hasStartedPlayback ? 1.0 : 0.0,
+              child: _SpeedGauge(speed: _currentPoint.speed),
+            ),
+          ),
+
+        // BOTTOM CONTROLS & STOPPAGE
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Gap.md),
+                  child: _ActiveStoppageBottomCard(
+                    point: _currentPoint,
+                    stoppage: _currentStoppage,
                   ),
-                  onMapReady: () {
-                    if (mounted) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) {
-                          setState(() => _ready = true);
-                          if (_points.isNotEmpty) {
-                            _fitRoute();
-                          }
-                        }
-                      });
-                    }
+                ),
+              if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
+                const SizedBox(height: Gap.md),
+              if (_points.isNotEmpty && !_loading)
+                _PlaybackControls(
+                  index: _playbackProgress.round().clamp(0, _points.length - 1),
+                  total: _points.length,
+                  playing: _playing,
+                  speed: _speedMultiplier,
+                  isDarkMap: isDarkMap,
+                  points: _points,
+                  onSeek: (double v) {
+                    setState(() {
+                      _playbackProgress = v;
+                      _lastEncounteredStoppage = null;
+                      _stoppagePauseRemaining = 0.0;
+                    });
+                  },
+                  onSeekEnd: _followCamera,
+                  onTogglePlay: _togglePlay,
+                  onSpeedChange: (double s) {
+                    setState(() => _speedMultiplier = s);
+                  },
+                  onRestart: () {
+                    setState(() {
+                      _playbackProgress = 0.0;
+                      _playing = false;
+                    });
                   },
                 ),
-                children: <Widget>[
-                  buildTileLayer(
-                    MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
-                    apiKey: ref.read(authProvider).user?.apiKey,
-                  ),
-                  if (_points.length >= 2) ..._routeLayers(theme),
-                  MarkerLayer(markers: _routeMarkers(theme)),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: OsmAttribution(
-                      style: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
-                      compact: true,
-                    ),
-                  ),
-                ],
-              ),
-
-              if (_loading)
-                const Positioned.fill(
-                  child: ColoredBox(
-                    color: Color(0x99070B16),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                )
-              else if (_error != null)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: theme.colorScheme.surface,
-                    child: ErrorState(message: _error!, onRetry: _load),
-                  ),
-                )
-              else if (_points.isEmpty)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: theme.colorScheme.surface,
-                    child: EmptyState(
-                      icon: Icons.timeline_rounded,
-                      title: 'No route data',
-                      message: 'This vehicle did not report any positions in '
-                          'the selected period.',
-                      actionLabel: 'Choose another date',
-                      onAction: () => setState(() => _isInitialized = false),
-                    ),
-                  ),
-                ),
-
-
-              // Floating info card — top-middle of the map
-              if (_points.isNotEmpty && !_loading)
-                Positioned(
-                  top: Gap.md,
-                  left: Gap.md,
-                  right: Gap.md,
-                  child: _PlaybackFloatingCard(
-                    point: _currentPoint,
-                    distKm: _distanceCovered,
-                    playing: _playing,
-                  ),
-                ),
-
-
-              // Speed gauge — bottom-left, like the web app.
-              if (_points.isNotEmpty && !_loading)
-                Positioned(
-                  bottom: Gap.lg,
-                  left: Gap.lg,
-                  child: _SpeedGauge(speed: _currentPoint.speed),
-                ),
             ],
           ),
         ),
-
-        // ── Transport controls ───────────────────────────────────
-        if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
-          _ActiveStoppageBottomCard(
-            point: _currentPoint,
-            stoppage: _currentStoppage,
-          ),
-
-        if (_points.isNotEmpty && !_loading)
-          _PlaybackControls(
-            index: _playbackProgress.round().clamp(0, _points.length - 1),
-            total: _points.length,
-            playing: _playing,
-            speed: _speedMultiplier,
-            points: _points,
-            onSeek: (double v) {
-              setState(() {
-                _playbackProgress = v;
-                _lastEncounteredStoppage = null;
-                _stoppagePauseRemaining = 0.0;
-              });
-            },
-            onSeekEnd: _followCamera,
-            onTogglePlay: _togglePlay,
-            onSpeedChange: (double s) {
-              setState(() => _speedMultiplier = s);
-            },
-            onRestart: () {
-              setState(() {
-                _playbackProgress = 0.0;
-                _lastEncounteredStoppage = null;
-                _stoppagePauseRemaining = 0.0;
-              });
-              _fitRoute();
-            },
-          ),
+        // SELECTION SCREEN OVERLAY
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 600),
+          switchInCurve: Curves.easeInOutCubic,
+          switchOutCurve: Curves.easeInOutCubic,
+          child: !_isInitialized
+              ? KeyedSubtree(
+                  key: const ValueKey('SelectionScreen'),
+                  child: _buildInitialSelectionScreen(theme),
+                )
+              : const SizedBox.shrink(key: ValueKey('Empty')),
+        ),
       ],
     );
   }
+
   Future<void> _pickStartTime() async {
     final TimeOfDay? time = await showTimePicker(
       context: context,
@@ -860,19 +966,36 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (_allLatLng.isEmpty) return const <Widget>[];
 
     final int idx = _playbackProgress.floor().clamp(0, _allLatLng.length - 1);
-    final List<LatLng> travelledLatLng = <LatLng>[];
-    for (int i = 0; i <= idx && i < _allLatLng.length; i++) {
-      travelledLatLng.add(_allLatLng[i]);
-    }
-    if (_playbackProgress > idx && idx < _allLatLng.length - 1) {
-      travelledLatLng.add(_currentPoint.latLng);
+    final List<Polyline<Object>> travelledSegments = <Polyline<Object>>[];
+    
+    int startIndex = 0;
+    for (int i = 1; i <= idx; i++) {
+      if (_pointGaps[i]) {
+        if (i - startIndex >= 2) {
+          travelledSegments.add(Polyline<Object>(
+            points: _allLatLng.sublist(startIndex, i),
+            color: const Color(0xFF0A7C4E),
+            strokeWidth: 5,
+          ));
+        }
+        startIndex = i;
+      }
     }
 
-    final List<Polyline<Object>> travelledSegments = _splitPlaybackPolyline(
-      points: travelledLatLng,
-      color: const Color(0xFF0A7C4E),
-      strokeWidth: 5,
-    );
+    List<LatLng> finalSegment = _allLatLng.sublist(startIndex, idx + 1);
+    if (_playbackProgress > idx && idx < _allLatLng.length - 1) {
+      if (!_pointGaps[idx + 1]) {
+        finalSegment = List<LatLng>.of(finalSegment)..add(_currentPoint.latLng);
+      }
+    }
+
+    if (finalSegment.length >= 2) {
+      travelledSegments.add(Polyline<Object>(
+        points: finalSegment,
+        color: const Color(0xFF0A7C4E),
+        strokeWidth: 5,
+      ));
+    }
 
     return <Widget>[
       PolylineLayer<Object>(polylines: _cachedGhostSegments),
@@ -930,21 +1053,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     return <Marker>[
       Marker(
         point: _points.first.latLng,
-        width: 26,
-        height: 26,
-        child: const _RouteEndpoint(
-          color: AppColors.moving,
-          icon: Icons.play_arrow_rounded,
-        ),
+        width: 40,
+        height: 40,
+        alignment: Alignment.topCenter,
+        child: const _FlagPin(color: AppColors.moving),
       ),
       Marker(
         point: _points.last.latLng,
-        width: 26,
-        height: 26,
-        child: const _RouteEndpoint(
-          color: AppColors.danger,
-          icon: Icons.flag_rounded,
-        ),
+        width: 40,
+        height: 40,
+        alignment: Alignment.topCenter,
+        child: const _FlagPin(color: AppColors.danger),
       ),
       // Stoppage Markers
       for (int i = 0; i < _stoppages.length; i++)
@@ -982,10 +1101,22 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   // ── Initial Selection Screen ──────────────────────────────────────────
 
   Widget _buildInitialSelectionScreen(ThemeData theme) {
-    return Container(
-      color: theme.colorScheme.surfaceContainerLowest,
-      alignment: Alignment.center,
-      child: SingleChildScrollView(
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surfaceContainerLowest,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 450),
@@ -1120,6 +1251,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -1482,7 +1614,7 @@ class _PlaybackMarkerState extends State<_PlaybackMarker> {
       setState(() => _address = widget.point.address);
       return;
     }
-    setState(() => _address = null); // show nothing while resolving
+    if (_address == null) setState(() => _address = 'Locating...');
     final TrackPoint snap = widget.point;
     Geocoder.getAddress(snap.latitude, snap.longitude).then((String a) {
       if (mounted && widget.point == snap && a != 'Location unavailable') {
@@ -1692,7 +1824,7 @@ class _TrianglePainter extends CustomPainter {
   bool shouldRepaint(_TrianglePainter _) => false;
 }
 
-class _PlaybackControls extends StatelessWidget {
+class _PlaybackControls extends StatefulWidget {
   const _PlaybackControls({
     required this.index,
     required this.total,
@@ -1704,6 +1836,7 @@ class _PlaybackControls extends StatelessWidget {
     required this.onTogglePlay,
     required this.onSpeedChange,
     required this.onRestart,
+    required this.isDarkMap,
   });
 
   final int index;
@@ -1716,109 +1849,205 @@ class _PlaybackControls extends StatelessWidget {
   final VoidCallback onTogglePlay;
   final ValueChanged<double> onSpeedChange;
   final VoidCallback onRestart;
+  final bool isDarkMap;
+
+  @override
+  State<_PlaybackControls> createState() => _PlaybackControlsState();
+}
+
+class _PlaybackControlsState extends State<_PlaybackControls> {
+  bool _isExpanded = false;
+
+  String _formatTime(DateTime dt) {
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDarkMap = widget.isDarkMap;
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        Gap.lg,
-        Gap.md,
-        Gap.lg,
-        MediaQuery.paddingOf(context).bottom + Gap.md,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: BackdropFilter(
+          filter: dart_ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutCubic,
+            width: _isExpanded ? MediaQuery.of(context).size.width - 32 : 180,
+            decoration: BoxDecoration(
+              color: isDarkMap ? Colors.black.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: isDarkMap ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
+              ),
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _isExpanded ? _buildExpandedControls(isDarkMap, theme) : _buildCollapsedButton(isDarkMap, theme),
+            ),
+          ),
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Row(
+    );
+  }
+
+  Widget _buildCollapsedButton(bool isDark, ThemeData theme) {
+    return InkWell(
+      key: const ValueKey('collapsed'),
+      onTap: () {
+        setState(() => _isExpanded = true);
+        widget.onTogglePlay(); // Start playing immediately
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFF3B82F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Play History',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedControls(bool isDark, ThemeData theme) {
+    return Padding(
+      key: const ValueKey('expanded'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width - 64,
+          child: Row(
             children: <Widget>[
-              Text(
-                _formatTime(points[index].timestamp),
-                style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 0),
+          // Play/Pause Button
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: Color(0xFF3B82F6),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              onPressed: widget.onTogglePlay,
+              icon: Icon(
+                widget.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
               ),
-              Expanded(
-                child: Slider(
-                  value: index.toDouble(),
-                  min: 0,
-                  max: (total - 1).toDouble().clamp(1, double.infinity),
-                  onChanged: onSeek,
-                  onChangeEnd: (_) => onSeekEnd(),
-                ),
-              ),
-              Text(
-                _formatTime(points.last.timestamp),
-                style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 0),
-              ),
-            ],
+            ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              IconButton(
-                tooltip: 'Restart',
-                onPressed: onRestart,
-                icon: const Icon(Icons.replay_rounded, size: 21),
-              ),
-              const SizedBox(width: Gap.md),
-              SizedBox(
-                width: 58,
-                height: 58,
-                child: FilledButton(
-                  onPressed: onTogglePlay,
-                  style: FilledButton.styleFrom(
-                    shape: const CircleBorder(),
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: Icon(
-                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    size: 28,
-                  ),
-                ),
-              ),
-              const SizedBox(width: Gap.md),
-              PopupMenuButton<double>(
-                tooltip: 'Playback speed',
-                initialValue: speed,
-                onSelected: onSpeedChange,
-                itemBuilder: (BuildContext _) => <PopupMenuEntry<double>>[
-                  for (final double s in <double>[1, 2, 3, 4])
-                    PopupMenuItem<double>(
-                      value: s,
-                      child: Text('${s.round()}× speed'),
+          const SizedBox(width: 12),
+          
+          // Slider
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _formatTime(widget.points[widget.index].timestamp),
+                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54),
                     ),
-                ],
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Gap.md,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHigh,
-                    borderRadius: Corners.rSm,
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
-                  ),
-                  child: Text(
-                    '${speed.round()}×',
-                    style: theme.textTheme.labelMedium,
+                    Text(
+                      _formatTime(widget.points.last.timestamp),
+                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54),
+                    ),
+                  ],
+                ),
+                SizedBox(
+                  height: 24,
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                      activeTrackColor: const Color(0xFF38BDF8),
+                      inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
+                      thumbColor: const Color(0xFF38BDF8),
+                    ),
+                    child: Slider(
+                      value: widget.index.toDouble(),
+                      min: 0,
+                      max: (widget.total - 1).toDouble().clamp(1, double.infinity),
+                      onChanged: widget.onSeek,
+                      onChangeEnd: (_) => widget.onSeekEnd(),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: Gap.xs),
-          Text(
-            'Point ${index + 1} of $total',
-            style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 0),
+          const SizedBox(width: 12),
+          
+          // Speed Dropdown
+          DropdownButtonHideUnderline(
+            child: DropdownButton<double>(
+              value: [1.0, 2.0, 4.0, 8.0].contains(widget.speed) ? widget.speed : 1.0,
+              icon: const Icon(Icons.arrow_drop_down, size: 20),
+              isDense: true,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              items: const [
+                DropdownMenuItem(value: 1.0, child: Text('1x')),
+                DropdownMenuItem(value: 2.0, child: Text('2x')),
+                DropdownMenuItem(value: 4.0, child: Text('4x')),
+                DropdownMenuItem(value: 8.0, child: Text('8x')),
+              ],
+              onChanged: (v) {
+                if (v != null) widget.onSpeedChange(v);
+              },
+            ),
           ),
         ],
       ),
+      ),
+      ),
+    );
+  }
+}
+
+class _FlagPin extends StatelessWidget {
+  const _FlagPin({required this.color});
+  final Color color;
+  
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        Icon(Icons.location_on, color: color, size: 40),
+        const Positioned(
+          top: 6,
+          child: Icon(Icons.flag_rounded, color: Colors.white, size: 16),
+        ),
+      ],
     );
   }
 }
@@ -1828,11 +2057,15 @@ class _PlaybackFloatingCard extends StatefulWidget {
     required this.point,
     required this.distKm,
     required this.playing,
+    required this.overspeedCount,
+    required this.stoppageCount,
   });
 
   final TrackPoint point;
   final double distKm;
   final bool playing;
+  final int overspeedCount;
+  final int stoppageCount;
 
   @override
   State<_PlaybackFloatingCard> createState() => _PlaybackFloatingCardState();
@@ -1868,13 +2101,10 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
       return;
     }
 
-    // 1. If playing: do NOT fire background HTTP geocoding requests during live animation
-    // (prevents network thread blocks and 2-4s UI freezes)
     if (widget.playing) {
       return;
     }
 
-    // 2. If paused / scrubbing: resolve location with a brief 150ms debounce
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 150), () {
       if (mounted && !widget.playing) _resolveAddress();
@@ -1887,7 +2117,6 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
       setState(() => _address = widget.point.address);
       return;
     }
-    // Prevent flickering: don't clear old address while loading new one
     if (_address == null) {
       setState(() => _address = 'Locating...');
     }
@@ -1900,6 +2129,18 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
     });
   }
 
+  String _getDirection(double heading) {
+    if (heading >= 337.5 || heading < 22.5) return 'N';
+    if (heading >= 22.5 && heading < 67.5) return 'NE';
+    if (heading >= 67.5 && heading < 112.5) return 'E';
+    if (heading >= 112.5 && heading < 157.5) return 'SE';
+    if (heading >= 157.5 && heading < 202.5) return 'S';
+    if (heading >= 202.5 && heading < 247.5) return 'SW';
+    if (heading >= 247.5 && heading < 292.5) return 'W';
+    if (heading >= 292.5 && heading < 337.5) return 'NW';
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
     final TrackPoint p = widget.point;
@@ -1908,121 +2149,181 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
     final String timeStr = _toIstString(p.timestamp, Fmt.timeSec);
     final String dateStr = _toIstString(p.timestamp, Fmt.dateShort);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xEC1A233A), // Dark blue-grey glass
-          border: Border.all(color: Colors.white.withOpacity(0.08), width: 0.8),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                // Time & Date
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color.fromRGBO(0, 0, 0, 0.08),
+                offset: Offset(0, 12),
+                blurRadius: 32,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFFFF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      timeStr,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.2,
-                      ),
+                    Row(
+                      children: <Widget>[
+                        // Time & Date
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              timeStr,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF1E293B),
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              dateStr,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF1E293B),
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        Container(
+                          width: 1,
+                          height: 44,
+                          color: const Color.fromRGBO(0, 0, 0, 0.15),
+                        ),
+                        const SizedBox(width: 16),
+                        // Speed & Direction
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              RichText(
+                                text: TextSpan(
+                                  children: <TextSpan>[
+                                    TextSpan(
+                                      text: '$spd ',
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF1E293B),
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                    const TextSpan(
+                                      text: 'km/h',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                        color: Color(0xFF1E293B),
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _getDirection(p.heading),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF1E293B),
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Navigation Arrow
+                        Transform.rotate(
+                          angle: p.heading * math.pi / 180,
+                          child: const Icon(
+                            Icons.navigation,
+                            color: Color(0xFF0284C7),
+                            size: 24,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      dateStr,
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: Colors.white.withOpacity(0.55),
-                        fontWeight: FontWeight.w500,
-                      ),
+                    const SizedBox(height: 8),
+                    // Location Address
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Icon(
+                            Icons.location_on,
+                            size: 16,
+                            color: Color(0xFF0284C7),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _address ?? 'Locating...',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF0F172A),
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Vehicle Info
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.speed,
+                          size: 16,
+                          color: Color(0xFF0F172A),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${widget.overspeedCount} overspeeds  •  ${widget.distKm.toStringAsFixed(1)} km  •  ${widget.stoppageCount} stops',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(width: 24),
-                // Speed & Ignition
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      '$spd km/h',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      p.ignition ? 'Ignition on' : 'Ignition off',
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: p.ignition
-                            ? const Color(0xFF4CAF50)
-                            : Colors.white.withOpacity(0.55),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                // Heading navigation arrow (cyan)
-                Transform.rotate(
-                  angle: p.heading * math.pi / 180,
-                  child: const Icon(
-                    Icons.navigation_rounded,
-                    color: Color(0xFF00E5FF), // Bright Cyan arrow
-                    size: 20,
-                  ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Container(
-              height: 0.8,
-              color: Colors.white.withOpacity(0.08),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 13,
-                  color: Color(0xFF00E5FF), // Cyan location icon
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _address ?? 'Locating...',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.white.withOpacity(0.85),
-                      fontWeight: FontWeight.w500,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
-}
 
 /// Active Stoppage Bottom Card (Full width bottom sheet style)
 class _ActiveStoppageBottomCard extends StatefulWidget {
@@ -2299,3 +2600,32 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
 }
 
 
+
+class _GlassContainer extends StatelessWidget {
+  const _GlassContainer({super.key, required this.child, this.borderRadius, this.shape});
+  final Widget child;
+  final BorderRadiusGeometry? borderRadius;
+  final BoxShape? shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(100),
+      child: BackdropFilter(
+        filter: dart_ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.4),
+            borderRadius: borderRadius,
+            shape: shape ?? BoxShape.rectangle,
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
