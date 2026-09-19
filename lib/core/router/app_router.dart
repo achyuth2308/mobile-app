@@ -309,6 +309,6 @@ String routeForNotification(Map<String, dynamic> data) {
 
   if (type.contains('renewal') || type.contains('billing')) return '/renewals';
   if (type == 'route_deviation' || type == 'trip_started' || type == 'trip_ended') return '/routes';
-  if (vehicleId != null && vehicleId.isNotEmpty) return '/vehicle/$vehicleId';
+  if (vehicleId != null && vehicleId.isNotEmpty) return '/vehicle-map?focus=$vehicleId';
   return '/dashboard';
 }

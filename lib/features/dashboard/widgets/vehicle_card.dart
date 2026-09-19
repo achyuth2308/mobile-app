@@ -135,8 +135,7 @@ class VehicleCard extends ConsumerWidget {
                                   ? Colors.grey.shade400
                                   : Colors.grey.shade500,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
                           ),
                         ),
                         Container(
