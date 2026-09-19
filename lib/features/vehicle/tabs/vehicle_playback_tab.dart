@@ -746,29 +746,31 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               const Spacer(),
               
               // VEHICLE NAME PILL (Center)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: BackdropFilter(
-                  filter: dart_ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isDarkMap ? Colors.black.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: isDarkMap ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.1),
-                      ),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: const Color(0xFF00E5FF),
+                    width: 1.5,
+                  ),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: const Color(0xFF00E5FF).withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Text(
-                        vehicle?.displayName.toUpperCase() ?? 'VEHICLE',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: isDarkMap ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF1E293B),
-                          fontSize: 14,
-                        ),
-                      ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Text(
+                    vehicle?.displayName.toUpperCase() ?? 'VEHICLE',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -974,7 +976,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         if (i - startIndex >= 2) {
           travelledSegments.add(Polyline<Object>(
             points: _allLatLng.sublist(startIndex, i),
-            color: const Color(0xFF0A7C4E),
+            color: const Color(0xFF00E5FF),
             strokeWidth: 5,
           ));
         }
@@ -992,7 +994,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (finalSegment.length >= 2) {
       travelledSegments.add(Polyline<Object>(
         points: finalSegment,
-        color: const Color(0xFF0A7C4E),
+        color: const Color(0xFF00E5FF),
         strokeWidth: 5,
       ));
     }
@@ -1910,7 +1912,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: const BoxDecoration(
-                color: Color(0xFF3B82F6),
+                color: Colors.black,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
@@ -1986,7 +1988,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                       overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                       activeTrackColor: const Color(0xFF38BDF8),
                       inactiveTrackColor: isDark ? Colors.white24 : Colors.black12,
-                      thumbColor: const Color(0xFF38BDF8),
+                      thumbColor: Colors.orange,
                     ),
                     child: Slider(
                       value: widget.index.toDouble(),
