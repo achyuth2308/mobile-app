@@ -46,7 +46,7 @@ class VehicleRepository {
         'endDate': end.toUtc().toIso8601String(),
         'from': start.toUtc().toIso8601String(),
         'to': end.toUtc().toIso8601String(),
-        'limit': 20000,
+        'limit': 100000,
       },
       cancelToken: cancelToken,
     );
@@ -72,7 +72,7 @@ class VehicleRepository {
         'endDate': end.toUtc().toIso8601String(),
         'from': start.toUtc().toIso8601String(),
         'to': end.toUtc().toIso8601String(),
-        'limit': 20000,
+        'limit': 100000,
       },
     );
 

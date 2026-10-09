@@ -819,34 +819,43 @@ class AlertTile extends StatelessWidget {
                       ),
                       const SizedBox(height: Gap.sm),
                       // ── Timestamp row(s) ──────────────────────
-                      Row(
+                      Wrap(
+                        spacing: Gap.md,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: <Widget>[
-                          if (alert.vehicleName != null) ...<Widget>[
-                            Icon(Icons.directions_car_rounded,
-                                size: 12,
-                                color: theme.colorScheme.onSurfaceVariant),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                alert.vehicleName!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelSmall
-                                    ?.copyWith(letterSpacing: 0),
-                              ),
+                          if (alert.vehicleName != null) 
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(Icons.directions_car_rounded,
+                                    size: 12,
+                                    color: theme.colorScheme.onSurfaceVariant),
+                                const SizedBox(width: 4),
+                                Text(
+                                  alert.vehicleName!,
+                                  style: theme.textTheme.labelSmall
+                                      ?.copyWith(letterSpacing: 0),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: Gap.md),
-                          ],
-                          Icon(Icons.schedule_rounded,
-                              size: 12,
-                              color: theme.colorScheme.onSurfaceVariant),
-                          const SizedBox(width: 4),
-                          Text(
-                            _isStoppageType(alert.type)
-                                ? 'Start: ${Fmt.full(alert.createdAt)}${alert.endTime != null ? ' – ${Fmt.time(alert.endTime)}' : (alert.durationMinutes != null ? ' – ${Fmt.time(alert.createdAt?.add(Duration(minutes: alert.durationMinutes!)))}' : '')}'
-                                : Fmt.full(alert.createdAt),
-                            style: theme.textTheme.labelSmall
-                                ?.copyWith(letterSpacing: 0),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(Icons.schedule_rounded,
+                                  size: 12,
+                                  color: theme.colorScheme.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Flexible( // Use Flexible inside this mini-Row just in case the timestamp is insanely long
+                                child: Text(
+                                  _isStoppageType(alert.type)
+                                      ? 'Start: ${Fmt.full(alert.createdAt)}${alert.endTime != null ? ' – ${Fmt.time(alert.endTime)}' : (alert.durationMinutes != null ? ' – ${Fmt.time(alert.createdAt?.add(Duration(minutes: alert.durationMinutes!)))}' : '')}'
+                                      : Fmt.full(alert.createdAt),
+                                  style: theme.textTheme.labelSmall
+                                      ?.copyWith(letterSpacing: 0),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

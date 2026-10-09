@@ -361,22 +361,24 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
 
     return Row(
       children: <Widget>[
         Container(
           width: 62,
           height: 62,
-          decoration: const BoxDecoration(
-            gradient: AppColors.brandGradient,
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: Text(
               user.initials,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: Colors.white,
+              style: TextStyle(
+                color: colorScheme.onPrimaryContainer,
                 fontSize: 22,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -390,35 +392,44 @@ class _ProfileHeader extends StatelessWidget {
                 user.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.headlineSmall,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 user.email,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               if (user.orgName.isNotEmpty) ...<Widget>[
                 const SizedBox(height: Gap.sm),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: Gap.sm, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHigh,
+                    color: AppColors.moving.withOpacity(0.15),
                     borderRadius: Corners.rXs,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Icon(Icons.business_rounded,
-                          size: 11, color: theme.colorScheme.onSurfaceVariant),
+                      const Icon(Icons.business_rounded,
+                          size: 11, color: AppColors.moving),
                       const SizedBox(width: 5),
                       Text(
-                        user.orgName,
-                        style: theme.textTheme.labelSmall?.copyWith(
+                        user.orgName.toUpperCase(),
+                        style: const TextStyle(
                           fontSize: 10,
-                          letterSpacing: 0,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.moving,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
@@ -441,8 +452,7 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -450,11 +460,19 @@ class _SettingsGroup extends StatelessWidget {
           padding: const EdgeInsets.only(left: 2, bottom: Gap.sm),
           child: Text(
             title,
-            style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.outline,
+              letterSpacing: 1.0,
+            ),
           ),
         ),
-        SurfaceCard(
-          padding: EdgeInsets.zero,
+        Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainer,
+            borderRadius: Corners.rLg,
+          ),
           child: Column(
             children: <Widget>[
               for (int i = 0; i < children.length; i++) ...<Widget>[
@@ -463,7 +481,7 @@ class _SettingsGroup extends StatelessWidget {
                   Divider(
                     height: 1,
                     indent: Gap.x3l + Gap.md,
-                    color: theme.colorScheme.outlineVariant,
+                    color: colorScheme.outlineVariant.withOpacity(0.5),
                   ),
               ],
             ],
@@ -491,44 +509,49 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color color = danger ? AppColors.danger : theme.colorScheme.onSurface;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final Color color = danger ? colorScheme.error : colorScheme.onSurface;
 
     return InkWell(
       onTap: onTap,
+      borderRadius: Corners.rLg,
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: Gap.md),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: <Widget>[
-            Icon(
-              icon,
-              size: 20,
-              color: danger
-                  ? AppColors.danger
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: Gap.lg),
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
                     title,
-                    style: theme.textTheme.titleSmall?.copyWith(color: color),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
                   ),
                   if (subtitle != null) ...<Widget>[
-                    const SizedBox(height: 1),
-                    Text(subtitle!, style: theme.textTheme.bodySmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 19,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            if (!danger)
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                size: 20,
+              ),
           ],
         ),
       ),

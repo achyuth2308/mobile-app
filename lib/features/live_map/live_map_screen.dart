@@ -85,7 +85,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
           .cast<Vehicle?>()
           .firstWhere((v) => v?.id == activeId, orElse: () => null);
       if (v != null && v.hasLocation && _mapReady) {
-        _move(LatLng(v.latitude!, v.longitude!), zoom: 17.0);
+        _move(LatLng(v.latitude!, v.longitude!), zoom: 14.5);
       }
     }
   }
@@ -129,7 +129,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _map.move(target, zoom ?? _map.camera.zoom);
   }
 
-  void _focusVehicle(String? vehicleId, {double zoom = 17.0}) {
+  void _focusVehicle(String? vehicleId, {double zoom = 14.5}) {
     if (vehicleId == null || vehicleId.isEmpty) return;
     _pendingFocusId = vehicleId;
 
@@ -162,7 +162,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (located.length == 1) {
       _move(
         LatLng(located.first.latitude!, located.first.longitude!),
-        zoom: 17,
+        zoom: 14.5,
       );
       return;
     }
@@ -180,39 +180,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _setFollowingId(v.id);
     setState(() => _selectedId = v.id);
     _move(LatLng(v.latitude!, v.longitude!));
-    _showPeek(v);
   }
 
-  void _showPeek(Vehicle v) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext ctx) => VehiclePeekSheet(
-        vehicleId: v.id,
-        isFollowing: _followingId == v.id,
-        onToggleFollow: () {
-          _setFollowingId(_followingId == v.id ? null : v.id);
-          Navigator.pop(ctx);
-          if (_followingId != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Following ${v.displayName}'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        },
-        onOpenDetails: () {
-          Navigator.pop(ctx);
-          context.push('/vehicle/${v.id}');
-        },
-      ),
-    ).whenComplete(() {
-      if (mounted) setState(() => _selectedId = null);
-    });
-  }
 
   void _showStoppageCard(ReportRow stoppage, int stopNumber) {
     showDialog<void>(
@@ -460,7 +429,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               onRecenter: following != null && following.hasLocation
                   ? () => _move(
                         LatLng(following.latitude!, following.longitude!),
-                        zoom: 17,
+                        zoom: 14.5,
                       )
                   : null,
               onRefresh: () {
@@ -472,7 +441,25 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ),
           ),
 
-          if (following != null) NavigationHUD(vehicle: following),
+          if (following != null) 
+            DraggableScrollableSheet(
+              initialChildSize: 0.3,
+              minChildSize: 0.1,
+              maxChildSize: 0.6,
+              builder: (ctx, scrollController) {
+                return VehiclePeekSheet(
+                  vehicleId: following.id,
+                  isFollowing: _followingId == following.id,
+                  onToggleFollow: () {
+                    _setFollowingId(_followingId == following.id ? null : following.id);
+                  },
+                  onOpenDetails: () {
+                    context.push('/vehicle/${following.id}?tab=history');
+                  },
+                  scrollController: scrollController,
+                );
+              },
+            ),
 
           Positioned(
             top: MediaQuery.paddingOf(context).top + 70,
@@ -622,20 +609,36 @@ class _MapHeader extends StatelessWidget {
     }
 
     // Fleet view — just a back button replacing the tracked badge
-    return GlassCard(
-      padding: EdgeInsets.zero,
-      borderRadius: Corners.rPill,
-      opacity: theme.brightness == Brightness.dark ? 0.4 : 0.65,
-      blur: 16,
-      onTap: () {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        }
-      },
-      child: const SizedBox(
-        width: 44,
-        height: 44,
-        child: Icon(Icons.arrow_back_rounded, size: 22, color: Colors.white),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.85),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
+            child: const SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(Icons.arrow_back_rounded, size: 22, color: Colors.white),
+            ),
+          ),
+        ),
       ),
     );
   }

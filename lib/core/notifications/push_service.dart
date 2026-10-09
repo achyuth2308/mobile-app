@@ -96,46 +96,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
 
     if (!enabled) return;
 
-    final String title = (data['title'] as String?) ?? 
-        (data['alert_title'] as String?) ?? 
-        (data['alertTitle'] as String?) ?? 
-        FleetAlert.titleFor(type);
-        
-    final String vehicleName = (data['vehicleName'] as String?) ?? 
-        (data['vehicle_name'] as String?) ?? 
-        (data['vehicleNumber'] as String?) ?? 
-        '';
-
-    String body = (data['message'] as String?) ?? 
-        (data['body'] as String?) ?? 
-        (data['alert_message'] as String?) ?? 
-        (data['alertMessage'] as String?) ??
-        (data['alertText'] as String?) ??
-        (data['alert_text'] as String?) ??
-        '';
-        
-    // If body is empty, we MUST provide some text so the notification is visible.
-    if (body.isEmpty) {
-      if (vehicleName.isNotEmpty) {
-        body = 'Alert for $vehicleName';
-      } else {
-        body = 'A new $title event has occurred.';
-      }
-    }
-
-    final String timeStr = (data['deviceTime'] ?? data['device_time'] ?? data['timestamp'] ?? data['time'] ?? '').toString();
-    if (timeStr.isNotEmpty) {
-      body += '\nTime: $timeStr';
-    }
-    
-    // Append address if available, otherwise skip location entirely
-    final String address = (data['address'] as String?) ??
-        (data['location'] as String?) ??
-        (data['place'] as String?) ??
-        '';
-    if (address.isNotEmpty) {
-      body += '\n📍 $address';
-    }
+    final _NotificationContent content = _buildNotificationContent(data, message.notification, type);
 
     final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical =
@@ -175,8 +136,8 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
 
     await local.show(
       message.hashCode,
-      title,
-      body,
+      content.title,
+      content.body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
@@ -186,7 +147,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           fullScreenIntent: true, // Forces popup
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
-          styleInformation: BigTextStyleInformation(body),
+          styleInformation: BigTextStyleInformation(content.body),
           actions: <AndroidNotificationAction>[
             const AndroidNotificationAction(
               'view_maps',
@@ -208,6 +169,69 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
     );
 
   }
+}
+
+class _NotificationContent {
+  _NotificationContent(this.title, this.body);
+  final String title;
+  final String body;
+}
+
+_NotificationContent _buildNotificationContent(Map<String, dynamic> data, RemoteNotification? n, String type) {
+  final String rawTitle = n?.title ?? 
+      (data['title'] as String?) ?? 
+      (data['alert_title'] as String?) ?? 
+      (data['alertTitle'] as String?) ?? 
+      FleetAlert.titleFor(type);
+      
+  final String vehicleName = (data['vehicleName'] as String?) ?? 
+      (data['vehicle_name'] as String?) ?? 
+      (data['vehicleNumber'] as String?) ?? 
+      '';
+
+  // Format 1: Vehicle number, then alert type
+  final String displayTitle = vehicleName.isNotEmpty ? '$vehicleName - $rawTitle' : rawTitle;
+
+  String rawBody = n?.body ?? 
+      (data['message'] as String?) ?? 
+      (data['body'] as String?) ?? 
+      (data['alert_message'] as String?) ?? 
+      (data['alertMessage'] as String?) ??
+      (data['alertText'] as String?) ??
+      (data['alert_text'] as String?) ??
+      '';
+      
+  if (rawBody.isEmpty && vehicleName.isEmpty) {
+    rawBody = 'A new $rawTitle event has occurred.';
+  }
+
+  String finalBody = rawBody;
+
+  // Format 2: Date & Time (or Duration)
+  final String startTime = (data['startTime'] ?? data['start_time'] ?? '').toString();
+  final String endTime = (data['endTime'] ?? data['end_time'] ?? '').toString();
+  final String timeStr = (data['deviceTime'] ?? data['device_time'] ?? data['timestamp'] ?? data['time'] ?? '').toString();
+  final String duration = (data['duration'] ?? data['durationMinutes'] ?? '').toString();
+
+  if (startTime.isNotEmpty && endTime.isNotEmpty) {
+    finalBody += '\n🕒 $startTime to $endTime';
+    if (duration.isNotEmpty) finalBody += ' ($duration)';
+  } else if (startTime.isNotEmpty && duration.isNotEmpty) {
+    finalBody += '\n🕒 Started: $startTime ($duration)';
+  } else if (timeStr.isNotEmpty) {
+    finalBody += '\n🕒 $timeStr';
+  }
+  
+  // Format 3: Location
+  final String address = (data['address'] as String?) ??
+      (data['location'] as String?) ??
+      (data['place'] as String?) ??
+      '';
+  if (address.isNotEmpty) {
+    finalBody += '\n📍 $address';
+  }
+
+  return _NotificationContent(displayTitle, finalBody.trim());
 }
 
 /// ─────────────────────────────────────────────────────────────────────
@@ -426,47 +450,8 @@ class PushService {
     _onForegroundMessage(data);
 
     final RemoteNotification? n = message.notification;
-    final String title = n?.title ??
-        (data['title'] as String?) ??
-        (data['alert_title'] as String?) ??
-        (data['alertTitle'] as String?) ??
-        FleetAlert.titleFor(type);
-        
-    final String vehicleName = (data['vehicleName'] as String?) ?? 
-        (data['vehicle_name'] as String?) ?? 
-        (data['vehicleNumber'] as String?) ?? 
-        '';
+    final _NotificationContent content = _buildNotificationContent(data, n, type);
 
-    String body = n?.body ?? 
-        (data['message'] as String?) ?? 
-        (data['body'] as String?) ?? 
-        (data['alert_message'] as String?) ?? 
-        (data['alertMessage'] as String?) ??
-        (data['alertText'] as String?) ??
-        (data['alert_text'] as String?) ??
-        '';
-        
-    if (body.isEmpty) {
-      if (vehicleName.isNotEmpty) {
-        body = 'Alert for $vehicleName';
-      } else {
-        body = 'A new $title event has occurred.';
-      }
-    }
-    
-    final String timeStr = (data['deviceTime'] ?? data['device_time'] ?? data['timestamp'] ?? data['time'] ?? '').toString();
-    if (timeStr.isNotEmpty) {
-      body += '\nTime: $timeStr';
-    }
-    
-    // Append address if available, otherwise skip location entirely
-    final String address = (data['address'] as String?) ??
-        (data['location'] as String?) ??
-        (data['place'] as String?) ??
-        '';
-    if (address.isNotEmpty) {
-      body += '\n📍 $address';
-    }
     final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow']
         .contains(type);
@@ -478,8 +463,8 @@ class PushService {
     final int notifId = data['alertId'] != null ? data['alertId'].hashCode : message.hashCode;
     _local.show(
       notifId,
-      title,
-      body,
+      content.title,
+      content.body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           channel.id,
@@ -490,7 +475,7 @@ class PushService {
           fullScreenIntent: true,
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
-          styleInformation: BigTextStyleInformation(body),
+          styleInformation: BigTextStyleInformation(content.body),
           actions: <AndroidNotificationAction>[
             AndroidNotificationAction(
               'view_maps',

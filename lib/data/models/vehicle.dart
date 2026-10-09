@@ -711,6 +711,9 @@ class Vehicle extends Equatable {
       acceptLocation = false;
     }
 
+    double? nextOdometer = incoming.odometer;
+    double? nextTodayDistanceKm = incoming.todayDistanceKm;
+
     if (acceptLocation && latitude != null && longitude != null && incoming.latitude != null && incoming.longitude != null && lastPacketAt != null) {
       final double lat1 = latitude! * math.pi / 180;
       final double lon1 = longitude! * math.pi / 180;
@@ -736,6 +739,19 @@ class Vehicle extends Equatable {
       } else if (distanceMeters > 50) {
         acceptLocation = false;
       }
+
+      if (acceptLocation && distanceMeters > 0 && incoming.odometer == null) {
+        final double currentSpeed = hasExplicitSpeed ? incoming.speed : (incoming.speed != 0 ? incoming.speed : speed);
+        if (currentSpeed > 2.0) {
+          final double distKm = distanceMeters / 1000.0;
+          if (odometer != null) {
+            nextOdometer = odometer! + distKm;
+          }
+          if (todayDistanceKm != null && incoming.todayDistanceKm == null) {
+            nextTodayDistanceKm = todayDistanceKm! + distKm;
+          }
+        }
+      }
     }
 
     final Vehicle mergedDraft = copyWith(
@@ -745,14 +761,14 @@ class Vehicle extends Equatable {
       heading: incoming.heading != 0 ? incoming.heading : heading,
       ignition: hasExplicitIgnition ? incoming.ignition : ignition,
       isMoving: hasExplicitMotion ? incoming.isMoving : isMoving,
-      odometer: incoming.odometer ?? odometer,
+      odometer: nextOdometer ?? odometer,
       fuelLevel: (incoming.fuelLevel != null && incoming.fuelLevel! >= 0) ? incoming.fuelLevel : fuelLevel,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
       gsmSignal: incoming.gsmSignal ?? gsmSignal,
       satellites: incoming.satellites ?? satellites,
       address: incoming.address ?? address,
       lastPacketAt: incoming.lastPacketAt ?? (hasExplicitSpeed || hasExplicitMotion || incoming.latitude != null ? DateTime.now() : lastPacketAt),
-      todayDistanceKm: incoming.todayDistanceKm ?? todayDistanceKm,
+      todayDistanceKm: nextTodayDistanceKm ?? todayDistanceKm,
       rawStatus: incoming.rawStatus ?? rawStatus,
       raw: <String, dynamic>{...raw, ...frame},
     );

@@ -60,21 +60,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // ── Header ─────────────────────────────────────────────
             SliverAppBar(
               pinned: true,
-              expandedHeight: 90,
+              expandedHeight: 80 + MediaQuery.paddingOf(context).top,
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.lg,
               flexibleSpace: FlexibleSpaceBar(
                 background: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        Gap.lg, Gap.md, Gap.lg, 0),
+                    padding:
+                        const EdgeInsets.fromLTRB(Gap.lg, Gap.md, 110.0, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Text(
                           _greeting(name),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
@@ -101,9 +103,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 const SizedBox(width: Gap.sm),
                 IconButton(
                   tooltip: 'Search fleet',
-                  icon: Icon(_searchOpen
-                      ? Icons.close_rounded
-                      : Icons.search_rounded),
+                  icon: Icon(
+                      _searchOpen ? Icons.close_rounded : Icons.search_rounded),
                   onPressed: () {
                     setState(() => _searchOpen = !_searchOpen);
                     if (!_searchOpen) {

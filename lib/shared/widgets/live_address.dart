@@ -72,7 +72,7 @@ class _LiveAddressState extends State<LiveAddress> {
     return Text(
       _resolvedAddress != null
           ? Fmt.address(_resolvedAddress, max: widget.max)
-          : (widget.vehicle.hasLocation ? 'Resolving address...' : 'Location unavailable'),
+          : (widget.vehicle.hasLocation ? '...' : 'Location unavailable'),
       maxLines: widget.max == 9999 ? null : 2,
       overflow: widget.max == 9999 ? TextOverflow.visible : TextOverflow.ellipsis,
       style: widget.style,

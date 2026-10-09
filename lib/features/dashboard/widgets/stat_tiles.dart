@@ -59,7 +59,9 @@ class FleetOverviewCard extends ConsumerWidget {
                         fontSize: 11,
                         letterSpacing: 2.0,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF8B92A2),
+                        color: isDark
+                            ? const Color(0xFF64748B)
+                            : const Color(0xFF8B92A2),
                       ),
                     ),
                     const SizedBox(height: Gap.sm),
@@ -71,7 +73,9 @@ class FleetOverviewCard extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 38,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : const Color(0xFF1E2432),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1E2432),
                             ),
                           ),
                           const WidgetSpan(child: SizedBox(width: Gap.xs)),
@@ -80,7 +84,9 @@ class FleetOverviewCard extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF8B92A2),
+                              color: isDark
+                                  ? const Color(0xFF64748B)
+                                  : const Color(0xFF8B92A2),
                             ),
                           ),
                         ],
@@ -92,7 +98,7 @@ class FleetOverviewCard extends ConsumerWidget {
                 ),
               ),
               _OnlineRing(
-                percent: stats.onlinePercent, 
+                percent: stats.onlinePercent,
                 online: stats.online,
                 isDark: isDark,
               ),
@@ -102,56 +108,123 @@ class FleetOverviewCard extends ConsumerWidget {
           // Proportional composition bar.
           _CompositionBar(stats: stats),
           const SizedBox(height: Gap.md),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _StatusTile(
-                  label: 'Moving',
-                  count: stats.moving,
-                  color: AppColors.moving,
-                  icon: Icons.arrow_upward_rounded,
-                  selected: active == VehicleStatus.moving,
-                  onTap: () => _toggle(ref, VehicleStatus.moving),
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: Gap.sm),
-              Expanded(
-                child: _StatusTile(
-                  label: 'Idle',
-                  count: stats.idle,
-                  color: AppColors.idle,
-                  icon: Icons.hourglass_empty_rounded,
-                  selected: active == VehicleStatus.idle,
-                  onTap: () => _toggle(ref, VehicleStatus.idle),
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: Gap.sm),
-              Expanded(
-                child: _StatusTile(
-                  label: 'Stopped',
-                  count: stats.stopped,
-                  color: AppColors.stopped,
-                  icon: Icons.local_parking_rounded,
-                  selected: active == VehicleStatus.stopped,
-                  onTap: () => _toggle(ref, VehicleStatus.stopped),
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: Gap.sm),
-              Expanded(
-                child: _StatusTile(
-                  label: 'Offline',
-                  count: stats.offline,
-                  color: AppColors.offline,
-                  icon: Icons.cloud_off_rounded,
-                  selected: active == VehicleStatus.offline,
-                  onTap: () => _toggle(ref, VehicleStatus.offline),
-                  isDark: isDark,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  children: [
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _StatusTile(
+                            label: 'Moving',
+                            count: stats.moving,
+                            color: AppColors.moving,
+                            icon: Icons.arrow_upward_rounded,
+                            selected: active == VehicleStatus.moving,
+                            onTap: () => _toggle(ref, VehicleStatus.moving),
+                            isDark: isDark,
+                          ),
+                        ),
+                        const SizedBox(width: Gap.sm),
+                        Expanded(
+                          child: _StatusTile(
+                            label: 'Idle',
+                            count: stats.idle,
+                            color: AppColors.idle,
+                            icon: Icons.hourglass_empty_rounded,
+                            selected: active == VehicleStatus.idle,
+                            onTap: () => _toggle(ref, VehicleStatus.idle),
+                            isDark: isDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Gap.sm),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _StatusTile(
+                            label: 'Stopped',
+                            count: stats.stopped,
+                            color: AppColors.stopped,
+                            icon: Icons.local_parking_rounded,
+                            selected: active == VehicleStatus.stopped,
+                            onTap: () => _toggle(ref, VehicleStatus.stopped),
+                            isDark: isDark,
+                          ),
+                        ),
+                        const SizedBox(width: Gap.sm),
+                        Expanded(
+                          child: _StatusTile(
+                            label: 'Offline',
+                            count: stats.offline,
+                            color: AppColors.offline,
+                            icon: Icons.cloud_off_rounded,
+                            selected: active == VehicleStatus.offline,
+                            onTap: () => _toggle(ref, VehicleStatus.offline),
+                            isDark: isDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              
+              // Normal Wide Layout
+              return Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _StatusTile(
+                      label: 'Moving',
+                      count: stats.moving,
+                      color: AppColors.moving,
+                      icon: Icons.arrow_upward_rounded,
+                      selected: active == VehicleStatus.moving,
+                      onTap: () => _toggle(ref, VehicleStatus.moving),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: Gap.sm),
+                  Expanded(
+                    child: _StatusTile(
+                      label: 'Idle',
+                      count: stats.idle,
+                      color: AppColors.idle,
+                      icon: Icons.hourglass_empty_rounded,
+                      selected: active == VehicleStatus.idle,
+                      onTap: () => _toggle(ref, VehicleStatus.idle),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: Gap.sm),
+                  Expanded(
+                    child: _StatusTile(
+                      label: 'Stopped',
+                      count: stats.stopped,
+                      color: AppColors.stopped,
+                      icon: Icons.local_parking_rounded,
+                      selected: active == VehicleStatus.stopped,
+                      onTap: () => _toggle(ref, VehicleStatus.stopped),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: Gap.sm),
+                  Expanded(
+                    child: _StatusTile(
+                      label: 'Offline',
+                      count: stats.offline,
+                      color: AppColors.offline,
+                      icon: Icons.cloud_off_rounded,
+                      selected: active == VehicleStatus.offline,
+                      onTap: () => _toggle(ref, VehicleStatus.offline),
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -214,7 +287,7 @@ class _CompositionBar extends StatelessWidget {
 
 class _OnlineRing extends StatelessWidget {
   const _OnlineRing({
-    required this.percent, 
+    required this.percent,
     required this.online,
     required this.isDark,
   });
@@ -236,7 +309,8 @@ class _OnlineRing extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF10B981).withOpacity(isDark ? 0.15 : 0.08),
+                  color:
+                      const Color(0xFF10B981).withOpacity(isDark ? 0.15 : 0.08),
                   blurRadius: 15,
                   spreadRadius: 2,
                 ),
@@ -255,8 +329,10 @@ class _OnlineRing extends StatelessWidget {
                 value: v,
                 strokeWidth: 6,
                 strokeCap: StrokeCap.round,
-                backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                backgroundColor:
+                    isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
               ),
             ),
           ),
@@ -344,13 +420,16 @@ class _StatusTile extends StatelessWidget {
             splashColor: color.withOpacity(0.2),
             highlightColor: color.withOpacity(0.1),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
               child: Column(
                 children: <Widget>[
                   Icon(
-                    icon, 
-                    size: 20, 
-                    color: selected ? color : (isDark ? color.withOpacity(0.8) : color),
+                    icon,
+                    size: 20,
+                    color: selected
+                        ? color
+                        : (isDark ? color.withOpacity(0.8) : color),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -367,7 +446,11 @@ class _StatusTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       letterSpacing: 0.2,
-                      color: selected ? color : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      color: selected
+                          ? color
+                          : (isDark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF64748B)),
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),

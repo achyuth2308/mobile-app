@@ -19,8 +19,11 @@ import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/fleet_provider.dart';
+import '../../../providers/route_provider.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
+import '../../../core/utils/polyline_simplifier.dart';
+import '../../../data/models/route.dart';
 
 
 /// Stoppage / parking event along a historical route.
@@ -111,12 +114,16 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   List<LatLng> _allLatLng = <LatLng>[];
   List<Polyline<Object>> _cachedGhostSegments = <Polyline<Object>>[];
   List<bool> _pointGaps = <bool>[];
+  List<double> _cumulativeDistances = <double>[];
   List<StoppageEvent> _stoppages = <StoppageEvent>[];
   int _overspeedCount = 0;
   bool _loading = false;
   String? _error;
 
   double _playbackProgress = 0.0;
+  final ValueNotifier<double> _progressNotifier = ValueNotifier<double>(0.0);
+  Widget? _tileLayer;
+  Widget? _ghostPolylineLayer;
   bool _playing = false;
   bool _hasStartedPlayback = false;
   double _speedMultiplier = 1;
@@ -341,11 +348,19 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         strokeWidth: 3.5,
       );
 
+      final List<double> dists = List<double>.filled(cachedLatLng.length, 0.0);
+      double currentDist = 0.0;
+      for (int i = 1; i < cachedLatLng.length; i++) {
+        currentDist += distanceCalc(cachedLatLng[i - 1], cachedLatLng[i]);
+        dists[i] = currentDist;
+      }
+
       setState(() {
         _points = cleanPoints;
         _allLatLng = cachedLatLng;
         _cachedGhostSegments = ghostSegs;
         _pointGaps = gaps;
+        _cumulativeDistances = dists;
         _stoppages = computedStops;
         _overspeedCount = calculatedOverspeeds;
         _playbackProgress = 0.0;
@@ -362,6 +377,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         setState(() {
           _loading = false;
         });
+        if (_points.isNotEmpty && !_playing) {
+          _togglePlay();
+        }
       }
     } catch (e, stack) {
       debugPrint('Error in _load: $e\n$stack');
@@ -450,15 +468,16 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     // Smooth constant progression step per VSYNC frame (60/120Hz)
     final double step = deltaSec * 1.2 * _effectiveSpeedMultiplier;
 
-    setState(() {
-      _playbackProgress += step;
-      if (_playbackProgress >= _points.length - 1) {
-        _playbackProgress = (_points.length - 1).toDouble();
+    _playbackProgress += step;
+    if (_playbackProgress >= _points.length - 1) {
+      _playbackProgress = (_points.length - 1).toDouble();
+      setState(() {
         _playing = false;
         _animController.stop();
         _lastTickTime = null;
-      }
-    });
+      });
+    }
+    _progressNotifier.value = _playbackProgress;
 
     if (_isCurrentlyStopped) {
       final StoppageEvent? s = _currentStoppage;
@@ -532,17 +551,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   /// Cumulative distance in km from first point to current progress.
   double get _distanceCovered {
     if (_points.length < 2 || _playbackProgress == 0) return 0;
-    double totalMeters = 0;
-    const Distance calc = Distance();
     final int idx = _playbackProgress.floor().clamp(0, _points.length - 1);
-    for (int i = 1; i <= idx && i < _points.length; i++) {
-      totalMeters += calc(
-        _points[i - 1].latLng,
-        _points[i].latLng,
-      );
-    }
-    // Also add the small interpolated slice to the current position
+    
+    // O(1) lookup from precalculated array
+    double totalMeters = idx < _cumulativeDistances.length ? _cumulativeDistances[idx] : 0;
+    
+    // Add the interpolated fraction
     if (idx < _points.length - 1) {
+      const Distance calc = Distance();
       totalMeters += calc(
         _points[idx].latLng,
         _currentPoint.latLng,
@@ -634,6 +650,11 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
     final vehicle = ref.watch(vehicleByIdProvider(widget.vehicleId));
     
+    _tileLayer ??= buildTileLayer(
+      MapStyleX.fromKey(mapTypeKey),
+      apiKey: ref.read(authProvider).user?.apiKey,
+    );
+
     return Stack(
       children: <Widget>[
         // MAP
@@ -662,12 +683,19 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             },
           ),
           children: <Widget>[
-            buildTileLayer(
-              MapStyleX.fromKey(ref.read(secureStoreProvider).mapType),
-              apiKey: ref.read(authProvider).user?.apiKey,
+            _tileLayer!,
+            ValueListenableBuilder<double>(
+              valueListenable: _progressNotifier,
+              builder: (context, _, __) {
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_points.length >= 2) ..._routeLayers(theme),
+                    MarkerLayer(markers: _routeMarkers(theme)),
+                  ],
+                );
+              },
             ),
-            if (_points.length >= 2) ..._routeLayers(theme),
-            MarkerLayer(markers: _routeMarkers(theme)),
             Align(
               alignment: Alignment.bottomRight,
               child: OsmAttribution(
@@ -777,6 +805,33 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               ),
               
               const Spacer(),
+
+              // SET AS ROUTE BUTTON PILL (Right-Center)
+              if (_points.isNotEmpty && !_loading)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(100),
+                  child: BackdropFilter(
+                    filter: dart_ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: isDarkMap ? Colors.black.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDarkMap ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.route_rounded,
+                          color: isDarkMap ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF1E293B),
+                        ),
+                        tooltip: 'Set as Route',
+                        onPressed: _showSaveRouteDialog,
+                      ),
+                    ),
+                  ),
+                ),
               
               // CALENDAR BUTTON PILL (Right)
               ClipRRect(
@@ -807,81 +862,91 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
           ),
         ),
 
-        // FLOATING INFO CARD
+        // DYNAMIC FLOATING UI ELEMENTS (Wrapped in ValueListenableBuilder for 60fps)
         if (_points.isNotEmpty && !_loading)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + Gap.md + 64 + Gap.md,
-            left: Gap.md,
-            right: Gap.md,
-            child: _PlaybackFloatingCard(
-              point: _currentPoint,
-              distKm: _distanceCovered,
-              playing: _playing,
-              overspeedCount: _overspeedCount,
-              stoppageCount: _stoppages.length,
-            ),
-          ),
-          
-        // SPEEDOMETER (Animated Reveal)
-        if (_points.isNotEmpty && !_loading)
-          Positioned(
-            bottom: Gap.md + 80 + Gap.md, // Above the playback controls
-            left: Gap.md,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 500),
-              opacity: _hasStartedPlayback ? 1.0 : 0.0,
-              child: _SpeedGauge(speed: _currentPoint.speed),
-            ),
-          ),
+          Positioned.fill(
+            child: ValueListenableBuilder<double>(
+              valueListenable: _progressNotifier,
+              builder: (context, _, __) {
+                return Stack(
+                  children: [
+                    // FLOATING INFO CARD
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + Gap.md + 64 + Gap.md,
+                      left: Gap.md,
+                      right: Gap.md,
+                      child: _PlaybackFloatingCard(
+                        point: _currentPoint,
+                        distKm: _distanceCovered,
+                        playing: _playing,
+                        overspeedCount: _overspeedCount,
+                        stoppageCount: _stoppages.length,
+                      ),
+                    ),
+                    
+                    // SPEEDOMETER (Animated Reveal)
+                    Positioned(
+                      bottom: Gap.md + 80 + Gap.md, // Above the playback controls
+                      left: Gap.md,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 500),
+                        opacity: _hasStartedPlayback ? 1.0 : 0.0,
+                        child: _SpeedGauge(speed: _currentPoint.speed),
+                      ),
+                    ),
 
-        // BOTTOM CONTROLS & STOPPAGE
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Gap.md),
-                  child: _ActiveStoppageBottomCard(
-                    point: _currentPoint,
-                    stoppage: _currentStoppage,
-                  ),
-                ),
-              if (_points.isNotEmpty && !_loading && _isCurrentlyStopped)
-                const SizedBox(height: Gap.md),
-              if (_points.isNotEmpty && !_loading)
-                _PlaybackControls(
-                  index: _playbackProgress.round().clamp(0, _points.length - 1),
-                  total: _points.length,
-                  playing: _playing,
-                  speed: _speedMultiplier,
-                  isDarkMap: isDarkMap,
-                  points: _points,
-                  onSeek: (double v) {
-                    setState(() {
-                      _playbackProgress = v;
-                      _lastEncounteredStoppage = null;
-                      _stoppagePauseRemaining = 0.0;
-                    });
-                  },
-                  onSeekEnd: _followCamera,
-                  onTogglePlay: _togglePlay,
-                  onSpeedChange: (double s) {
-                    setState(() => _speedMultiplier = s);
-                  },
-                  onRestart: () {
-                    setState(() {
-                      _playbackProgress = 0.0;
-                      _playing = false;
-                    });
-                  },
-                ),
-            ],
+                    // BOTTOM CONTROLS & STOPPAGE
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isCurrentlyStopped)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: Gap.md),
+                              child: _ActiveStoppageBottomCard(
+                                point: _currentPoint,
+                                stoppage: _currentStoppage,
+                              ),
+                            ),
+                          if (_isCurrentlyStopped)
+                            const SizedBox(height: Gap.md),
+                          _PlaybackControls(
+                            index: _playbackProgress.round().clamp(0, _points.length - 1),
+                            total: _points.length,
+                            playing: _playing,
+                            speed: _speedMultiplier,
+                            isDarkMap: isDarkMap,
+                            points: _points,
+                            onSeek: (double v) {
+                              _playbackProgress = v;
+                              _lastEncounteredStoppage = null;
+                              _stoppagePauseRemaining = 0.0;
+                              _progressNotifier.value = _playbackProgress;
+                            },
+                            onSeekEnd: _followCamera,
+                            onTogglePlay: _togglePlay,
+                            onSpeedChange: (double s) {
+                              setState(() => _speedMultiplier = s);
+                            },
+                            onRestart: () {
+                              setState(() {
+                                _playbackProgress = 0.0;
+                                _playing = false;
+                                _progressNotifier.value = _playbackProgress;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
         // SELECTION SCREEN OVERLAY
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 600),
@@ -999,8 +1064,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       ));
     }
 
+    _ghostPolylineLayer ??= PolylineLayer<Object>(polylines: _cachedGhostSegments);
+
     return <Widget>[
-      PolylineLayer<Object>(polylines: _cachedGhostSegments),
+      _ghostPolylineLayer!,
       PolylineLayer<Object>(polylines: travelledSegments),
     ];
   }
@@ -1255,6 +1322,107 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         ),
       ),
       ),
+    );
+  }
+
+  void _showSaveRouteDialog() {
+    final TextEditingController nameCtrl = TextEditingController(text: 'History Route - ${_formatDateShort(_range.start)}');
+    double tolerance = 100;
+    
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('Set as Route (Compressed)'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Compresses massive history using the Douglas-Peucker algorithm to guarantee zero server bottleneck!'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Route Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text('Deviation Tolerance: ${tolerance.round()} meters'),
+                  Slider(
+                    value: tolerance,
+                    min: 100,
+                    max: 1000,
+                    divisions: 9,
+                    label: '${tolerance.round()} m',
+                    onChanged: (double val) => setState(() => tolerance = val),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    if (nameCtrl.text.trim().isEmpty) return;
+                    Navigator.pop(context);
+                    
+                    try {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Compressing route...')),
+                      );
+                      
+                      // 1. Extract GPS coordinates
+                      final List<List<double>> rawCoords = _allLatLng
+                          .map((LatLng pt) => <double>[pt.latitude, pt.longitude])
+                          .toList(growable: false);
+                          
+                      // 2. Compress via PolylineSimplifier (10 meters epsilon is perfect for highways)
+                      final List<List<double>> compressedCoords = PolylineSimplifier.simplify(rawCoords, 10.0);
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Compressed ${rawCoords.length} points to ${compressedCoords.length} points! Saving...')),
+                      );
+                      
+                      // 3. Save to backend via route repository
+                      final AppRoute newRoute = AppRoute(
+                        id: 'temp_${DateTime.now().millisecondsSinceEpoch}', 
+                        name: nameCtrl.text.trim(),
+                        coordinates: compressedCoords.map((c) => LatLng(c[0], c[1])).toList(),
+                        toleranceMeters: tolerance,
+                        isActive: true,
+                        createdAt: DateTime.now(),
+                      );
+                      
+                      await ref.read(routeRepositoryProvider).createRoute(newRoute);
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Route created successfully! It is now available in Routes menu.'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Save & Compress'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1611,12 +1779,20 @@ class _PlaybackMarkerState extends State<_PlaybackMarker> {
   }
 
   void _resolveAddress() {
-    if (widget.point.address != null &&
-        widget.point.address!.trim().isNotEmpty) {
-      setState(() => _address = widget.point.address);
-      return;
+    if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
+      if (!widget.point.address!.endsWith('...') && !widget.point.address!.endsWith('…')) {
+        setState(() => _address = widget.point.address);
+        return;
+      }
     }
-    if (_address == null) setState(() => _address = 'Locating...');
+    
+    String? cleanAddr = widget.point.address?.replaceAll('...', '').replaceAll('…', '').trim();
+    if (cleanAddr != null && cleanAddr.isEmpty) cleanAddr = null;
+    
+    if (cleanAddr != null) {
+      setState(() => _address = cleanAddr);
+    }
+
     final TrackPoint snap = widget.point;
     Geocoder.getAddress(snap.latitude, snap.longitude).then((String a) {
       if (mounted && widget.point == snap && a != 'Location unavailable') {
@@ -1858,7 +2034,15 @@ class _PlaybackControls extends StatefulWidget {
 }
 
 class _PlaybackControlsState extends State<_PlaybackControls> {
-  bool _isExpanded = false;
+  late bool _isExpanded = widget.playing;
+
+  @override
+  void didUpdateWidget(covariant _PlaybackControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playing && !oldWidget.playing && !_isExpanded) {
+      _isExpanded = true;
+    }
+  }
 
   String _formatTime(DateTime dt) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
@@ -2094,34 +2278,42 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   void didUpdateWidget(covariant _PlaybackFloatingCard old) {
     super.didUpdateWidget(old);
 
-    if (widget.point.address != null &&
-        widget.point.address!.trim().isNotEmpty) {
-      _debounce?.cancel();
+    if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
       if (_address != widget.point.address) {
         setState(() => _address = widget.point.address);
       }
-      return;
-    }
-
-    if (widget.playing) {
-      return;
+      if (!widget.point.address!.endsWith('...') && !widget.point.address!.endsWith('…')) {
+        _debounce?.cancel();
+        return;
+      }
     }
 
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), () {
-      if (mounted && !widget.playing) _resolveAddress();
+    // Use a small 100ms debounce to avoid spamming if dragging the slider very fast,
+    // but fetch dynamically during normal fast playback without pausing.
+    _debounce = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) _resolveAddress();
     });
   }
 
   void _resolveAddress() {
-    if (widget.point.address != null &&
-        widget.point.address!.trim().isNotEmpty) {
-      setState(() => _address = widget.point.address);
-      return;
+    bool needsFetch = true;
+    if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
+      if (!widget.point.address!.endsWith('...') && !widget.point.address!.endsWith('…')) {
+        needsFetch = false;
+      }
     }
-    if (_address == null) {
-      setState(() => _address = 'Locating...');
+    
+    // Show the address without the trailing dots immediately
+    String? cleanAddr = widget.point.address?.replaceAll('...', '').replaceAll('…', '').trim();
+    if (cleanAddr != null && cleanAddr.isEmpty) cleanAddr = null;
+    
+    if (cleanAddr != null) {
+      setState(() => _address = cleanAddr);
     }
+
+    if (!needsFetch) return;
+
     final int currentId = ++_lastRequestId;
     final TrackPoint snap = widget.point;
     Geocoder.getAddress(snap.latitude, snap.longitude).then((String a) {
@@ -2281,9 +2473,9 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _address ?? 'Locating...',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            _address ?? '...',
+                            maxLines: null,
+                            overflow: TextOverflow.visible,
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF0F172A),
@@ -2361,13 +2553,25 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
   }
 
   void _fetchAddress() {
+    bool needsFetch = true;
     if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
-      setState(() => _address = widget.point.address);
-      return;
+      if (!widget.point.address!.endsWith('...') && !widget.point.address!.endsWith('…')) {
+        needsFetch = false;
+      }
     }
+    
+    String? cleanAddr = widget.point.address?.replaceAll('...', '').replaceAll('…', '').trim();
+    if (cleanAddr != null && cleanAddr.isEmpty) cleanAddr = null;
+    
+    if (cleanAddr != null) {
+      setState(() => _address = cleanAddr);
+    }
+
+    if (!needsFetch) return;
+
     final int req = ++_lastReqId;
     Geocoder.getAddress(widget.point.latitude, widget.point.longitude).then((String addr) {
-      if (mounted && req == _lastReqId) {
+      if (mounted && req == _lastReqId && addr != 'Location unavailable') {
         setState(() => _address = addr);
       }
     });
@@ -2502,7 +2706,7 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  _address ?? 'Locating...',
+                                  _address ?? '...',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     color: Colors.black87,

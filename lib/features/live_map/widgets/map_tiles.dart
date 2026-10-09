@@ -79,11 +79,11 @@ extension MapStyleX on MapStyle {
         MapStyle.google => const <String>['mt0', 'mt1', 'mt2', 'mt3'],
       };
 
-  /// Max zoom the source serves.
+  /// Max zoom the source serves reliably everywhere.
   double get maxZoom => switch (this) {
-        MapStyle.satellite => 20,
-        MapStyle.google => 20,
-        _ => 19,
+        MapStyle.satellite => 18,
+        MapStyle.google => 18,
+        _ => 18,
       };
 
   String get attribution => switch (this) {
@@ -120,6 +120,7 @@ TileLayer buildTileLayer(MapStyle style, {bool retina = false, String? apiKey}) 
     tileUpdateTransformer: TileUpdateTransformers.throttle(
       const Duration(milliseconds: 60),
     ),
+    tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 350)),
     errorTileCallback: (TileImage tile, Object error, StackTrace? _) {
       // Silent: network glitches on a single tile never surface as an app error.
     },

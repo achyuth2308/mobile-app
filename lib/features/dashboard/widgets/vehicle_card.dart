@@ -205,7 +205,6 @@ class VehicleCard extends ConsumerWidget {
                                           : 'N/A',
                                       dotColor: Colors.cyan,
                                     ),
-
                                     const SizedBox(height: 12),
                                     Wrap(
                                       spacing: 8,
@@ -275,7 +274,6 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor:
                                           const Color(0xFF4CAF50), // Green
                                     ),
-
                                   ],
                                 ),
                               ),
