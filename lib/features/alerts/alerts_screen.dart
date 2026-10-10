@@ -938,7 +938,7 @@ class AlertTile extends StatelessWidget {
                                             ),
                                           ),
                                           TextSpan(
-                                            text: Fmt.full(alert.createdAt),
+                                            text: Fmt.full(alert.calculatedStartTime),
                                             style: theme.textTheme.labelSmall?.copyWith(
                                               fontWeight: FontWeight.w600,
                                             ),
