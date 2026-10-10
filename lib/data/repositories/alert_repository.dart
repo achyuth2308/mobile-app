@@ -41,7 +41,10 @@ class AlertRepository {
 
       return asMapList(res)
           .map(FleetAlert.fromJson)
-          .where((FleetAlert a) => a.id.isNotEmpty && !deletedIds.contains(a.id))
+          .where((FleetAlert a) =>
+              a.id.isNotEmpty &&
+              !deletedIds.contains(a.id) &&
+              a.type.toLowerCase().trim() != 'stoppage')
           .toList(growable: false);
     } catch (_) {
       return const <FleetAlert>[];

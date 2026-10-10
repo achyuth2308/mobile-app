@@ -65,8 +65,10 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   }
 
   bool _matchesFilter(FleetAlert alert, String? filter) {
-    if (filter == null || filter.isEmpty) return true;
     final String type = alert.type.toLowerCase().trim();
+    if (type == 'stoppage' || alert.title.toLowerCase().contains('stoppage')) return false;
+    if (filter == null || filter.isEmpty) return true;
+
     final String title = alert.title.toLowerCase();
     final String message = alert.message.toLowerCase();
 
@@ -108,13 +110,11 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
             type == 'trip_start' ||
             type == 'stopped' ||
             type == 'idle' ||
-            type == 'stoppage' ||
             title.contains('ignition') ||
             title.contains('trip') ||
             title.contains('moving') ||
             title.contains('stopped') ||
             title.contains('idle') ||
-            title.contains('stoppage') ||
             message.contains('trip') ||
             message.contains('started'),
       'power' || 'power_cut' || 'battery' =>
@@ -938,7 +938,7 @@ class AlertTile extends StatelessWidget {
                                             ),
                                           ),
                                           TextSpan(
-                                            text: Fmt.full(alert.calculatedStartTime),
+                                            text: Fmt.full(alert.createdAt),
                                             style: theme.textTheme.labelSmall?.copyWith(
                                               fontWeight: FontWeight.w600,
                                             ),

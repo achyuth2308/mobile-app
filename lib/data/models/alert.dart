@@ -51,26 +51,12 @@ class FleetAlert extends Equatable {
     return extractDurationFromText(message);
   }
 
-  /// Calculated start time of a stoppage/parking event.
-  /// If the alert event was emitted at the end of stoppage (when Ignition turned ON),
-  /// start time = createdAt - duration.
-  DateTime? get calculatedStartTime {
-    if (createdAt == null) return null;
-    if (endTime != null && createdAt != null && endTime != createdAt) {
-      return createdAt;
-    }
-    final int? mins = effectiveDurationMinutes;
-    if (mins != null && mins > 0) {
-      return createdAt!.subtract(Duration(minutes: mins));
-    }
-    return createdAt;
-  }
-
-  /// Calculated end time of a stoppage/parking event.
+  /// Calculated end time derived from explicit endTime or createdAt + effectiveDurationMinutes.
   DateTime? get calculatedEndTime {
     if (endTime != null) return endTime;
-    if (effectiveDurationMinutes != null && effectiveDurationMinutes! > 0) {
-      return createdAt;
+    final int? mins = effectiveDurationMinutes;
+    if (mins != null && mins > 0 && createdAt != null) {
+      return createdAt!.add(Duration(minutes: mins));
     }
     return null;
   }
