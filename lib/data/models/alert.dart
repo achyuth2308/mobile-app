@@ -44,15 +44,51 @@ class FleetAlert extends Equatable {
 
   bool get hasLocation => latitude != null && longitude != null;
 
-  /// Formatted duration string for stoppage alerts (e.g. "1 hr", "2 hrs", "3 hrs")
-  String get formattedStoppageDuration {
-    if (durationMinutes == null || durationMinutes! <= 0) return '1 hr';
-    final int hrs = durationMinutes! ~/ 60;
-    final int remMins = durationMinutes! % 60;
-    if (hrs >= 1) {
-      return remMins > 0 ? '${hrs} hr ${remMins}m' : '${hrs} hr${hrs > 1 ? 's' : ''}';
+  /// Effective duration in minutes derived from durationMinutes, endTime-createdAt, or message text.
+  int? get effectiveDurationMinutes {
+    if (durationMinutes != null && durationMinutes! > 0) return durationMinutes;
+    if (endTime != null && createdAt != null) return endTime!.difference(createdAt!).inMinutes;
+    return extractDurationFromText(message);
+  }
+
+  /// Calculated end time derived from explicit endTime or createdAt + effectiveDurationMinutes.
+  DateTime? get calculatedEndTime {
+    if (endTime != null) return endTime;
+    final int? mins = effectiveDurationMinutes;
+    if (mins != null && mins > 0 && createdAt != null) {
+      return createdAt!.add(Duration(minutes: mins));
     }
-    return '${durationMinutes!} mins';
+    return null;
+  }
+
+  /// Formatted duration string for stoppage/parking/idle alerts
+  String? get formattedStoppageDuration {
+    final int? mins = effectiveDurationMinutes;
+    if (mins == null || mins <= 0) return null;
+
+    final int hrs = mins ~/ 60;
+    final int remMins = mins % 60;
+    if (hrs >= 1) {
+      return remMins > 0 ? '$hrs hr ${remMins}m' : '$hrs hr${hrs > 1 ? 's' : ''}';
+    }
+    return '$mins mins';
+  }
+
+  static int? extractDurationFromText(String text) {
+    if (text.isEmpty) return null;
+    final RegExp reg = RegExp(r'(\d+)\s*(minutes?|mins?|hours?|hrs?)', caseSensitive: false);
+    final Match? match = reg.firstMatch(text);
+    if (match != null) {
+      final int? numVal = int.tryParse(match.group(1) ?? '');
+      final String unit = (match.group(2) ?? '').toLowerCase();
+      if (numVal != null) {
+        if (unit.startsWith('h')) {
+          return numVal * 60;
+        }
+        return numVal;
+      }
+    }
+    return null;
   }
 
   AlertSeverity get severity => switch (type.toLowerCase()) {

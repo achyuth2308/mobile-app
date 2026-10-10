@@ -61,7 +61,6 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   // Stores position of last GPS update for all non-active vehicles
   final Map<String, LatLng> _lastKnownPos = {};
   bool _isUserInteracting = false;
-  bool _showLoadingOverlay = true;
 
   @override
   void didUpdateWidget(UniversalLiveMap oldWidget) {
@@ -103,15 +102,6 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         _lastKnownPos[v.id] = pos;
       }
     }
-    
-    // Give tiles 2.5 seconds to load in the background before revealing the map
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        setState(() {
-          _showLoadingOverlay = false;
-        });
-      }
-    });
   }
 
   /// Records the active vehicle's position as the marker actually animates.
@@ -298,7 +288,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             mapController: widget.mapController,
             options: MapOptions(
               initialCenter: widget.fallbackCenter,
-              initialZoom: 10.5,
+              initialZoom: 16.8,
               minZoom: 2,
               maxZoom: 22.0, // Allow zooming in deeply (tiles will be scaled up by TileLayer)
               backgroundColor: theme.colorScheme.surface,

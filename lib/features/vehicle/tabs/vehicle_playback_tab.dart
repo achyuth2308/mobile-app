@@ -876,6 +876,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       left: Gap.md,
                       right: Gap.md,
                       child: _PlaybackFloatingCard(
+                        key: const ValueKey('playback_floating_card'),
                         point: _currentPoint,
                         distKm: _distanceCovered,
                         playing: _playing,
@@ -891,7 +892,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 500),
                         opacity: _hasStartedPlayback ? 1.0 : 0.0,
-                        child: _SpeedGauge(speed: _currentPoint.speed),
+                        child: _SpeedGauge(
+                          key: const ValueKey('playback_speed_gauge'),
+                          speed: _currentPoint.speed,
+                        ),
                       ),
                     ),
 
@@ -907,6 +911,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: Gap.md),
                               child: _ActiveStoppageBottomCard(
+                                key: const ValueKey('active_stoppage_card'),
                                 point: _currentPoint,
                                 stoppage: _currentStoppage,
                               ),
@@ -914,6 +919,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                           if (_isCurrentlyStopped)
                             const SizedBox(height: Gap.md),
                           _PlaybackControls(
+                            key: const ValueKey('playback_controls_bar'),
                             index: _playbackProgress.round().clamp(0, _points.length - 1),
                             total: _points.length,
                             playing: _playing,
@@ -1616,7 +1622,7 @@ class _RouteEndpoint extends StatelessWidget {
 
 /// Circular speed gauge — mirrors the web app's bottom-left speedometer.
 class _SpeedGauge extends StatelessWidget {
-  const _SpeedGauge({required this.speed});
+  const _SpeedGauge({super.key, required this.speed});
 
   final double speed;
 
@@ -2004,6 +2010,7 @@ class _TrianglePainter extends CustomPainter {
 
 class _PlaybackControls extends StatefulWidget {
   const _PlaybackControls({
+    super.key,
     required this.index,
     required this.total,
     required this.playing,
@@ -2240,6 +2247,7 @@ class _FlagPin extends StatelessWidget {
 
 class _PlaybackFloatingCard extends StatefulWidget {
   const _PlaybackFloatingCard({
+    super.key,
     required this.point,
     required this.distKm,
     required this.playing,
@@ -2380,30 +2388,31 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                             Text(
                               timeStr,
                               style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
                                 color: Color(0xFF1E293B),
                                 height: 1.2,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               dateStr,
                               style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF1E293B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF64748B),
                                 height: 1.2,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
                         Container(
                           width: 1,
-                          height: 44,
-                          color: const Color.fromRGBO(0, 0, 0, 0.15),
+                          height: 32,
+                          color: const Color.fromRGBO(0, 0, 0, 0.12),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
                         // Speed & Direction
                         Expanded(
                           child: Column(
@@ -2416,8 +2425,8 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                                     TextSpan(
                                       text: '$spd ',
                                       style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
                                         color: Color(0xFF1E293B),
                                         height: 1.2,
                                       ),
@@ -2425,21 +2434,22 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                                     const TextSpan(
                                       text: 'km/h',
                                       style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w400,
-                                        color: Color(0xFF1E293B),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF64748B),
                                         height: 1.2,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 _getDirection(p.heading),
                                 style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF1E293B),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF64748B),
                                   height: 1.2,
                                 ),
                               ),
@@ -2452,7 +2462,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                           child: const Icon(
                             Icons.navigation,
                             color: Color(0xFF0284C7),
-                            size: 24,
+                            size: 18,
                           ),
                         ),
                       ],
@@ -2477,23 +2487,24 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                             maxLines: null,
                             overflow: TextOverflow.visible,
                             style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF0F172A),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1E293B),
                               height: 1.3,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     // Vehicle Info
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         const Icon(
                           Icons.speed,
-                          size: 16,
-                          color: Color(0xFF0F172A),
+                          size: 14,
+                          color: Color(0xFF64748B),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -2502,8 +2513,9 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF0F172A),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
                             ),
                           ),
                         ),
@@ -2522,6 +2534,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
 /// Active Stoppage Bottom Card (Full width bottom sheet style)
 class _ActiveStoppageBottomCard extends StatefulWidget {
   const _ActiveStoppageBottomCard({
+    super.key,
     required this.point,
     this.stoppage,
   });

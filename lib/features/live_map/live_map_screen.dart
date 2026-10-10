@@ -18,6 +18,7 @@ import '../../providers/fleet_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/glass_card.dart';
+import '../../core/utils/share_helper.dart';
 import 'providers/live_map_providers.dart';
 import 'widgets/stoppage_detail_card.dart';
 import 'widgets/vehicle_peek_sheet.dart';
@@ -129,7 +130,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _map.move(target, zoom ?? _map.camera.zoom);
   }
 
-  void _focusVehicle(String? vehicleId, {double zoom = 14.5}) {
+  void _focusVehicle(String? vehicleId, {double zoom = 16.8}) {
     if (vehicleId == null || vehicleId.isEmpty) return;
     _pendingFocusId = vehicleId;
 
@@ -162,7 +163,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (located.length == 1) {
       _move(
         LatLng(located.first.latitude!, located.first.longitude!),
-        zoom: 14.5,
+        zoom: 16.8,
       );
       return;
     }
@@ -179,7 +180,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     unawaited(HapticFeedback.selectionClick());
     _setFollowingId(v.id);
     setState(() => _selectedId = v.id);
-    _move(LatLng(v.latitude!, v.longitude!));
+    _move(LatLng(v.latitude!, v.longitude!), zoom: 16.8);
   }
 
 
@@ -443,9 +444,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
           if (following != null) 
             DraggableScrollableSheet(
-              initialChildSize: 0.3,
-              minChildSize: 0.1,
-              maxChildSize: 0.6,
+              initialChildSize: 0.32,
+              minChildSize: 0.12,
+              maxChildSize: 0.85,
               builder: (ctx, scrollController) {
                 return VehiclePeekSheet(
                   vehicleId: following.id,
@@ -462,10 +463,28 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ),
 
           Positioned(
-            top: MediaQuery.paddingOf(context).top + 70,
+            top: MediaQuery.paddingOf(context).top + 10,
             right: Gap.lg,
             child: Column(
               children: <Widget>[
+                if (following != null) ...[
+                  // WhatsApp Share Location Button (Green)
+                  Material(
+                    elevation: 4,
+                    shape: const CircleBorder(),
+                    color: const Color(0xFF25D366),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => ShareHelper.shareVehicleLocation(following),
+                      child: const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Icon(Icons.share_rounded, color: Colors.white, size: 22),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Gap.sm),
+                ],
                 _MapButton(
                   icon: Icons.layers_rounded,
                   tooltip: 'Change map style',
@@ -562,46 +581,71 @@ class _MapHeader extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            // Back button with shadow so it's visible over any map
+            // White Circular Back button matching reference image
             Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.black.withOpacity(0.35),
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 icon: const Icon(Icons.arrow_back_rounded,
-                    size: 20, color: Colors.white),
+                    size: 22, color: Color(0xFF0F172A)),
                 onPressed: onStopFollowing,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
 
-            // Vehicle Name — white text with dark shadow for readability
-            Flexible(
-              child: Text(
-                followingName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  shadows: <Shadow>[
-                    Shadow(
-                        color: Colors.black,
-                        blurRadius: 6,
-                        offset: Offset(0, 1)),
-                    Shadow(
-                        color: Colors.black,
-                        blurRadius: 12,
-                        offset: Offset(0, 2)),
-                  ],
+            // Vehicle Name & Trip Details Subtitle
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  followingName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    shadows: <Shadow>[
+                      Shadow(
+                          color: Colors.black,
+                          blurRadius: 6,
+                          offset: Offset(0, 1)),
+                      Shadow(
+                          color: Colors.black,
+                          blurRadius: 12,
+                          offset: Offset(0, 2)),
+                    ],
+                  ),
                 ),
-              ),
+                const Text(
+                  'Trip Details',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    shadows: <Shadow>[
+                      Shadow(
+                          color: Colors.black,
+                          blurRadius: 6,
+                          offset: Offset(0, 1)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

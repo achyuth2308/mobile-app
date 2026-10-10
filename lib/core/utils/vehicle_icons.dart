@@ -20,7 +20,7 @@ class VehicleIcons {
         _ => Icons.directions_car_rounded,
       };
 
-  static IconData forAlert(String type) => switch (type.toLowerCase()) {
+  static IconData forAlert(String type) => switch (type.toLowerCase().trim()) {
         'overspeed' || 'overspeeding' => Icons.speed_rounded,
         'geofence' || 'geofence_enter' || 'geofenceenter' => Icons.login_rounded,
         'geofence_exit' || 'geofenceexit' => Icons.logout_rounded,
@@ -33,12 +33,12 @@ class VehicleIcons {
         'low_battery' => Icons.battery_alert_rounded,
         'harsh_braking' => Icons.warning_amber_rounded,
         'harsh_acceleration' => Icons.rocket_launch_rounded,
-        'idle' => Icons.hourglass_empty_rounded,
+        'idle' || 'excessive_idle' || 'excessive_idling' => Icons.timer_rounded,
         'tow' => Icons.car_crash_rounded,
-        'stoppage' => Icons.local_parking_rounded,
+        'stoppage' => Icons.motion_photos_paused_rounded,
         'maintenance' => Icons.build_rounded,
         'moving' || 'start_moving' => Icons.moving_rounded,
-        'stopped' => Icons.stop_rounded,
+        'stopped' => Icons.pause_circle_rounded,
         'parking' => Icons.local_parking_rounded,
         'theft' || 'theft_alarm' => Icons.alarm_rounded,
         _ => Icons.notifications_active_rounded,

@@ -2,9 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/backend_capabilities.dart';
@@ -17,10 +15,8 @@ import '../../core/utils/geocoder.dart';
 import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/alert.dart';
 import '../../providers/core_providers.dart';
-import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/connectivity_banner.dart';
-import '../shell/app_shell.dart';
 
 /// Paginated historical alerts, grouped by day.
 ///
@@ -717,15 +713,41 @@ class AlertTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onMarkRead;
 
+  Color _getAlertColor(FleetAlert alert) {
+    final String type = alert.type.toLowerCase().trim();
+    return switch (type) {
+      'parking' => const Color(0xFF7C3AED), // Vibrant Indigo / Purple for Parking Alert
+      'stoppage' => const Color(0xFFD97706), // Warm Amber / Orange for Long Stoppage
+      'idle' || 'excessive_idle' || 'excessive_idling' => const Color(0xFF0284C7), // Electric Cyan / Blue for Excessive Idling
+      'overspeed' || 'overspeeding' => const Color(0xFFEF4444), // Vibrant Red
+      'geofence' || 'geofence_enter' || 'geofence_exit' => const Color(0xFF10B981), // Emerald Green
+      'ignition_on' => const Color(0xFF10B981), // Green
+      'ignition_off' => const Color(0xFF64748B), // Slate Grey
+      'sos' || 'panic' || 'theft' || 'tow' => const Color(0xFFDC2626), // Deep Red
+      _ => switch (alert.severity) {
+          AlertSeverity.critical => AppColors.danger,
+          AlertSeverity.warning => AppColors.idle,
+          AlertSeverity.info => AppColors.signal,
+        },
+    };
+  }
+
+  String? _getPurposeLabel(String type) => switch (type.toLowerCase().trim()) {
+        'parking' => 'PARKED',
+        'stoppage' => 'STOPPAGE',
+        'idle' || 'excessive_idle' || 'excessive_idling' => 'ENGINE IDLE',
+        'overspeed' || 'overspeeding' => 'OVERSPEED',
+        'geofence' || 'geofence_enter' || 'geofence_exit' => 'GEOFENCE',
+        _ => null,
+      };
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    final Color color = switch (alert.severity) {
-      AlertSeverity.critical => AppColors.danger,
-      AlertSeverity.warning => AppColors.idle,
-      AlertSeverity.info => AppColors.signal,
-    };
+    final Color color = _getAlertColor(alert);
+    final String? purposeLabel = _getPurposeLabel(alert.type);
+    final String? stoppageDuration = alert.formattedStoppageDuration;
 
     return Container(
       margin: const EdgeInsets.only(bottom: Gap.sm),
@@ -736,7 +758,7 @@ class AlertTile extends StatelessWidget {
         borderRadius: Corners.rMd,
         border: Border.all(
           color: !alert.isRead
-              ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.5 : 0.25)
+              ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.5 : 0.3)
               : theme.colorScheme.outlineVariant.withOpacity(0.4),
           width: !alert.isRead ? 1.4 : 1.0,
         ),
@@ -753,15 +775,19 @@ class AlertTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.14),
-                    borderRadius: Corners.rXs,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: color.withOpacity(0.25),
+                      width: 1,
+                    ),
                   ),
                   child: Icon(
                     VehicleIcons.forAlert(alert.type),
-                    size: 19,
+                    size: 20,
                     color: color,
                   ),
                 ),
@@ -784,21 +810,45 @@ class AlertTile extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (!alert.isRead) ...<Widget>[
-                            const SizedBox(width: 8),
+                          if (purposeLabel != null) ...<Widget>[
+                            const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
+                                  horizontal: 5, vertical: 1.5),
                               decoration: BoxDecoration(
-                                color: color.withOpacity(0.15),
+                                color: color.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: color.withOpacity(0.3),
+                                  width: 0.8,
+                                ),
                               ),
                               child: Text(
-                                'NEW',
+                                purposeLabel,
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
                                   color: color,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (!alert.isRead) ...<Widget>[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'NEW',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -839,44 +889,103 @@ class AlertTile extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(Icons.schedule_rounded,
-                                  size: 12,
-                                  color: theme.colorScheme.onSurfaceVariant),
-                              const SizedBox(width: 4),
-                              Flexible( // Use Flexible inside this mini-Row just in case the timestamp is insanely long
-                                child: Text(
-                                  _isStoppageType(alert.type)
-                                      ? 'Start: ${Fmt.full(alert.createdAt)}${alert.endTime != null ? ' – ${Fmt.time(alert.endTime)}' : (alert.durationMinutes != null ? ' – ${Fmt.time(alert.createdAt?.add(Duration(minutes: alert.durationMinutes!)))}' : '')}'
-                                      : Fmt.full(alert.createdAt),
+                          if (!_isStoppageType(alert.type))
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(Icons.schedule_rounded,
+                                    size: 12,
+                                    color: theme.colorScheme.onSurfaceVariant),
+                                const SizedBox(width: 4),
+                                Text(
+                                  Fmt.full(alert.createdAt),
                                   style: theme.textTheme.labelSmall
                                       ?.copyWith(letterSpacing: 0),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
                         ],
                       ),
-                      // Duration row — stoppage alerts only
-                      if (_isStoppageType(alert.type)) ...<Widget>[
-                        const SizedBox(height: 3),
-                        Row(
-                          children: <Widget>[
-                            Icon(Icons.timelapse_rounded,
-                                size: 12,
-                                color: theme.colorScheme.onSurfaceVariant),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Duration: ${alert.formattedStoppageDuration}',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                letterSpacing: 0,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.idle,
-                              ),
+                      // Time range & Duration box — stoppage / parking / idle alerts
+                      if (_isStoppageType(alert.type) && alert.createdAt != null) ...<Widget>[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.07),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: color.withOpacity(0.2),
+                              width: 0.8,
                             ),
-                          ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  Icon(Icons.schedule_rounded, size: 12, color: color),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text.rich(
+                                      TextSpan(
+                                        children: <InlineSpan>[
+                                          TextSpan(
+                                            text: 'From: ',
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: Fmt.full(alert.createdAt),
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: '   To: ',
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: alert.calculatedEndTime != null
+                                                ? Fmt.full(alert.calculatedEndTime)
+                                                : 'Ongoing',
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: alert.calculatedEndTime != null
+                                                  ? theme.colorScheme.onSurface
+                                                  : color,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (stoppageDuration != null) ...<Widget>[
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: <Widget>[
+                                    Icon(Icons.timelapse_rounded, size: 12, color: color),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'Duration: $stoppageDuration',
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        letterSpacing: 0,
+                                        fontWeight: FontWeight.w700,
+                                        color: color,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
                       _AddressText(alert),

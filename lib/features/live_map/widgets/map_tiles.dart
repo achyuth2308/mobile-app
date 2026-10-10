@@ -68,22 +68,22 @@ extension MapStyleX on MapStyle {
         MapStyle.standard =>
           'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         MapStyle.satellite =>
-          'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Hybrid (Satellite + Labels) high-res
+          'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Hybrid (Satellite + Labels)
         MapStyle.google =>
-          'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Maps high-res
+          'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Maps Roadmap
       };
 
   List<String> get subdomains => switch (this) {
         MapStyle.standard => const <String>['a', 'b', 'c'],
-        MapStyle.satellite => const <String>['mt0', 'mt1', 'mt2', 'mt3'],
-        MapStyle.google => const <String>['mt0', 'mt1', 'mt2', 'mt3'],
+        MapStyle.satellite => const <String>['0', '1', '2', '3'],
+        MapStyle.google => const <String>['0', '1', '2', '3'],
       };
 
   /// Max zoom the source serves reliably everywhere.
   double get maxZoom => switch (this) {
-        MapStyle.satellite => 18,
-        MapStyle.google => 18,
-        _ => 18,
+        MapStyle.satellite => 20,
+        MapStyle.google => 20,
+        _ => 19,
       };
 
   String get attribution => switch (this) {
@@ -98,32 +98,21 @@ extension MapStyleX on MapStyle {
       );
 }
 
-/// Builds the ultra-fast cached tile layer for a given style.
-///
-/// Features:
-///  - **Persistent Disk & RAM Caching**: Repeated views load instantly in 0ms.
-///  - **Multi-Edge CDN**: Parallel connections across multiple edge subdomains.
-///  - **Background Pre-fetching**: [panBuffer: 2] preloads adjacent tiles before scrolling into view.
-///  - **Flicker-free Zoom**: [keepBuffer: 8] retains previous zoom tiles to eliminate grey flash.
-///  - **Gesture Throttling**: Throttles tile updates during fast panning for 60fps smoothness.
+/// Builds the ultra-fast tile layer for a given style.
 TileLayer buildTileLayer(MapStyle style, {bool retina = false, String? apiKey}) {
   return TileLayer(
+    key: ValueKey<String>('tile_layer_${style.name}'),
     urlTemplate: style.urlTemplate(apiKey),
     subdomains: style.subdomains,
     maxNativeZoom: style.maxZoom.toInt(),
-    maxZoom: 22.0, // Scale up the native tiles when zoomed in closely
+    maxZoom: 22.0,
     userAgentPackageName: AppConfig.tileUserAgent,
     tileProvider: kIsWeb ? null : FastCachedTileProvider(),
-    retinaMode: style == MapStyle.standard, // OSM needs z+1 scaling, Google provides native high-res (scale=2)
-    panBuffer: 2, // Preload 2-tile perimeter so panning is instant without blank squares
-    keepBuffer: 8, // Keep 8 buffer levels in RAM to avoid reload flickers
-    tileUpdateTransformer: TileUpdateTransformers.throttle(
-      const Duration(milliseconds: 60),
-    ),
-    tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 350)),
-    errorTileCallback: (TileImage tile, Object error, StackTrace? _) {
-      // Silent: network glitches on a single tile never surface as an app error.
-    },
+    retinaMode: false,
+    panBuffer: 1,
+    keepBuffer: 2,
+    tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 100)),
+    errorTileCallback: (TileImage tile, Object error, StackTrace? _) {},
   );
 }
 
