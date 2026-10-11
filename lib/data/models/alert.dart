@@ -51,9 +51,30 @@ class FleetAlert extends Equatable {
     return extractDurationFromText(message);
   }
 
-  /// Calculated end time derived from explicit endTime or createdAt + effectiveDurationMinutes.
+  /// For stoppage alerts, the backend generates the alert when the stoppage ENDS.
+  /// Therefore, createdAt is actually the end time.
+  DateTime? get calculatedStartTime {
+    if (type.toLowerCase() == 'stoppage' || type.toLowerCase() == 'parking' || type.toLowerCase() == 'idle') {
+      final int? mins = effectiveDurationMinutes;
+      if (mins != null && mins > 0 && createdAt != null) {
+        return createdAt!.subtract(Duration(minutes: mins));
+      }
+    }
+    return createdAt;
+  }
+
+  /// Calculated end time. For stoppages, this is simply createdAt (or explicit endTime).
   DateTime? get calculatedEndTime {
     if (endTime != null) return endTime;
+    
+    final bool isStoppage = type.toLowerCase() == 'stoppage' || 
+                            type.toLowerCase() == 'parking' || 
+                            type.toLowerCase() == 'idle';
+                            
+    if (isStoppage) {
+      return createdAt; // Because the alert is generated when the stoppage ends.
+    }
+    
     final int? mins = effectiveDurationMinutes;
     if (mins != null && mins > 0 && createdAt != null) {
       return createdAt!.add(Duration(minutes: mins));
@@ -174,7 +195,7 @@ class FleetAlert extends Equatable {
         'geofence' => 'Geofence Alert',
         'geofence_enter' || 'geofenceenter' => 'Geofence Entry',
         'geofence_exit' || 'geofenceexit' => 'Geofence Exit',
-        'ignition_on' => 'Ignition On',
+        'ignition_on' => 'Engine On',
         'ignition_off' => 'Ignition Off',
         'trip_started' || 'trip_start' || 'trip_begin' || 'start_trip' => 'Trip Started',
         'trip_ended' || 'trip_end' || 'trip_completed' => 'Trip Ended',

@@ -650,9 +650,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
     final vehicle = ref.watch(vehicleByIdProvider(widget.vehicleId));
     
-    _tileLayer ??= buildTileLayer(
+    _tileLayer = buildTileLayer(
       MapStyleX.fromKey(mapTypeKey),
       apiKey: ref.read(authProvider).user?.apiKey,
+      isDark: theme.brightness == Brightness.dark,
     );
 
     return Stack(
@@ -687,12 +688,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             ValueListenableBuilder<double>(
               valueListenable: _progressNotifier,
               builder: (context, _, __) {
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (_points.length >= 2) ..._routeLayers(theme),
-                    MarkerLayer(markers: _routeMarkers(theme)),
-                  ],
+                return RepaintBoundary(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (_points.length >= 2) ..._routeLayers(theme),
+                      MarkerLayer(markers: _routeMarkers(theme)),
+                    ],
+                  ),
                 );
               },
             ),
@@ -904,10 +907,15 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       bottom: 0,
                       left: 0,
                       right: 0,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isCurrentlyStopped)
+                      child: SafeArea(
+                        bottom: true,
+                        top: false,
+                        left: false,
+                        right: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_isCurrentlyStopped)
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: Gap.md),
                               child: _ActiveStoppageBottomCard(
@@ -946,6 +954,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                             },
                           ),
                         ],
+                      ),
                       ),
                     ),
                   ],

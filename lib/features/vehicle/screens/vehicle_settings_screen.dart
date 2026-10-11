@@ -24,17 +24,41 @@ class _VehicleSettingsScreenState
   late double _overspeedDuration;
   late double _idleDuration;
 
-  bool _enableSpeedAlert = true;
-  bool _enableIdleAlert = true;
+  late double _stoppageDuration;
   bool _isSaving = false;
+
+  final Map<String, bool> _alertToggles = {
+    'engine_on': true,
+    'engine_off': true,
+    'moving': true,
+    'parking': true,
+    'stoppage': true,
+    'excessive_idle': true,
+    'overspeed': true,
+    'geofence': true,
+    'trip_started': true,
+    'trip_ended': true,
+    'route_deviation': true,
+  };
 
   @override
   void initState() {
     super.initState();
     final Vehicle? vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
-    _speedLimit = vehicle?.speedLimit ?? 60.0;
-    _overspeedDuration = vehicle?.overspeedDurationAlert ?? 3.0;
-    _idleDuration = vehicle?.idleDurationAlert ?? 10.0;
+    final Map<String, dynamic> metadata = (vehicle?.raw['metadata'] as Map<String, dynamic>?) ?? {};
+    _speedLimit = (metadata['overSpeedLimit'] as num?)?.toDouble() ??
+        (metadata['speedLimit'] as num?)?.toDouble() ??
+        80.0;
+    _overspeedDuration = (metadata['overspeedDurationAlert'] as num?)?.toDouble() ?? 3.0;
+    _idleDuration = (metadata['idleDurationAlert'] as num?)?.toDouble() ?? 10.0;
+    _stoppageDuration = (metadata['stoppageThreshold'] as num?)?.toDouble() ?? 10.0;
+    
+    final alertConfig = metadata['alertConfig'] as Map<String, dynamic>? ?? {};
+    for (final key in _alertToggles.keys) {
+      if (alertConfig.containsKey(key)) {
+        _alertToggles[key] = alertConfig[key] == true;
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -45,6 +69,8 @@ class _VehicleSettingsScreenState
             overSpeedLimit: _speedLimit,
             overspeedDurationAlert: _overspeedDuration,
             idleDurationAlert: _idleDuration,
+            stoppageThreshold: _stoppageDuration,
+            alertConfig: _alertToggles,
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,20 +127,30 @@ class _VehicleSettingsScreenState
         ? Colors.white.withOpacity(0.08)
         : Colors.black.withOpacity(0.06);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Vehicle Settings'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(Gap.lg),
-                children: <Widget>[
-                  // ── Hero Vehicle Header ────────────────────────────
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Alert & Notification Configuration'),
+          centerTitle: true,
+          elevation: 0,
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'General'),
+              Tab(text: 'Alerts Config'),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: <Widget>[
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    ListView(
+                      padding: const EdgeInsets.all(Gap.lg),
+                      children: <Widget>[
+                        // ── Hero Vehicle Header ────────────────────────────
                   Container(
                     padding: const EdgeInsets.all(Gap.md),
                     decoration: BoxDecoration(
@@ -336,7 +372,57 @@ class _VehicleSettingsScreenState
 
                   const SizedBox(height: Gap.lg),
 
-                  // ── Section 4: Alert Notification Toggles ──────────
+                ],
+              ),
+              
+              ListView(
+                padding: const EdgeInsets.all(Gap.lg),
+                children: [
+                  _SettingsCard(
+                    cardBg: cardBg,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    title: 'Stoppage Duration Alert',
+                    subtitle: 'Alert triggers when vehicle is stopped (speed=0) for this duration',
+                    icon: Icons.pause_circle_filled_rounded,
+                    iconColor: const Color(0xFFE91E63),
+                    badgeText: '${_stoppageDuration.round()} mins',
+                    badgeColor: const Color(0xFFE91E63),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Slider(
+                          value: _stoppageDuration,
+                          min: 5,
+                          max: 60,
+                          divisions: 55,
+                          label: '${_stoppageDuration.round()} mins',
+                          activeColor: const Color(0xFFE91E63),
+                          onChanged: (double v) =>
+                              setState(() => _stoppageDuration = v),
+                        ),
+                        const SizedBox(height: Gap.xs),
+                        Wrap(
+                          spacing: Gap.xs,
+                          children: <double>[5, 10, 20, 30]
+                              .map(
+                                (double preset) => ChoiceChip(
+                                  label: Text('${preset.round()} mins'),
+                                  selected: _stoppageDuration == preset,
+                                  selectedColor: const Color(0xFFE91E63).withOpacity(0.2),
+                                  labelStyle: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _stoppageDuration == preset ? const Color(0xFFE91E63) : scheme.onSurfaceVariant,
+                                  ),
+                                  onSelected: (_) => setState(() => _stoppageDuration = preset),
+                                ),
+                              ).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: Gap.lg),
                   Container(
                     decoration: BoxDecoration(
                       color: cardBg,
@@ -344,35 +430,28 @@ class _VehicleSettingsScreenState
                       border: Border.all(color: borderColor),
                     ),
                     child: Column(
-                      children: <Widget>[
-                        SwitchListTile(
-                          value: _enableSpeedAlert,
-                          activeColor: AppColors.brand,
-                          title: const Text('Speed Alert Notifications'),
-                          subtitle: const Text('Send push alert on overspeeding'),
-                          onChanged: (bool val) =>
-                              setState(() => _enableSpeedAlert = val),
-                        ),
-                        Divider(height: 1, color: borderColor),
-                        SwitchListTile(
-                          value: _enableIdleAlert,
-                          activeColor: AppColors.brand,
-                          title: const Text('Idle Engine Notifications'),
-                          subtitle:
-                              const Text('Send alert on prolonged idling'),
-                          onChanged: (bool val) =>
-                              setState(() => _enableIdleAlert = val),
-                        ),
+                      children: [
+                        for (final entry in _alertToggles.entries) ...[
+                          SwitchListTile(
+                            value: entry.value,
+                            activeColor: const Color(0xFF2E7D32),
+                            title: Text('${entry.key.replaceAll('_', ' ').toUpperCase()} ALERT'),
+                            subtitle: Text('Receive notifications for ${entry.key.replaceAll('_', ' ')}'),
+                            onChanged: (bool val) => setState(() => _alertToggles[entry.key] = val),
+                          ),
+                          if (entry.key != _alertToggles.keys.last) Divider(height: 1, color: borderColor),
+                        ]
                       ],
                     ),
                   ),
-
                   const SizedBox(height: Gap.xxl),
                 ],
               ),
-            ),
+            ],
+          ),
+        ),
 
-            // ── Save Action Bar ──────────────────────────────────────
+        // ── Save Action Bar ──────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(Gap.lg),
               decoration: BoxDecoration(
@@ -418,6 +497,7 @@ class _VehicleSettingsScreenState
               ),
             ),
           ],
+        ),
         ),
       ),
     );

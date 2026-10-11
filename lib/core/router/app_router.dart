@@ -223,6 +223,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         ],
       ),
       GoRoute(
+        path: '/alerts',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => const AlertsScreen(),
+      ),
+      GoRoute(
         path: '/geofences',
         parentNavigatorKey: _rootKey,
         builder: (BuildContext c, GoRouterState s) => const GeofencesScreen(),

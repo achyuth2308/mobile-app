@@ -99,8 +99,13 @@ extension MapStyleX on MapStyle {
 }
 
 /// Builds the ultra-fast tile layer for a given style.
-TileLayer buildTileLayer(MapStyle style, {bool retina = false, String? apiKey}) {
-  return TileLayer(
+Widget buildTileLayer(
+  MapStyle style, {
+  bool retina = false,
+  String? apiKey,
+  bool isDark = false,
+}) {
+  final TileLayer layer = TileLayer(
     key: ValueKey<String>('tile_layer_${style.name}'),
     urlTemplate: style.urlTemplate(apiKey),
     subdomains: style.subdomains,
@@ -114,6 +119,27 @@ TileLayer buildTileLayer(MapStyle style, {bool retina = false, String? apiKey}) 
     tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 100)),
     errorTileCallback: (TileImage tile, Object error, StackTrace? _) {},
   );
+
+  if (isDark) {
+    // Basic color inversion + hue shift for dark mode tiles
+    return ColorFiltered(
+      colorFilter: const ColorFilter.matrix(<double>[
+        -1.0, 0.0, 0.0, 0.0, 255.0, // R
+        0.0, -1.0, 0.0, 0.0, 255.0, // G
+        0.0, 0.0, -1.0, 0.0, 255.0, // B
+        0.0, 0.0, 0.0, 1.0, 0.0,    // A
+      ]),
+      child: ColorFiltered(
+        colorFilter: const ColorFilter.mode(
+          Colors.blueGrey,
+          BlendMode.saturation, // Optional: slightly desaturate
+        ),
+        child: layer,
+      ),
+    );
+  }
+
+  return layer;
 }
 
 /// ODbL-compliant attribution widget.

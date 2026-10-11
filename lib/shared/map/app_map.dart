@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart' as ll;
 
 import 'app_map_models.dart';
 import 'app_map_controller.dart';
+import '../../core/theme/map_styles.dart';
 
 class _FmAppMapController implements AppMapController {
   final fm.MapController _controller;
@@ -135,13 +136,38 @@ class _AppMapState extends State<AppMap> {
   @override
   Widget build(BuildContext context) {
     if (_isOsm) {
-      return _buildFlutterMap();
+      return _buildFlutterMap(context);
     } else {
-      return _buildGoogleMap();
+      return _buildGoogleMap(context);
     }
   }
 
-  Widget _buildFlutterMap() {
+  Widget _buildFlutterMap(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    Widget tileLayer = fm.TileLayer(
+      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'com.fueltracks.mobile',
+    );
+
+    if (isDark) {
+      tileLayer = ColorFiltered(
+        colorFilter: const ColorFilter.matrix(<double>[
+          -1.0, 0.0, 0.0, 0.0, 255.0,
+          0.0, -1.0, 0.0, 0.0, 255.0,
+          0.0, 0.0, -1.0, 0.0, 255.0,
+          0.0, 0.0, 0.0, 1.0, 0.0,
+        ]),
+        child: ColorFiltered(
+          colorFilter: const ColorFilter.mode(
+            Colors.blueGrey,
+            BlendMode.saturation,
+          ),
+          child: tileLayer,
+        ),
+      );
+    }
+
     return fm.FlutterMap(
       mapController: _fmController,
       options: fm.MapOptions(
@@ -150,10 +176,7 @@ class _AppMapState extends State<AppMap> {
         onTap: (tapPosition, point) => widget.onTap?.call(point),
       ),
       children: [
-        fm.TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.fueltracks.mobile',
-        ),
+        tileLayer,
         if (widget.polygons.isNotEmpty)
           fm.PolygonLayer(
             polygons: widget.polygons.map((p) => fm.Polygon(
@@ -199,8 +222,11 @@ class _AppMapState extends State<AppMap> {
     );
   }
 
-  Widget _buildGoogleMap() {
+  Widget _buildGoogleMap(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
     return gm.GoogleMap(
+      style: isDark ? MapStyles.dark : null,
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(widget.initialCenter.latitude, widget.initialCenter.longitude),
         zoom: widget.initialZoom,

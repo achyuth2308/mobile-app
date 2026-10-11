@@ -138,12 +138,14 @@ class VehicleRepository {
   Future<void> updateSettings(String vehicleId, {
     double? overSpeedLimit,
     double? overspeedDurationAlert,
-    double? idleDurationAlert,
+    double? idleDurationAlert, double? stoppageThreshold, Map<String, bool>? alertConfig,
   }) async {
     final Map<String, dynamic> body = <String, dynamic>{};
     if (overSpeedLimit != null) body['overSpeedLimit'] = overSpeedLimit;
     if (overspeedDurationAlert != null) body['overspeedDurationAlert'] = overspeedDurationAlert;
     if (idleDurationAlert != null) body['idleDurationAlert'] = idleDurationAlert;
+    if (stoppageThreshold != null) body['stoppageThreshold'] = stoppageThreshold;
+    if (alertConfig != null) body['alertConfig'] = alertConfig;
 
     if (body.isEmpty) return;
 

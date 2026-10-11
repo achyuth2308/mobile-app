@@ -1,7 +1,7 @@
 name: fueltracks
 description: FuelTracks — production customer fleet monitoring app (Material 3).
 publish_to: "none"
-version: 1.0.8+11
+version: 1.0.9+12
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -80,6 +80,7 @@ dependencies:
   pointer_interceptor: ^0.10.1+1
   google_maps_flutter: ^2.14.2
   widget_to_marker: ^1.0.6
+  google_maps_flutter_web: ^0.5.14+3
 
 dev_dependencies:
   flutter_test:

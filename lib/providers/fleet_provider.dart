@@ -379,7 +379,7 @@ class FleetController extends Notifier<FleetState> {
   Future<void> updateSettings(String vehicleId, {
     double? overSpeedLimit,
     double? overspeedDurationAlert,
-    double? idleDurationAlert,
+    double? idleDurationAlert, double? stoppageThreshold, Map<String, bool>? alertConfig,
   }) async {
     try {
       await ref.read(vehicleRepositoryProvider).updateSettings(
@@ -387,6 +387,8 @@ class FleetController extends Notifier<FleetState> {
         overSpeedLimit: overSpeedLimit,
         overspeedDurationAlert: overspeedDurationAlert,
         idleDurationAlert: idleDurationAlert,
+        stoppageThreshold: stoppageThreshold,
+        alertConfig: alertConfig,
       );
       // Reload fleet so changes reflect instantly in UI
       await load(silent: true);

@@ -311,9 +311,9 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           ),
 
           _MenuItemCard(
-            title: 'Vehicle Settings',
-            subtitle: 'Speed limits, alert thresholds & sensor calibration',
-            icon: Icons.settings_outlined,
+            title: 'Alert & Notification Configuration',
+            subtitle: 'Speed limits, alert thresholds & notification toggles',
+            icon: Icons.notifications_active_outlined,
             accentColor: const Color(0xFF64748B), // Slate
             onTap: () => context.push('/vehicle/${widget.vehicleId}/settings'),
           ),

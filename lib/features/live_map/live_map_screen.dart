@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -55,6 +56,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   bool _mapReady = false;
   bool _userInteracting = false;
   bool _isHistoryMode = false;
+  bool _isShowingOverallTrip = false;
+  final ValueNotifier<double> _sheetExtentNotifier = ValueNotifier(0.32);
 
   /// India-centred default until the first fix arrives.
   static const LatLng _fallbackCenter = LatLng(17.385, 78.4867);
@@ -130,7 +133,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _map.move(target, zoom ?? _map.camera.zoom);
   }
 
-  void _focusVehicle(String? vehicleId, {double zoom = 16.8}) {
+  void _focusVehicle(String? vehicleId, {double zoom = 14.0}) {
     if (vehicleId == null || vehicleId.isEmpty) return;
     _pendingFocusId = vehicleId;
 
@@ -163,7 +166,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (located.length == 1) {
       _move(
         LatLng(located.first.latitude!, located.first.longitude!),
-        zoom: 16.8,
+        zoom: 14.0,
       );
       return;
     }
@@ -172,17 +175,33 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       bounds: LatLngBounds.fromPoints(located
           .map((Vehicle v) => LatLng(v.latitude!, v.longitude!))
           .toList()),
-      padding: const EdgeInsets.all(60.0),
+      padding: const EdgeInsets.all(20.0),
     ));
+  }
+
+  void _fitRoute(String? vehicleId) {
+    if (vehicleId == null || !_mapReady) return;
+    final asyncData = ref.read(vehicleDailyHistoryProvider(vehicleId));
+    asyncData.whenData((data) {
+      final List<LatLng> points = data.route
+          .where((p) => p.isValid)
+          .map((p) => p.latLng)
+          .toList();
+      if (points.isNotEmpty) {
+        _map.fitCamera(CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(points),
+          padding: const EdgeInsets.all(20.0),
+        ));
+      }
+    });
   }
 
   void _selectVehicle(Vehicle v) {
     unawaited(HapticFeedback.selectionClick());
     _setFollowingId(v.id);
     setState(() => _selectedId = v.id);
-    _move(LatLng(v.latitude!, v.longitude!), zoom: 16.8);
+    _move(LatLng(v.latitude!, v.longitude!), zoom: 14.0);
   }
-
 
   void _showStoppageCard(ReportRow stoppage, int stopNumber) {
     showDialog<void>(
@@ -356,45 +375,54 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       extendBodyBehindAppBar: true,
       body: Stack(
         children: <Widget>[
-          UniversalLiveMap(
-            mapController: _map,
-            vehicles: visibleVehicles,
-            style: _style,
-            apiKey: apiKey,
-            fallbackCenter: _fallbackCenter,
-            selectedId: _selectedId,
-            followingId: _followingId,
-            pendingFocusId: _pendingFocusId,
-            onMapReady: () {
-              setState(() => _mapReady = true);
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (widget.focusVehicleId != null) {
-                  _focusVehicle(widget.focusVehicleId);
-                } else if (_pendingFocusId != null) {
-                  _focusVehicle(_pendingFocusId);
-                } else {
-                  _fitAll(vehicles);
+          ValueListenableBuilder<double>(
+            valueListenable: _sheetExtentNotifier,
+            builder: (context, extent, child) {
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: _followingId != null ? (extent * MediaQuery.sizeOf(context).height) - 40 : 0,
+                child: child!,
+              );
+            },
+            child: UniversalLiveMap(
+              mapController: _map,
+              vehicles: visibleVehicles,
+              style: _style,
+              apiKey: apiKey,
+              fallbackCenter: _fallbackCenter,
+              selectedId: _selectedId,
+              followingId: _followingId,
+              pendingFocusId: _pendingFocusId,
+              onMapReady: () {
+                setState(() => _mapReady = true);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (widget.focusVehicleId != null) {
+                    _focusVehicle(widget.focusVehicleId);
+                  } else if (_pendingFocusId != null) {
+                    _focusVehicle(_pendingFocusId);
+                  } else {
+                    _fitAll(vehicles);
+                  }
+                });
+              },
+              onUserInteracting: (interacting) {
+                _userInteracting = interacting;
+                if (interacting && _followingId != null) {
+                  // Break the camera lock when the user drags the map
+                  _setFollowingId(null);
                 }
-              });
-            },
-            onUserInteracting: (interacting) {
-              _userInteracting = interacting;
-              if (interacting && _followingId != null) {
-                // Break the camera lock when the user drags the map
-                _setFollowingId(null);
-              }
-            },
-            onTapMap: () {
-              if (_selectedId != null) setState(() => _selectedId = null);
-            },
-            onSelectVehicle: _selectVehicle,
-            route:
-                _isHistoryMode ? (dailyDataAsync.valueOrNull?.route ?? []) : [],
-            stoppages: _isHistoryMode
-                ? (dailyDataAsync.valueOrNull?.stoppages ?? [])
-                : [],
-            showTrail: true,
-            onTapStoppage: _showStoppageCard,
+              },
+              onTapMap: () {
+                if (_selectedId != null) setState(() => _selectedId = null);
+              },
+              onSelectVehicle: _selectVehicle,
+              route: dailyDataAsync.valueOrNull?.route ?? [],
+              stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
+              showTrail: true,
+              onTapStoppage: _showStoppageCard,
+            ),
           ),
 
           // Legibility scrim behind the top controls.
@@ -442,24 +470,47 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ),
           ),
 
-          if (following != null) 
-            DraggableScrollableSheet(
-              initialChildSize: 0.32,
-              minChildSize: 0.12,
-              maxChildSize: 0.85,
-              builder: (ctx, scrollController) {
-                return VehiclePeekSheet(
-                  vehicleId: following.id,
-                  isFollowing: _followingId == following.id,
-                  onToggleFollow: () {
-                    _setFollowingId(_followingId == following.id ? null : following.id);
-                  },
-                  onOpenDetails: () {
-                    context.push('/vehicle/${following.id}?tab=history');
-                  },
-                  scrollController: scrollController,
-                );
+          if (following != null)
+            NotificationListener<DraggableScrollableNotification>(
+              onNotification: (notification) {
+                _sheetExtentNotifier.value = notification.extent;
+                if (notification.extent > 0.5 && !_isShowingOverallTrip) {
+                  _isShowingOverallTrip = true;
+                  _fitRoute(_followingId);
+                } else if (notification.extent <= 0.5 && _isShowingOverallTrip) {
+                  _isShowingOverallTrip = false;
+                  _focusVehicle(_followingId);
+                }
+                return false;
               },
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                  },
+                ),
+                child: DraggableScrollableSheet(
+                  initialChildSize: 0.32,
+                  minChildSize: 0.12,
+                  maxChildSize: 0.85,
+                builder: (ctx, scrollController) {
+                  return VehiclePeekSheet(
+                    vehicleId: following.id,
+                    isFollowing: _followingId == following.id,
+                    onToggleFollow: () {
+                      _setFollowingId(
+                          _followingId == following.id ? null : following.id);
+                    },
+                    onOpenDetails: () {
+                      context.push('/vehicle/${following.id}?tab=history');
+                    },
+                    scrollController: scrollController,
+                  );
+                },
+              ),
+              ),
             ),
 
           Positioned(
@@ -479,7 +530,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                       child: const SizedBox(
                         width: 44,
                         height: 44,
-                        child: Icon(Icons.share_rounded, color: Colors.white, size: 22),
+                        child: Icon(Icons.share_rounded,
+                            color: Colors.white, size: 22),
                       ),
                     ),
                   ),
@@ -585,10 +637,10 @@ class _MapHeader extends StatelessWidget {
             Container(
               width: 40,
               height: 40,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
+                color: Theme.of(context).colorScheme.surface,
+                boxShadow: const [
                   BoxShadow(
                     color: Colors.black12,
                     blurRadius: 8,
@@ -599,8 +651,8 @@ class _MapHeader extends StatelessWidget {
               child: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                icon: const Icon(Icons.arrow_back_rounded,
-                    size: 22, color: Color(0xFF0F172A)),
+                icon: Icon(Icons.arrow_back_rounded,
+                    size: 22, color: Theme.of(context).colorScheme.onSurface),
                 onPressed: onStopFollowing,
               ),
             ),
@@ -679,7 +731,8 @@ class _MapHeader extends StatelessWidget {
             child: const SizedBox(
               width: 44,
               height: 44,
-              child: Icon(Icons.arrow_back_rounded, size: 22, color: Colors.white),
+              child:
+                  Icon(Icons.arrow_back_rounded, size: 22, color: Colors.white),
             ),
           ),
         ),

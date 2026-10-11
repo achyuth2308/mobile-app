@@ -129,7 +129,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               _SettingsTile(
                 icon: Icons.notifications_active_outlined,
-                title: 'Notification preferences',
+                title: 'Alert & Notification Configuration',
+                subtitle: 'Customize alerts, speed, idle & stoppage thresholds',
                 onTap: () => showModalBottomSheet<void>(
                   context: context,
                   isScrollControlled: true,

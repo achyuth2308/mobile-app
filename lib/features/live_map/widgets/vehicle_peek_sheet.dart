@@ -9,6 +9,7 @@ import '../../../providers/fleet_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../providers/live_map_providers.dart';
+import '../../geofences/geofence_editor_sheet.dart';
 
 abstract class TripSegment {
   final DateTime startTime;
@@ -135,7 +136,7 @@ List<TripSegment> _buildSegments(List<TrackPoint> route, List<ReportRow> stoppag
 class CoordinateAddress extends StatefulWidget {
   final double lat;
   final double lng;
-  const CoordinateAddress({required this.lat, required this.lng, super.key});
+  CoordinateAddress({required this.lat, required this.lng, super.key});
 
   @override
   State<CoordinateAddress> createState() => _CoordinateAddressState();
@@ -170,10 +171,10 @@ class _CoordinateAddressState extends State<CoordinateAddress> {
   Widget build(BuildContext context) {
     return Text(
       _address != null ? Fmt.address(_address) : 'Locating address...',
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: Color(0xFF475569),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
         height: 1.3,
       ),
       maxLines: 2,
@@ -182,7 +183,7 @@ class _CoordinateAddressState extends State<CoordinateAddress> {
   }
 }
 
-class VehiclePeekSheet extends ConsumerWidget {
+class VehiclePeekSheet extends ConsumerStatefulWidget {
   const VehiclePeekSheet({
     required this.vehicleId,
     required this.isFollowing,
@@ -220,15 +221,22 @@ class VehiclePeekSheet extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vehicle = ref.watch(vehicleByIdProvider(vehicleId));
+  ConsumerState<VehiclePeekSheet> createState() => _VehiclePeekSheetState();
+}
+
+class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
+  final Set<int> _alertsSet = <int>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final vehicle = ref.watch(vehicleByIdProvider(widget.vehicleId));
     if (vehicle == null) return const SizedBox.shrink();
 
-    final asyncData = ref.watch(vehicleDailyHistoryProvider(vehicleId));
+    final asyncData = ref.watch(vehicleDailyHistoryProvider(widget.vehicleId));
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
@@ -239,7 +247,7 @@ class VehiclePeekSheet extends ConsumerWidget {
         ],
       ),
       child: SingleChildScrollView(
-        controller: scrollController,
+        controller: widget.scrollController,
         padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.paddingOf(context).bottom + 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,7 +258,7 @@ class VehiclePeekSheet extends ConsumerWidget {
                 width: 44,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2.5),
                 ),
               ),
@@ -262,253 +270,347 @@ class VehiclePeekSheet extends ConsumerWidget {
                     data: (data) {
                       final segments = _buildSegments(data.route, data.stoppages, vehicle);
 
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: segments.length,
-                        itemBuilder: (context, index) {
-                          final seg = segments[index];
-                          final bool isLast = index == segments.length - 1;
+                      Duration totalDrivingDuration = Duration.zero;
+                      Duration totalStopDuration = Duration.zero;
+                      int stopCount = 0;
 
-                          if (seg is DrivingSegment) {
-                            final Duration dur = seg.endTime.difference(seg.startTime);
-                            return IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // Timeline Line & Icon Node
-                                  SizedBox(
-                                    width: 36,
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          width: 30,
-                                          height: 30,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFF2563EB),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(Icons.navigation_rounded, size: 16, color: Colors.white),
-                                        ),
-                                        if (!isLast)
-                                          Expanded(
-                                            child: Container(
-                                              width: 3.5,
-                                              color: const Color(0xFF2563EB),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
+                      for (final seg in segments) {
+                        if (seg is DrivingSegment) {
+                          totalDrivingDuration += seg.endTime.difference(seg.startTime);
+                        } else if (seg is StopSegment) {
+                          stopCount++;
+                          totalStopDuration += seg.endTime.difference(seg.startTime);
+                        }
+                      }
 
-                                  // Segment Content
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(bottom: 24),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Text(
-                                                'Driving',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF2563EB),
-                                                ),
-                                              ),
-                                              Text(
-                                                ' — ${_formatDurationShort(dur)}',
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Color(0xFF64748B),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _formatTimeRange(seg.startTime, seg.endTime),
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF94A3B8),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-
-                                          // 2 Card Boxes (Distance & Average Speed)
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(12),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.white,
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    border: Border.all(color: Colors.grey.shade300),
-                                                  ),
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      const Text(
-                                                        'Distance',
-                                                        style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
-                                                      ),
-                                                      const SizedBox(height: 6),
-                                                      Row(
-                                                        children: [
-                                                          const Icon(Icons.route_rounded, size: 18, color: Color(0xFF64748B)),
-                                                          const SizedBox(width: 6),
-                                                          Text(
-                                                            '${seg.distanceKm.toStringAsFixed(1)} km',
-                                                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(12),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.white,
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    border: Border.all(color: Colors.grey.shade300),
-                                                  ),
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      const Text(
-                                                        'Average Speed',
-                                                        style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
-                                                      ),
-                                                      const SizedBox(height: 6),
-                                                      Row(
-                                                        children: [
-                                                          const Icon(Icons.speed_rounded, size: 18, color: Color(0xFF64748B)),
-                                                          const SizedBox(width: 6),
-                                                          Text(
-                                                            '${seg.avgSpeedKmph.round()} kmph',
-                                                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _VehicleStatusCard(vehicle: vehicle),
+                          const SizedBox(height: 16),
+                          _TripSummaryCard(
+                            travelledDistance: vehicle.todayDistanceKm ?? 0.0,
+                            travelledDuration: totalDrivingDuration,
+                            stopCount: stopCount,
+                            stopDuration: totalStopDuration,
+                            lowNetworkCount: 0,
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0F172A) : Theme.of(context).colorScheme.surface,
+                              border: Border.all(
+                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Theme.of(context).colorScheme.outlineVariant,
                               ),
-                            );
-                          } else if (seg is StopSegment) {
-                            final Duration dur = seg.endTime.difference(seg.startTime);
-                            return IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // Timeline Line & Icon Node
-                                  SizedBox(
-                                    width: 36,
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          width: 30,
-                                          height: 30,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFFD97706), // Orange
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(Icons.local_gas_station_rounded, size: 16, color: Colors.white),
-                                        ),
-                                        if (!isLast)
-                                          Expanded(
-                                            child: Container(
-                                              width: 3.5,
-                                              color: const Color(0xFFD97706),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Trip Details',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1E293B),
                                   ),
-                                  const SizedBox(width: 12),
+                                ),
+                                const SizedBox(height: 16),
+                                ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: segments.length,
+                                  itemBuilder: (context, index) {
+                                    final seg = segments[index];
+                                    final bool isLast = index == segments.length - 1;
+                                    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-                                  // Segment Content
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(bottom: 24),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  '${seg.title} — ${_formatDurationShort(dur)}',
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Color(0xFFD97706),
+                                    if (seg is DrivingSegment) {
+                                      final Duration dur = seg.endTime.difference(seg.startTime);
+                                      final Color drivingColor = isDark ? const Color(0xFF10B981) : const Color(0xFF2563EB); // Green in dark mode
+                                      
+                                      return IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            // Timeline Line & Icon Node
+                                            SizedBox(
+                                              width: 36,
+                                              child: Column(
+                                                children: [
+                                                  Container(
+                                                    width: 30,
+                                                    height: 30,
+                                                    decoration: BoxDecoration(
+                                                      color: drivingColor,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(Icons.navigation_rounded, size: 16, color: Colors.white),
                                                   ),
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              InkWell(
-                                                onTap: () {},
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: const [
-                                                    Text(
-                                                      'Set up an alert',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Color(0xFF2563EB),
+                                                  if (!isLast)
+                                                    Expanded(
+                                                      child: Container(
+                                                        width: 3.5,
+                                                        color: drivingColor,
                                                       ),
                                                     ),
-                                                    Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF2563EB)),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+
+                                            // Segment Content
+                                            Expanded(
+                                              child: Padding(
+                                                padding: const EdgeInsets.only(bottom: 24),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Text(
+                                                          'Driving',
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: FontWeight.bold,
+                                                            color: drivingColor,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          ' — ${VehiclePeekSheet._formatDurationShort(dur)}',
+                                                          style: TextStyle(
+                                                            fontSize: 14,
+                                                            fontWeight: FontWeight.w500,
+                                                            color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      VehiclePeekSheet._formatTimeRange(seg.startTime, seg.endTime),
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 12),
+
+                                                    // 2 Card Boxes (Distance & Average Speed)
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Container(
+                                                            padding: const EdgeInsets.all(12),
+                                                            decoration: BoxDecoration(
+                                                              color: isDark ? const Color(0xFF0B1020) : Theme.of(context).colorScheme.surface,
+                                                              borderRadius: BorderRadius.circular(12),
+                                                              border: Border.all(
+                                                                color: isDark ? drivingColor.withValues(alpha: 0.5) : Theme.of(context).colorScheme.outlineVariant,
+                                                              ),
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Row(
+                                                                  children: [
+                                                                    Icon(Icons.route_rounded, size: 18, color: drivingColor),
+                                                                    const SizedBox(width: 6),
+                                                                    Text(
+                                                                      'Distance',
+                                                                      style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                const SizedBox(height: 6),
+                                                                Text(
+                                                                  '${seg.distanceKm.toStringAsFixed(1)} km',
+                                                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 12),
+                                                        Expanded(
+                                                          child: Container(
+                                                            padding: const EdgeInsets.all(12),
+                                                            decoration: BoxDecoration(
+                                                              color: isDark ? const Color(0xFF0B1020) : Theme.of(context).colorScheme.surface,
+                                                              borderRadius: BorderRadius.circular(12),
+                                                              border: Border.all(
+                                                                color: isDark ? drivingColor.withValues(alpha: 0.5) : Theme.of(context).colorScheme.outlineVariant,
+                                                              ),
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Row(
+                                                                  children: [
+                                                                    Icon(Icons.speed_rounded, size: 18, color: drivingColor),
+                                                                    const SizedBox(width: 6),
+                                                                    Text(
+                                                                      'Average Speed',
+                                                                      style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                const SizedBox(height: 6),
+                                                                Text(
+                                                                  '${seg.avgSpeedKmph.round()} kmph',
+                                                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ],
                                                 ),
                                               ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _formatTimeRange(seg.startTime, seg.endTime),
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF94A3B8),
-                                              fontWeight: FontWeight.w500,
                                             ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          CoordinateAddress(lat: seg.lat, lng: seg.lng),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
+                                          ],
+                                        ),
+                                      );
+                                    } else if (seg is StopSegment) {
+                                      final Duration dur = seg.endTime.difference(seg.startTime);
+                                      final Color stopColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+                                      
+                                      return IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            // Timeline Line & Icon Node
+                                            SizedBox(
+                                              width: 36,
+                                              child: Column(
+                                                children: [
+                                                  Container(
+                                                    width: 30,
+                                                    height: 30,
+                                                    decoration: BoxDecoration(
+                                                      color: stopColor,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(Icons.local_gas_station_rounded, size: 16, color: Colors.white),
+                                                  ),
+                                                  if (!isLast)
+                                                    Expanded(
+                                                      child: Container(
+                                                        width: 3.5,
+                                                        color: stopColor,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
 
-                          return const SizedBox.shrink();
-                        },
-                      );
-                    },
-                    loading: () => const Padding(
+                                            // Segment Content
+                                            Expanded(
+                                              child: Padding(
+                                                padding: const EdgeInsets.only(bottom: 24),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            '${seg.title} — ${VehiclePeekSheet._formatDurationShort(dur)}',
+                                                            style: TextStyle(
+                                                              fontSize: 14,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: stopColor,
+                                                            ),
+                                                            overflow: TextOverflow.ellipsis,
+                                                          ),
+                                                        ),
+                                                        if (_alertsSet.contains(seg.index))
+                                                          Row(
+                                                            mainAxisSize: MainAxisSize.min,
+                                                            children: const [
+                                                              Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
+                                                              SizedBox(width: 4),
+                                                              Text(
+                                                                'Alert set',
+                                                                style: TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: Color(0xFF10B981),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          )
+                                                        else
+                                                          InkWell(
+                                                            onTap: () async {
+                                                              final bool? created = await showModalBottomSheet<bool>(
+                                                                context: context,
+                                                                isScrollControlled: true,
+                                                                useSafeArea: true,
+                                                                builder: (BuildContext ctx) => GeofenceEditorSheet(
+                                                                  initialLocation: LatLng(seg.lat, seg.lng),
+                                                                  initialVehicleId: widget.vehicleId,
+                                                                  initialName: '${seg.title} Alert',
+                                                                ),
+                                                              );
+                                                              if (created == true) {
+                                                                setState(() {
+                                                                  _alertsSet.add(seg.index);
+                                                                });
+                                                              }
+                                                            },
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Text(
+                                                                  'Set up an alert',
+                                                                  style: TextStyle(
+                                                                    fontSize: 12,
+                                                                    fontWeight: FontWeight.bold,
+                                                                    color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                                                                  ),
+                                                                ),
+                                                                Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB)),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      VehiclePeekSheet._formatTimeRange(seg.startTime, seg.endTime),
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    CoordinateAddress(lat: seg.lat, lng: seg.lng),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                    ],
+                  );
+                },
+                loading: () => const Padding(
                       padding: EdgeInsets.all(32),
                       child: Center(child: CircularProgressIndicator()),
                     ),
@@ -522,9 +624,9 @@ class VehiclePeekSheet extends ConsumerWidget {
                   Center(
                     child: Text(
                       'Trip Started - ${asyncData.valueOrNull?.route.firstOrNull != null ? Fmt.date(asyncData.valueOrNull!.route.first.timestamp) : 'Today'}, 12:00 AM',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF94A3B8),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -533,6 +635,350 @@ class VehiclePeekSheet extends ConsumerWidget {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _VehicleStatusCard extends StatelessWidget {
+  const _VehicleStatusCard({required this.vehicle});
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    String sinceStr = '';
+    if (vehicle.statusChangedAt != null) {
+      final diff = DateTime.now().difference(vehicle.statusChangedAt!);
+      sinceStr = 'since ${VehiclePeekSheet._formatDurationShort(diff)}';
+    }
+
+    String lastUpdated = 'just now';
+    if (vehicle.lastPacketAt != null) {
+      final diff = DateTime.now().difference(vehicle.lastPacketAt!);
+      if (diff.inMinutes > 0) {
+        lastUpdated = '${diff.inMinutes}m ago';
+      }
+    }
+
+    IconData icon;
+    Color iconBg;
+    Color textCol;
+    if (vehicle.status == VehicleStatus.moving) {
+      icon = Icons.navigation_rounded;
+      iconBg = const Color(0xFF22C55E);
+      textCol = const Color(0xFF22C55E);
+    } else if (vehicle.status == VehicleStatus.idle) {
+      icon = Icons.key_rounded;
+      iconBg = const Color(0xFFF59E0B);
+      textCol = const Color(0xFFF59E0B);
+    } else {
+      icon = Icons.local_parking_rounded;
+      iconBg = const Color(0xFFEF4444);
+      textCol = const Color(0xFFEF4444);
+    }
+
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : Theme.of(context).colorScheme.surface,
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : Theme.of(context).colorScheme.outlineVariant,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Vehicle Status',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade200,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.add_rounded, size: 20, color: isDark ? Colors.white70 : Colors.black87),
+                  onPressed: () {},
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: isDark
+                  ? LinearGradient(
+                      colors: [
+                        iconBg.withValues(alpha: 0.15),
+                        iconBg.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    )
+                  : null,
+              color: isDark ? null : Theme.of(context).colorScheme.surface,
+              border: Border.all(
+                color: isDark
+                    ? iconBg.withValues(alpha: 0.4)
+                    : Theme.of(context).colorScheme.outlineVariant,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Icon with double ring
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: iconBg.withValues(alpha: 0.5), width: 2),
+                  ),
+                  padding: const EdgeInsets.all(2),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: isDark ? const Color(0xFF0F172A) : Colors.white, size: 26),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        vehicle.status.label,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? textCol : textCol,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Last updated $lastUpdated',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.location_on_rounded, size: 14, color: isDark ? textCol : textCol),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: CoordinateAddress(
+                              lat: vehicle.latitude ?? 0,
+                              lng: vehicle.longitude ?? 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (vehicle.status == VehicleStatus.moving) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark ? iconBg.withValues(alpha: 0.1) : Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? iconBg.withValues(alpha: 0.5) : Colors.green.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${vehicle.speed.toInt()}',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? iconBg : Colors.green.shade700,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.speed_rounded, size: 12, color: isDark ? Colors.white : Colors.black),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'km/h',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripSummaryCard extends StatelessWidget {
+  const _TripSummaryCard({
+    required this.travelledDistance,
+    required this.travelledDuration,
+    required this.stopCount,
+    required this.stopDuration,
+    required this.lowNetworkCount,
+  });
+
+  final double travelledDistance;
+  final Duration travelledDuration;
+  final int stopCount;
+  final Duration stopDuration;
+  final int lowNetworkCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : Theme.of(context).colorScheme.surface,
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : Theme.of(context).colorScheme.outlineVariant,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Trip Summary',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 16),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildMetric(context, isDark,
+                  icon: Icons.trip_origin_rounded,
+                  iconBgColor: const Color(0xFF3B82F6),
+                  title: 'Travelled',
+                  value: '${travelledDistance.toStringAsFixed(2)} KM',
+                  subtitle: VehiclePeekSheet._formatDurationShort(travelledDuration),
+                ),
+                VerticalDivider(color: isDark ? const Color(0xFF1E293B) : Theme.of(context).colorScheme.outlineVariant),
+                _buildMetric(context, isDark,
+                  icon: Icons.square_rounded,
+                  iconSize: 12,
+                  iconBgColor: const Color(0xFFF59E0B),
+                  title: 'Stop',
+                  value: '$stopCount Stop',
+                  subtitle: VehiclePeekSheet._formatDurationShort(stopDuration),
+                ),
+                VerticalDivider(color: isDark ? const Color(0xFF1E293B) : Theme.of(context).colorScheme.outlineVariant),
+                _buildMetric(context, isDark,
+                  icon: Icons.signal_cellular_alt_rounded,
+                  iconSize: 14,
+                  iconBgColor: const Color(0xFF475569),
+                  title: 'Low Network',
+                  value: '$lowNetworkCount Time',
+                  subtitle: '-',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetric(
+    BuildContext context, 
+    bool isDark, {
+    required IconData icon,
+    required Color iconBgColor,
+    required String title,
+    required String value,
+    required String subtitle,
+    double iconSize = 16,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: iconBgColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: iconSize, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: iconBgColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.white70 : const Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -14,7 +14,9 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/geocoder.dart';
 import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/alert.dart';
+import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
+import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/connectivity_banner.dart';
 
@@ -23,9 +25,9 @@ import '../../shared/widgets/connectivity_banner.dart';
 /// Foreground `alert:new` socket events prepend to the list; while the app is
 /// backgrounded the same events arrive as FCM push instead.
 class AlertsScreen extends ConsumerStatefulWidget {
-  const AlertsScreen({super.key, required this.vehicleId});
+  const AlertsScreen({super.key, this.vehicleId});
 
-  final String vehicleId;
+  final String? vehicleId;
 
   @override
   ConsumerState<AlertsScreen> createState() => _AlertsScreenState();
@@ -36,6 +38,9 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
 
   final List<FleetAlert> _alerts = <FleetAlert>[];
   String? _typeFilter;
+  String? _selectedVehicleId;
+  String _timeFilter = 'all'; // 'all', 'today', 'yesterday', 'week'
+  bool _sortNewestFirst = true;
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
@@ -57,6 +62,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedVehicleId = (widget.vehicleId != null && widget.vehicleId!.isNotEmpty) ? widget.vehicleId : null;
     _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _load(reset: true);
@@ -147,8 +153,10 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       if (event.name == 'alert:new' || event.name == 'geofence:event') {
         try {
           final FleetAlert newAlert = FleetAlert.fromJson(event.payload);
-          if (newAlert.vehicleId == widget.vehicleId &&
-              _matchesFilter(newAlert, _typeFilter)) {
+          final bool matchesVehicle = _selectedVehicleId == null ||
+              _selectedVehicleId!.isEmpty ||
+              newAlert.vehicleId == _selectedVehicleId;
+          if (matchesVehicle && _matchesFilter(newAlert, _typeFilter)) {
             if (!mounted) return;
             setState(() {
               _alerts.insert(0, newAlert);
@@ -183,11 +191,15 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     }
 
     try {
+      final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+      final List<String> vIds = vehicles.map((Vehicle v) => v.id).toList();
+
       final List<FleetAlert> data =
           await ref.read(alertRepositoryProvider).getAlerts(
                 page: _page,
                 type: _typeFilter,
-                vehicleId: widget.vehicleId,
+                vehicleId: _selectedVehicleId,
+                vehicleIds: vIds,
               );
 
       if (!mounted) return;
@@ -298,8 +310,9 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       try {
         final List<String> currentIds = _alerts.map((a) => a.id).where((id) => id.isNotEmpty).toList();
         await ref.read(alertRepositoryProvider).deleteAlerts(currentIds);
-        if (widget.vehicleId.isNotEmpty) {
-          await ref.read(alertRepositoryProvider).clearVehicleAlerts(widget.vehicleId);
+        final String? vId = widget.vehicleId ?? _selectedVehicleId;
+        if (vId != null && vId.isNotEmpty) {
+          await ref.read(alertRepositoryProvider).clearVehicleAlerts(vId);
         } else {
           await ref.read(alertRepositoryProvider).clearAllAlerts();
         }
@@ -328,9 +341,40 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<FleetAlert> visibleAlerts = _typeFilter == null
-        ? _alerts
-        : _alerts.where((FleetAlert a) => _matchesFilter(a, _typeFilter)).toList(growable: false);
+    final List<Vehicle> allVehicles = ref.watch(fleetProvider).vehicles;
+
+    final DateTime now = DateTime.now();
+    final DateTime todayStart = DateTime(now.year, now.month, now.day);
+    final DateTime yesterdayStart = todayStart.subtract(const Duration(days: 1));
+    final DateTime weekStart = todayStart.subtract(const Duration(days: 7));
+
+    List<FleetAlert> visibleAlerts = _alerts.where((FleetAlert a) {
+      if (!_matchesFilter(a, _typeFilter)) return false;
+      if (_selectedVehicleId != null && _selectedVehicleId!.isNotEmpty) {
+        if (a.vehicleId != _selectedVehicleId) return false;
+      }
+      final DateTime? alertTime = a.createdAt;
+      if (alertTime != null) {
+        if (_timeFilter == 'today') {
+          if (alertTime.isBefore(todayStart)) return false;
+        } else if (_timeFilter == 'yesterday') {
+          if (alertTime.isBefore(yesterdayStart) || alertTime.isAfter(todayStart)) return false;
+        } else if (_timeFilter == 'week') {
+          if (alertTime.isBefore(weekStart)) return false;
+        }
+      }
+      return true;
+    }).toList();
+
+    // Sort order
+    visibleAlerts.sort((a, b) {
+      final DateTime timeA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime timeB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return _sortNewestFirst
+          ? timeB.compareTo(timeA)
+          : timeA.compareTo(timeB);
+    });
+
     final Map<String, List<FleetAlert>> grouped = _groupByDay(visibleAlerts);
     final int unreadCount = visibleAlerts.where((FleetAlert a) => !a.isRead).length;
 
@@ -349,8 +393,23 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
               padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.sm),
               child: Row(
                 children: <Widget>[
+                  if (widget.vehicleId == null && Navigator.of(context).canPop()) ...<Widget>[
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: Gap.md),
+                  ],
                   Text('Alerts', style: theme.textTheme.headlineMedium),
                   const Spacer(),
+                  // Sort button
+                  IconButton(
+                    tooltip: _sortNewestFirst ? 'Sort: Newest first' : 'Sort: Oldest first',
+                    icon: Icon(_sortNewestFirst ? Icons.south_rounded : Icons.north_rounded, size: 20),
+                    onPressed: () => setState(() => _sortNewestFirst = !_sortNewestFirst),
+                  ),
                   if (visibleAlerts.isNotEmpty) ...<Widget>[
                     IconButton(
                       tooltip: 'Clear all alerts',
@@ -368,11 +427,11 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.done_all_rounded, size: 16),
-                        label: Text('Mark all read ($unreadCount)'),
+                        label: Text('Mark all ($unreadCount)'),
                         style: FilledButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 0),
+                              horizontal: 10, vertical: 0),
                           textStyle: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w600),
                         ),
@@ -405,9 +464,120 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
               ),
             ),
 
-            // ── Filters ──────────────────────────────────────────
+            // ── Vehicle & Time Filter Bar (Fleet alerts only) ───
+            if (widget.vehicleId == null) ...<Widget>[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: Gap.xs),
+                child: Row(
+                  children: [
+                    // Vehicle Selector Dropdown
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _selectedVehicleId != null
+                                ? theme.colorScheme.primary.withOpacity(0.5)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String?>(
+                            value: _selectedVehicleId,
+                            isExpanded: true,
+                            icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
+                            hint: Row(
+                              children: const [
+                                Icon(Icons.directions_car_outlined, size: 16),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text('All Vehicles',
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                      overflow: TextOverflow.ellipsis),
+                                ),
+                              ],
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.grid_view_rounded, size: 16),
+                                    SizedBox(width: 6),
+                                    Text('All Vehicles', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
+                              ...allVehicles.map((v) => DropdownMenuItem<String?>(
+                                    value: v.id,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.directions_car_rounded, size: 16),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(v.displayName,
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                              overflow: TextOverflow.ellipsis),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                            ],
+                            onChanged: (val) {
+                              setState(() => _selectedVehicleId = val);
+                              _load(reset: true);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: Gap.sm),
+                    // Time Filter Dropdown
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _timeFilter != 'all'
+                                ? theme.colorScheme.primary.withOpacity(0.5)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _timeFilter,
+                            isExpanded: true,
+                            icon: const Icon(Icons.access_time_rounded, size: 16),
+                            items: const [
+                              DropdownMenuItem(value: 'all', child: Text('All Time', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                              DropdownMenuItem(value: 'today', child: Text('Today', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                              DropdownMenuItem(value: 'yesterday', child: Text('Yesterday', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                              DropdownMenuItem(value: 'week', child: Text('Last 7 Days', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) setState(() => _timeFilter = val);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: Gap.xs),
+            ],
+
+            // ── Alert Type Filter Chips ──────────────────────────
             SizedBox(
-              height: 40,
+              height: 36,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: Gap.lg),
@@ -433,14 +603,14 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                               'harsh' => Icons.emergency_rounded,
                               _ => Icons.notifications_active_rounded,
                             },
-                            size: 16,
+                            size: 15,
                             color: selected
                                 ? theme.colorScheme.onPrimary
                                 : theme.colorScheme.onSurfaceVariant,
                           ),
                     labelStyle: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                       color: selected
                           ? theme.colorScheme.onPrimary
@@ -449,15 +619,15 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                     backgroundColor: theme.colorScheme.surfaceContainerHigh,
                     selectedColor: theme.colorScheme.primary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                       side: BorderSide(
                         color: selected
                             ? theme.colorScheme.primary
                             : theme.colorScheme.outlineVariant.withOpacity(0.5),
-                        width: 1.2,
+                        width: 1.0,
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     onSelected: (_) {
                       if (_typeFilter == f.$1) return;
                       setState(() => _typeFilter = f.$1);
@@ -938,7 +1108,9 @@ class AlertTile extends StatelessWidget {
                                             ),
                                           ),
                                           TextSpan(
-                                            text: Fmt.full(alert.createdAt),
+                                            text: alert.calculatedStartTime != null 
+                                                ? Fmt.full(alert.calculatedStartTime) 
+                                                : 'Unknown',
                                             style: theme.textTheme.labelSmall?.copyWith(
                                               fontWeight: FontWeight.w600,
                                             ),

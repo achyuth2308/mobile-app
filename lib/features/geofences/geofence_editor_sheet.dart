@@ -24,7 +24,15 @@ import '../live_map/widgets/map_tiles.dart';
 /// admin-console job — it needs vertex editing, snapping and validation that
 /// do not belong in a monitoring app.
 class GeofenceEditorSheet extends ConsumerStatefulWidget {
-  const GeofenceEditorSheet({super.key});
+  const GeofenceEditorSheet({
+    super.key,
+    this.initialLocation,
+    this.initialVehicleId,
+    this.initialName,
+  });
+  final LatLng? initialLocation;
+  final String? initialVehicleId;
+  final String? initialName;
 
   @override
   ConsumerState<GeofenceEditorSheet> createState() =>
@@ -38,7 +46,7 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
   final TextEditingController _lngController = TextEditingController();
 
   GeofenceShape _shape = GeofenceShape.circle;
-  LatLng _center = const LatLng(17.385, 78.4867);
+  late LatLng _center;
   double _radius = 300;
   final List<LatLng> _polygonPoints = <LatLng>[];
   final List<String> _selectedVehicleIds = <String>[];
@@ -54,12 +62,21 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialVehicleId != null) {
+      _selectedVehicleIds.add(widget.initialVehicleId!);
+    }
+    _center = widget.initialLocation ?? const LatLng(17.385, 78.4867);
+    if (widget.initialName != null) {
+      _name.text = widget.initialName!;
+    }
 
     final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
-    for (final Vehicle v in vehicles) {
-      if (v.hasLocation) {
-        _center = LatLng(v.latitude!, v.longitude!);
-        break;
+    if (widget.initialLocation == null) {
+      for (final Vehicle v in vehicles) {
+        if (v.hasLocation) {
+          _center = LatLng(v.latitude!, v.longitude!);
+          break;
+        }
       }
     }
 

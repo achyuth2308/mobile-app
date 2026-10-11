@@ -18,6 +18,7 @@ class AlertRepository {
     String? type,
     DateTime? start,
     DateTime? end,
+    List<String>? vehicleIds,
   }) async {
     // `/api/alerts` is not deployed yet (404). Return empty so the screen
     // shows an honest "not enabled" state instead of a red error.
@@ -39,16 +40,45 @@ class AlertRepository {
         },
       );
 
-      return asMapList(res)
+      final List<FleetAlert> alerts = asMapList(res)
           .map(FleetAlert.fromJson)
           .where((FleetAlert a) =>
               a.id.isNotEmpty &&
               !deletedIds.contains(a.id) &&
               a.type.toLowerCase().trim() != 'stoppage')
           .toList(growable: false);
-    } catch (_) {
-      return const <FleetAlert>[];
+
+      if (alerts.isNotEmpty || vehicleId != null) {
+        return alerts;
+      }
+    } catch (_) {}
+
+    // Fallback: If /alerts returned empty and vehicleId is null (Fleet mode),
+    // aggregate alerts from the fleet vehicles directly so all notifications are guaranteed to display!
+    if (vehicleId == null && vehicleIds != null && vehicleIds.isNotEmpty) {
+      try {
+        final List<List<FleetAlert>> perVehicle = await Future.wait(
+          vehicleIds.map(
+            (vId) => getAlerts(
+              vehicleId: vId,
+              type: type,
+              start: start,
+              end: end,
+              limit: 25,
+            ),
+          ),
+        );
+        final List<FleetAlert> combined = perVehicle.expand((l) => l).toList();
+        combined.sort((a, b) {
+          final DateTime tA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final DateTime tB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return tB.compareTo(tA);
+        });
+        return combined;
+      } catch (_) {}
     }
+
+    return const <FleetAlert>[];
   }
 
   Future<int> getUnreadCount() async {

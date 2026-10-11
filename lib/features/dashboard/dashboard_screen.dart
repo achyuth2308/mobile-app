@@ -96,32 +96,97 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               actions: <Widget>[
                 IconButton(
+                  tooltip: 'Alerts',
+                  icon: const Icon(Icons.notifications_outlined),
+                  onPressed: () => context.push('/alerts'),
+                ),
+                const SizedBox(width: Gap.xs),
+                IconButton(
                   tooltip: 'Profile & Settings',
                   icon: const Icon(Icons.account_circle_outlined),
                   onPressed: () => context.push('/profile'),
-                ),
-                const SizedBox(width: Gap.sm),
-                IconButton(
-                  tooltip: 'Search fleet',
-                  icon: Icon(
-                      _searchOpen ? Icons.close_rounded : Icons.search_rounded),
-                  onPressed: () {
-                    setState(() => _searchOpen = !_searchOpen);
-                    if (!_searchOpen) {
-                      _search.clear();
-                      ref.read(fleetSearchProvider.notifier).state = '';
-                    }
-                  },
                 ),
                 const SizedBox(width: Gap.xs),
               ],
             ),
 
-            // ── Search field ─────────────────────────────────────────
+            // ── Overview ─────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, Gap.lg, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const OfflineNotice(),
+                    const FleetOverviewCard()
+                        .animate()
+                        .fadeIn(duration: 400.ms)
+                        .slideY(begin: 0.08),
+                    const AttentionStrip(),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── List header ──────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.xs),
+                child: Row(
+                  children: <Widget>[
+                    Text('Vehicles', style: theme.textTheme.titleLarge),
+                    const SizedBox(width: Gap.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHigh,
+                        borderRadius: Corners.rPill,
+                      ),
+                      child: Text(
+                        '${vehicles.length}',
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    ),
+                    const SizedBox(width: Gap.sm),
+                    IconButton(
+                      tooltip: 'Search vehicles',
+                      icon: Icon(
+                        _searchOpen ? Icons.close_rounded : Icons.search_rounded,
+                        size: 20,
+                        color: _searchOpen
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        setState(() => _searchOpen = !_searchOpen);
+                        if (!_searchOpen) {
+                          _search.clear();
+                          ref.read(fleetSearchProvider.notifier).state = '';
+                        }
+                      },
+                    ),
+                    const Spacer(),
+                    if (ref.watch(fleetFilterProvider) != null)
+                      TextButton.icon(
+                        onPressed: () =>
+                            ref.read(fleetFilterProvider.notifier).state = null,
+                        icon:
+                            const Icon(Icons.filter_alt_off_rounded, size: 16),
+                        label: const Text('Clear filter'),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Search field above vehicle list ──────────────────────
             if (_searchOpen)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Gap.lg, 0, Gap.lg, Gap.md),
+                  padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, Gap.lg, Gap.md),
                   child: TextField(
                     controller: _search,
                     autofocus: true,
@@ -151,61 +216,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       setState(() {});
                     },
                   ),
-                ).animate().fadeIn(duration: 200.ms).slideY(begin: -0.2),
+                ).animate().fadeIn(duration: 200.ms).slideY(begin: -0.1),
               ),
-
-            // ── Overview ─────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, Gap.lg, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const OfflineNotice(),
-                    const FleetOverviewCard()
-                        .animate()
-                        .fadeIn(duration: 400.ms)
-                        .slideY(begin: 0.08),
-                    const AttentionStrip(),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── List header ──────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.md),
-                child: Row(
-                  children: <Widget>[
-                    Text('Vehicles', style: theme.textTheme.titleLarge),
-                    const SizedBox(width: Gap.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHigh,
-                        borderRadius: Corners.rPill,
-                      ),
-                      child: Text(
-                        '${vehicles.length}',
-                        style: theme.textTheme.labelSmall,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (ref.watch(fleetFilterProvider) != null)
-                      TextButton.icon(
-                        onPressed: () =>
-                            ref.read(fleetFilterProvider.notifier).state = null,
-                        icon:
-                            const Icon(Icons.filter_alt_off_rounded, size: 16),
-                        label: const Text('Clear filter'),
-                      ),
-                  ],
-                ),
-              ),
-            ),
 
             // ── Refresh indicator (after resume from background) ─────
             if (fleet.isRefreshing && fleet.vehicles.isNotEmpty)

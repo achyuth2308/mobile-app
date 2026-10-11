@@ -8,7 +8,7 @@ import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
-import 'screens/vehicle_alerts_screen.dart';
+import '../alerts/alerts_screen.dart';
 import 'tabs/vehicle_info_tab.dart';
 import 'tabs/vehicle_live_tab.dart';
 import 'tabs/vehicle_playback_tab.dart';
@@ -155,7 +155,7 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
         children: [
           VehicleLiveTab(vehicleId: widget.vehicleId),
           VehiclePlaybackTab(vehicleId: widget.vehicleId),
-          VehicleAlertsScreen(vehicleId: widget.vehicleId),
+          AlertsScreen(vehicleId: widget.vehicleId),
           VehicleInfoTab(vehicleId: widget.vehicleId),
         ],
       ),

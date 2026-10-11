@@ -155,9 +155,13 @@ class Geofence extends Equatable {
         'name': name,
         'description': description,
         'shape': shape.name,
+        'type': shape.name,
         if (shape == GeofenceShape.circle) ...<String, dynamic>{
           'centerLat': centerLat,
           'centerLng': centerLng,
+          'latitude': centerLat,
+          'longitude': centerLng,
+          'coordinates': <double>[centerLng ?? 0.0, centerLat ?? 0.0],
           'radius': radiusMeters,
         },
         if (shape == GeofenceShape.polygon)
