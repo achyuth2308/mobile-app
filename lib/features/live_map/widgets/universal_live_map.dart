@@ -227,7 +227,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                 if (widget.showTrail) {
                   const Distance dist = Distance();
 
-                  if (widget.showFullTrail && activeV != null && widget.route.isNotEmpty) {
+                  if ((widget.showFullTrail || activeId != null) && activeV != null && widget.route.isNotEmpty) {
                     // ── FULL TRAIL MODE (Shown ONLY when marker is clicked) ──
                     final List<LatLng> fullPoints = [];
                     for (final TrackPoint tp in widget.route) {

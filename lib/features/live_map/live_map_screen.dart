@@ -577,6 +577,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                       route: dailyDataAsync.valueOrNull?.route ?? [],
                       stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
                       showTrail: true,
+                      showFullTrail: true,
                       onTapStoppage: _showStoppageCard,
                     ),
             ),
