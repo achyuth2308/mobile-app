@@ -3,8 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_client.dart';
+import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/trip_provider.dart';
 import '../models/report_models.dart';
+import '../models/user_trip.dart';
 import '../models/vehicle.dart';
 
 class ReportRepository {
@@ -75,7 +78,7 @@ class ReportRepository {
               );
             } catch (err) {
               debugPrint('FETCH FAILED FOR VEHICLE $id ($type): $err');
-              return ReportResult(rows: const <ReportRow>[], summary: const ReportSummary());
+              return const ReportResult(rows: <ReportRow>[], summary: ReportSummary());
             }
           }),
         ));
@@ -133,7 +136,7 @@ class ReportRepository {
             );
           } catch (err) {
             debugPrint('FETCH FAILED FOR VEHICLE ${v.id} (consolidated fallback): $err');
-            return ReportResult(rows: const <ReportRow>[], summary: const ReportSummary());
+            return const ReportResult(rows: <ReportRow>[], summary: ReportSummary());
           }
         }),
       ));
@@ -228,6 +231,90 @@ class ReportRepository {
     List<String>? vehicleIds,
     CancelToken? cancelToken,
   }) async {
+    // Special handling for manual trips: merge remote + local stored trips
+    if (type == ReportType.manualTrip) {
+      dynamic apiRes;
+      try {
+        apiRes = await _api.get<dynamic>(
+          type.path,
+          query: <String, dynamic>{
+            if (vehicleId != null && vehicleId.isNotEmpty) 'vehicleId': vehicleId,
+          },
+          cancelToken: cancelToken,
+        );
+      } catch (e) {
+        debugPrint('Manual trips remote fetch error (falling back to local): $e');
+        apiRes = <Map<String, dynamic>>[];
+      }
+
+      final List<UserTrip> providerTrips = _ref.read(tripProvider).trips;
+      final List<Map<String, dynamic>> localRaw =
+          _ref.read(secureStoreProvider).getLocalTrips();
+      final List<UserTrip> localTrips =
+          localRaw.map(UserTrip.fromJson).toList();
+
+      final Map<String, UserTrip> tripMap = <String, UserTrip>{};
+      for (final UserTrip t in localTrips) {
+        if (t.id.isNotEmpty) tripMap[t.id] = t;
+      }
+      for (final UserTrip t in providerTrips) {
+        if (t.id.isNotEmpty) tripMap[t.id] = t;
+      }
+
+      if (apiRes is List) {
+        for (final dynamic item in apiRes) {
+          if (item is Map<String, dynamic>) {
+            final UserTrip parsed = UserTrip.fromJson(item);
+            if (parsed.id.isNotEmpty) tripMap[parsed.id] = parsed;
+          }
+        }
+      }
+
+      Iterable<UserTrip> matched = tripMap.values;
+      if (vehicleId != null && vehicleId.isNotEmpty) {
+        matched = matched.where((UserTrip t) => t.vehicleId == vehicleId);
+      }
+
+      // Filter by date range (start to end)
+      matched = matched.where((UserTrip t) {
+        final DateTime? tDate = t.startTime ?? t.createdAt;
+        if (tDate == null) return true;
+        return tDate.isAfter(start.subtract(const Duration(hours: 1))) &&
+            tDate.isBefore(end.add(const Duration(hours: 1)));
+      });
+
+      final List<ReportRow> tripRows = matched.map((UserTrip t) {
+        final Map<String, dynamic> rowMap = <String, dynamic>{
+          'id': t.id,
+          'vehicle_id': t.vehicleId,
+          'vehicle_name': t.vehicleName ?? vehicle?.displayName ?? t.plate,
+          'plate': t.plate ?? vehicle?.registrationNumber ?? t.vehicleName,
+          'name': t.name,
+          'trip_name': t.name,
+          'status': t.status,
+          'route_id': t.routeId,
+          'route_name': t.routeName,
+          'origin': t.origin ?? (t.routeName != null && t.routeName!.contains(' - ') ? t.routeName!.split(' - ').first.trim() : null),
+          'destination': t.destination ?? (t.routeName != null && t.routeName!.contains(' - ') ? t.routeName!.split(' - ').last.trim() : null),
+          'start_time': t.startTime?.toIso8601String(),
+          'end_time': t.endTime?.toIso8601String(),
+          'created_at': t.createdAt?.toIso8601String(),
+          'distance': t.distanceKm,
+          'distance_travelled': t.distanceKm,
+          'distanceKm': t.distanceKm,
+          'duration_seconds': t.durationSecs,
+          'stoppage_count': t.stoppageCount,
+        };
+        return ReportRow.fromJson(rowMap);
+      }).toList();
+
+      return ReportResult(
+        rows: tripRows,
+        summary: ReportSummary.fromRows(tripRows),
+        columns: tripRows.isEmpty ? <String>[] : tripRows.first.cells.keys.toList(),
+      );
+    }
+
     final dynamic res = await _api.get<dynamic>(
       type.path,
       query: <String, dynamic>{

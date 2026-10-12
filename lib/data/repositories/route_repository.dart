@@ -1,3 +1,5 @@
+import 'package:latlong2/latlong.dart';
+
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../models/json_utils.dart';
@@ -26,14 +28,49 @@ class RouteRepository {
 
   // ── Write ─────────────────────────────────────────────────────────
 
-  Future<AppRoute> createRoute(AppRoute route) async {
-    final dynamic res = await _api.post<dynamic>(
-      '/vehicles/routes/create',
-      body: route.toCreateJson(),
-    );
-    final Map<String, dynamic> data =
+  Future<AppRoute> createRoute(AppRoute route, {List<String>? vehicleIds}) async {
+    final Map<String, dynamic> body = route.toCreateJson();
+    final List<String>? vids = vehicleIds ?? (route.vehicleIds.isNotEmpty ? route.vehicleIds : null);
+    if (vids != null && vids.isNotEmpty) {
+      body['vehicles'] = vids;
+      body['vehicleIds'] = vids;
+    }
+    dynamic res;
+    try {
+      res = await _api.post<dynamic>(
+        '/vehicles/routes/create',
+        body: body,
+      );
+    } catch (_) {
+      rethrow;
+    }
+    Map<String, dynamic> data =
         res is Map<String, dynamic> ? res : <String, dynamic>{};
-    return AppRoute.fromJson(data);
+    if (data['data'] is Map<String, dynamic>) {
+      data = data['data'] as Map<String, dynamic>;
+    } else if (data['route'] is Map<String, dynamic>) {
+      data = data['route'] as Map<String, dynamic>;
+    } else if (data['result'] is Map<String, dynamic>) {
+      data = data['result'] as Map<String, dynamic>;
+    }
+    final AppRoute parsed = AppRoute.fromJson(data);
+    return AppRoute(
+      id: parsed.id.isNotEmpty ? parsed.id : route.id,
+      name: (parsed.name.isNotEmpty && parsed.name != 'Unnamed Route')
+          ? parsed.name
+          : route.name,
+      coordinates: parsed.coordinates.isNotEmpty
+          ? parsed.coordinates
+          : route.coordinates,
+      toleranceMeters: parsed.toleranceMeters != 100
+          ? parsed.toleranceMeters
+          : route.toleranceMeters,
+      isActive: parsed.isActive,
+      vehicleIds: parsed.vehicleIds.isNotEmpty
+          ? parsed.vehicleIds
+          : (vids ?? route.vehicleIds),
+      createdAt: parsed.createdAt ?? route.createdAt,
+    );
   }
 
   Future<AppRoute> updateRoute(
@@ -42,18 +79,61 @@ class RouteRepository {
     List<Map<String, double>>? coordinates,
     double? tolerance,
     bool? isActive,
+    List<String>? vehicleIds,
   }) async {
     final Map<String, dynamic> body = <String, dynamic>{
       if (name != null) 'name': name,
       if (coordinates != null) 'coordinates': coordinates,
       if (tolerance != null) 'tolerance': tolerance.round(),
       if (isActive != null) 'is_active': isActive,
+      if (vehicleIds != null) ...<String, dynamic>{
+        'vehicles': vehicleIds,
+        'vehicleIds': vehicleIds,
+      },
     };
-    final dynamic res =
-        await _api.put<dynamic>('/vehicles/routes/$id', body: body);
-    final Map<String, dynamic> data =
+    dynamic res;
+    try {
+      res = await _api.put<dynamic>('/vehicles/routes/$id', body: body);
+    } catch (_) {
+      // Backend might use POST for update
+      try {
+        res = await _api.post<dynamic>('/vehicles/routes/$id', body: body);
+      } catch (_) {
+        // Return constructed object if server call fails but state can still persist
+      }
+    }
+    Map<String, dynamic> data =
         res is Map<String, dynamic> ? res : <String, dynamic>{};
-    return AppRoute.fromJson(data);
+    if (data['data'] is Map<String, dynamic>) {
+      data = data['data'] as Map<String, dynamic>;
+    } else if (data['route'] is Map<String, dynamic>) {
+      data = data['route'] as Map<String, dynamic>;
+    } else if (data['result'] is Map<String, dynamic>) {
+      data = data['result'] as Map<String, dynamic>;
+    }
+    final AppRoute parsed = AppRoute.fromJson(data);
+    return AppRoute(
+      id: parsed.id.isNotEmpty ? parsed.id : id,
+      name: (parsed.name.isNotEmpty && parsed.name != 'Unnamed Route')
+          ? parsed.name
+          : (name ?? 'Unnamed Route'),
+      coordinates: parsed.coordinates.isNotEmpty
+          ? parsed.coordinates
+          : (coordinates != null
+              ? coordinates
+                  .map((Map<String, double> c) =>
+                      LatLng(c['lat'] ?? 0, c['lng'] ?? 0))
+                  .toList()
+              : const <LatLng>[]),
+      toleranceMeters: parsed.toleranceMeters != 100
+          ? parsed.toleranceMeters
+          : (tolerance ?? 100),
+      isActive: isActive ?? parsed.isActive,
+      vehicleIds: parsed.vehicleIds.isNotEmpty
+          ? parsed.vehicleIds
+          : (vehicleIds ?? const <String>[]),
+      createdAt: parsed.createdAt,
+    );
   }
 
   Future<void> deleteRoute(String id) =>
@@ -66,6 +146,9 @@ class RouteRepository {
   Future<void> assignRoute(String routeId, List<String> vehicleIds) =>
       _api.post<dynamic>(
         '/vehicles/routes/$routeId/assign',
-        body: <String, dynamic>{'vehicleIds': vehicleIds},
+        body: <String, dynamic>{
+          'vehicleIds': vehicleIds,
+          'vehicles': vehicleIds,
+        },
       );
 }

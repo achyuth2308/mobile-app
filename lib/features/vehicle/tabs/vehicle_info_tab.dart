@@ -8,10 +8,14 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/models/route.dart';
+import '../../../data/models/user_trip.dart';
 import '../../../data/models/vehicle.dart';
 
 import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
+import '../../../providers/route_provider.dart';
+import '../../../providers/trip_provider.dart';
 
 import 'package:local_auth/local_auth.dart';
 
@@ -49,6 +53,10 @@ class VehicleInfoTab extends ConsumerWidget {
             ('Status', v.isActive ? 'Active' : 'Inactive'),
           ],
         ),
+
+        const SizedBox(height: Gap.lg),
+
+        _AssignedRoutesCard(vehicle: v),
 
         const SizedBox(height: Gap.lg),
 
@@ -473,3 +481,156 @@ class _ImmobilizerCardState extends ConsumerState<_ImmobilizerCard> {
     );
   }
 }
+
+class _AssignedRoutesCard extends ConsumerWidget {
+  const _AssignedRoutesCard({required this.vehicle});
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final List<AppRoute> routes = ref.watch(routeProvider).routes;
+    final List<AppRoute> assigned = routes
+        .where((AppRoute r) => r.vehicleIds.contains(vehicle.id))
+        .toList();
+    final List<UserTrip> trips = ref.watch(tripProvider).trips;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: Gap.sm),
+          child: Text(
+            'ASSIGNED ROUTES & TRIPS',
+            style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+        if (assigned.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(Gap.md),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withOpacity(0.35),
+              borderRadius: Corners.rMd,
+              border: Border.all(color: scheme.outlineVariant.withOpacity(0.5)),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.route_rounded, size: 20, color: scheme.onSurfaceVariant),
+                const SizedBox(width: Gap.sm),
+                Expanded(
+                  child: Text(
+                    'No route assigned to this vehicle.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/routes'),
+                  child: const Text('Assign Route', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          )
+        else
+          ...assigned.map((AppRoute r) {
+            final List<UserTrip> onThisRoute = trips
+                .where((UserTrip t) =>
+                    t.vehicleId == vehicle.id &&
+                    (t.routeId == r.id ||
+                        (t.routeName != null && t.routeName == r.name)))
+                .toList();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: Gap.sm),
+              padding: const EdgeInsets.all(Gap.md),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest.withOpacity(0.35),
+                borderRadius: Corners.rMd,
+                border: Border.all(color: AppColors.brand.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Icon(Icons.alt_route_rounded,
+                          size: 20, color: AppColors.brand),
+                      const SizedBox(width: Gap.sm),
+                      Expanded(
+                        child: Text(
+                          r.name,
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '±${r.toleranceMeters.round()} m',
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Length: ${r.approxLengthKm.toStringAsFixed(1)} km · '
+                    '${onThisRoute.length} trip${onThisRoute.length == 1 ? '' : 's'} made through this route',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  if (onThisRoute.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: Gap.sm),
+                    const Divider(height: 1),
+                    const SizedBox(height: Gap.xs),
+                    for (final UserTrip t in onThisRoute.take(3))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: <Widget>[
+                            Icon(
+                              t.isCompleted
+                                  ? Icons.check_circle_outline_rounded
+                                  : Icons.play_circle_outline_rounded,
+                              size: 13,
+                              color:
+                                  t.isCompleted ? Colors.green : AppColors.brand,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                t.name,
+                                style: const TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              t.distanceLabel,
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: scheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+

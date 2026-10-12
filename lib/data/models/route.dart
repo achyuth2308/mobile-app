@@ -73,12 +73,17 @@ class AppRoute extends Equatable {
     }
 
     final List<String> vids = <String>[];
-    if (json['vehicles'] is List) {
-      for (final dynamic v in json['vehicles'] as List<dynamic>) {
+    final dynamic rawVehicles = json['vehicles'] ??
+        json['vehicleIds'] ??
+        json['vehicle_ids'] ??
+        json['assignedVehicles'] ??
+        json['assigned_vehicles'];
+    if (rawVehicles is List) {
+      for (final dynamic v in rawVehicles) {
         final String id = v is Map
-            ? (v['id'] ?? v['_id'] ?? '').toString()
+            ? (v['id'] ?? v['_id'] ?? v['vehicleId'] ?? '').toString()
             : v.toString();
-        if (id.isNotEmpty) vids.add(id);
+        if (id.isNotEmpty && !vids.contains(id)) vids.add(id);
       }
     }
 
@@ -104,6 +109,8 @@ class AppRoute extends Equatable {
                 })
             .toList(),
         'tolerance': toleranceMeters.round(),
+        if (vehicleIds.isNotEmpty) 'vehicles': vehicleIds,
+        if (vehicleIds.isNotEmpty) 'vehicleIds': vehicleIds,
       };
 
   AppRoute copyWith({

@@ -452,10 +452,18 @@ class _StatusChip extends StatelessWidget {
 // ── Create Trip Bottom Sheet ───────────────────────────────────────────────────
 
 class CreateTripSheet extends ConsumerStatefulWidget {
-  const CreateTripSheet({required this.vehicles, required this.routes, super.key});
+  const CreateTripSheet({
+    required this.vehicles,
+    required this.routes,
+    this.initialVehicleId,
+    this.initialRouteId,
+    super.key,
+  });
 
   final List<Vehicle> vehicles;
   final List<AppRoute> routes;
+  final String? initialVehicleId;
+  final String? initialRouteId;
 
   @override
   ConsumerState<CreateTripSheet> createState() => _CreateTripSheetState();
@@ -476,7 +484,45 @@ class _CreateTripSheetState extends ConsumerState<CreateTripSheet> {
   @override
   void initState() {
     super.initState();
-    _vehicleId = widget.vehicles.first.id;
+    if (widget.initialVehicleId != null &&
+        widget.vehicles.any((Vehicle v) => v.id == widget.initialVehicleId)) {
+      _vehicleId = widget.initialVehicleId!;
+    } else {
+      _vehicleId = widget.vehicles.first.id;
+    }
+
+    if (widget.initialRouteId != null &&
+        widget.routes.any((AppRoute r) => r.id == widget.initialRouteId)) {
+      _routeId = widget.initialRouteId;
+      final AppRoute? rt =
+          widget.routes.where((AppRoute r) => r.id == _routeId).firstOrNull;
+      if (rt != null) {
+        _nameCtrl.text = '${rt.name} Trip';
+      }
+    } else {
+      final AppRoute? assigned = widget.routes
+          .where((AppRoute r) => r.vehicleIds.contains(_vehicleId))
+          .firstOrNull;
+      if (assigned != null) {
+        _routeId = assigned.id;
+        _nameCtrl.text = '${assigned.name} Trip';
+      }
+    }
+  }
+
+  void _onVehicleChanged(String vId) {
+    setState(() {
+      _vehicleId = vId;
+      final AppRoute? assigned = widget.routes
+          .where((AppRoute r) => r.vehicleIds.contains(vId))
+          .firstOrNull;
+      if (assigned != null) {
+        _routeId = assigned.id;
+        if (_nameCtrl.text.isEmpty || _nameCtrl.text.endsWith('Trip')) {
+          _nameCtrl.text = '${assigned.name} Trip';
+        }
+      }
+    });
   }
 
   @override
@@ -496,12 +542,26 @@ class _CreateTripSheetState extends ConsumerState<CreateTripSheet> {
     }
     setState(() { _saving = true; _error = null; });
 
+    final Vehicle? veh =
+        widget.vehicles.where((Vehicle v) => v.id == _vehicleId).firstOrNull;
+    final AppRoute? rt =
+        widget.routes.where((AppRoute r) => r.id == _routeId).firstOrNull;
+
     final UserTrip draft = UserTrip(
-      id: '', vehicleId: _vehicleId, name: name, status: 'planned',
+      id: '',
+      vehicleId: _vehicleId,
+      name: name,
+      status: _startNow ? 'in_progress' : 'planned',
       routeId: _routeId,
+      routeName: rt?.name,
+      vehicleName: veh?.displayName,
+      plate: veh?.registrationNumber ?? veh?.displayName,
       origin: _originCtrl.text.trim().isEmpty ? null : _originCtrl.text.trim(),
       destination: _destCtrl.text.trim().isEmpty ? null : _destCtrl.text.trim(),
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      startTime: _startNow ? DateTime.now() : null,
+      distanceKm: rt?.approxLengthKm ?? 0.0,
+      createdAt: DateTime.now(),
     );
 
     final UserTrip? created = await ref.read(tripProvider.notifier).create(draft, startNow: _startNow);
@@ -573,10 +633,37 @@ class _CreateTripSheetState extends ConsumerState<CreateTripSheet> {
                   DropdownButtonFormField<String>(
                     value: _vehicleId,
                     decoration: _inputDecoration(),
-                    onChanged: (String? v) => setState(() => _vehicleId = v!),
+                    onChanged: (String? v) {
+                      if (v != null) _onVehicleChanged(v);
+                    },
                     items: widget.vehicles.map((Vehicle v) =>
                       DropdownMenuItem<String>(value: v.id, child: Text(v.displayName))).toList(),
                   ),
+                  () {
+                    final AppRoute? assigned = widget.routes
+                        .where((AppRoute r) => r.vehicleIds.contains(_vehicleId))
+                        .firstOrNull;
+                    if (assigned != null) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Assigned Route: ${assigned.name}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }(),
                   const SizedBox(height: Gap.md),
 
                   _label('Trip Name *'),

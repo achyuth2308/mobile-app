@@ -162,4 +162,76 @@ class SecureStore {
     current.addAll(ids.where((String id) => id.isNotEmpty));
     await _prefs.setStringList(_kDeletedAlerts, current.toList());
   }
+
+  // ── Route Vehicle Assignments Persistence ───────────────────────────
+  static const _kRouteVehicles = 'ft_route_vehicles';
+
+  Map<String, List<String>> getRouteVehicleAssignments() {
+    try {
+      final String? raw = _prefs.getString(_kRouteVehicles);
+      if (raw == null || raw.isEmpty) return <String, List<String>>{};
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is! Map) return <String, List<String>>{};
+      return decoded.map<String, List<String>>((dynamic k, dynamic v) {
+        final List<String> list = (v is List)
+            ? v.map((dynamic e) => e.toString()).toList()
+            : <String>[];
+        return MapEntry<String, List<String>>(k.toString(), list);
+      });
+    } catch (_) {
+      return <String, List<String>>{};
+    }
+  }
+
+  Future<void> saveRouteVehicleAssignments(
+      String routeId, List<String> vehicleIds) async {
+    if (routeId.isEmpty) return;
+    try {
+      final Map<String, List<String>> current = getRouteVehicleAssignments();
+      current[routeId] = vehicleIds;
+      await _prefs.setString(_kRouteVehicles, jsonEncode(current));
+    } catch (_) {}
+  }
+
+  Future<void> removeRouteVehicleAssignments(String routeId) async {
+    if (routeId.isEmpty) return;
+    try {
+      final Map<String, List<String>> current = getRouteVehicleAssignments();
+      current.remove(routeId);
+      await _prefs.setString(_kRouteVehicles, jsonEncode(current));
+    } catch (_) {}
+  }
+
+  // ── Local Trips Storage ──────────────────────────────────────────
+  static const _kLocalTrips = 'ft_local_trips';
+
+  List<Map<String, dynamic>> getLocalTrips() {
+    try {
+      final String? raw = _prefs.getString(_kLocalTrips);
+      if (raw == null || raw.isEmpty) return <Map<String, dynamic>>[];
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is! List) return <Map<String, dynamic>>[];
+      return decoded
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> saveLocalTrip(Map<String, dynamic> tripJson) async {
+    try {
+      final List<Map<String, dynamic>> current = getLocalTrips();
+      final String id = (tripJson['id'] ?? '').toString();
+      final int idx = current.indexWhere((m) => m['id'] == id);
+      if (idx >= 0) {
+        current[idx] = tripJson;
+      } else {
+        current.insert(0, tripJson);
+      }
+      await _prefs.setString(_kLocalTrips, jsonEncode(current));
+    } catch (_) {}
+  }
 }
+

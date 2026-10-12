@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as dart_ui;
-import 'dart:ui' as dart_ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +19,8 @@ import '../../../providers/core_providers.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/fleet_provider.dart';
 import '../../../providers/route_provider.dart';
+import '../../../providers/trip_provider.dart';
+import '../../../data/models/user_trip.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
 import '../../../core/utils/polyline_simplifier.dart';
@@ -116,7 +117,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   List<bool> _pointGaps = <bool>[];
   List<double> _cumulativeDistances = <double>[];
   List<StoppageEvent> _stoppages = <StoppageEvent>[];
-  int _overspeedCount = 0;
   bool _loading = false;
   String? _error;
 
@@ -308,17 +308,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       // Compute actual stoppages from full in-range points before downsampling
       final List<StoppageEvent> computedStops = _computeStoppages(inRangePoints);
 
-      int calculatedOverspeeds = 0;
-      bool wasOver = false;
-      for (final TrackPoint p in inRangePoints) {
-        if (p.speed > 80 && !wasOver) {
-          calculatedOverspeeds++;
-          wasOver = true;
-        } else if (p.speed <= 80) {
-          wasOver = false;
-        }
-      }
-
       // Filter consecutive duplicates & micro-jitter to keep map path clean and smooth
       final List<TrackPoint> cleanPoints = <TrackPoint>[];
       const Distance distanceCalc = Distance();
@@ -362,9 +351,25 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         _pointGaps = gaps;
         _cumulativeDistances = dists;
         _stoppages = computedStops;
-        _overspeedCount = calculatedOverspeeds;
         _playbackProgress = 0.0;
       });
+
+      // Pre-populate geocoder cache along route checkpoints in background
+      if (cleanPoints.isNotEmpty) {
+        unawaited(Future<void>.microtask(() async {
+          try {
+            unawaited(Geocoder.getAddress(cleanPoints.first.latitude, cleanPoints.first.longitude));
+            unawaited(Geocoder.getAddress(cleanPoints.last.latitude, cleanPoints.last.longitude));
+            for (final StoppageEvent s in computedStops) {
+              unawaited(Geocoder.getAddress(s.lat, s.lng));
+            }
+            final int step = (cleanPoints.length / 25).ceil().clamp(5, 50);
+            for (int i = 0; i < cleanPoints.length; i += step) {
+              unawaited(Geocoder.getAddress(cleanPoints[i].latitude, cleanPoints[i].longitude));
+            }
+          } catch (_) {}
+        }));
+      }
 
       if (cleanPoints.isNotEmpty) {
         await _fitRoute();
@@ -565,6 +570,30 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       );
     }
     return totalMeters / 1000.0;
+  }
+
+  /// Current stoppages reached up to current playback progress.
+  int get _currentStoppageCount {
+    if (_stoppages.isEmpty || _points.isEmpty) return 0;
+    final DateTime currentTime = _currentPoint.timestamp;
+    return _stoppages.where((s) => !s.startTime.isAfter(currentTime)).length;
+  }
+
+  /// Current overspeeds occurred up to current playback progress.
+  int get _currentOverspeedCount {
+    if (_points.isEmpty) return 0;
+    final int currentIdx = _playbackProgress.floor().clamp(0, _points.length - 1);
+    int count = 0;
+    bool wasOver = false;
+    for (int i = 0; i <= currentIdx; i++) {
+      if (_points[i].speed > 80 && !wasOver) {
+        count++;
+        wasOver = true;
+      } else if (_points[i].speed <= 80) {
+        wasOver = false;
+      }
+    }
+    return count;
   }
 
   Future<void> _pickStartDate() async {
@@ -883,8 +912,8 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         point: _currentPoint,
                         distKm: _distanceCovered,
                         playing: _playing,
-                        overspeedCount: _overspeedCount,
-                        stoppageCount: _stoppages.length,
+                        overspeedCount: _currentOverspeedCount,
+                        stoppageCount: _currentStoppageCount,
                       ),
                     ),
                     
@@ -1343,38 +1372,134 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   void _showSaveRouteDialog() {
     final TextEditingController nameCtrl = TextEditingController(text: 'History Route - ${_formatDateShort(_range.start)}');
     double tolerance = 100;
+    int selectedScope = 0; // 0: Full, 1: Outbound, 2: Return
+
+    int turnaroundIdx = _allLatLng.length ~/ 2;
+    if (_allLatLng.length >= 3) {
+      const Distance dist = Distance();
+      final LatLng s = _allLatLng.first;
+      double maxD = 0;
+      for (int i = 0; i < _allLatLng.length; i++) {
+        final double d = dist(s, _allLatLng[i]);
+        if (d > maxD) {
+          maxD = d;
+          turnaroundIdx = i;
+        }
+      }
+    }
+
+    String startName = 'Start';
+    String endName = 'End';
+    String turnName = 'Turnaround';
+
+    void updateSuggestedName(StateSetter setDialogState) {
+      if (selectedScope == 1) {
+        nameCtrl.text = '$startName – $turnName';
+      } else if (selectedScope == 2) {
+        nameCtrl.text = '$turnName – $endName';
+      } else {
+        nameCtrl.text = startName == endName
+            ? '$startName (Round Trip Loop)'
+            : '$startName – $endName';
+      }
+      setDialogState(() {});
+    }
+
+    // Automatically resolve start, turnaround & end place
+    if (_allLatLng.length >= 2) {
+      final LatLng sPt = _allLatLng.first;
+      final LatLng ePt = _allLatLng.last;
+      final LatLng tPt = _allLatLng[turnaroundIdx];
+      Future.wait(<Future<String>>[
+        Geocoder.getAddress(sPt.latitude, sPt.longitude),
+        Geocoder.getAddress(ePt.latitude, ePt.longitude),
+        Geocoder.getAddress(tPt.latitude, tPt.longitude),
+      ]).then((List<String> addrs) {
+        startName = Geocoder.cleanPlaceName(addrs[0]);
+        endName = Geocoder.cleanPlaceName(addrs[1]);
+        turnName = Geocoder.cleanPlaceName(addrs[2]);
+        if (nameCtrl.text.startsWith('History Route')) {
+          nameCtrl.text = startName == endName
+              ? '$startName (Round Trip Loop)'
+              : '$startName – $endName';
+        }
+      }).catchError((_) {});
+    }
     
     showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setState) {
+          builder: (BuildContext context, StateSetter setDialogState) {
             return AlertDialog(
               title: const Text('Set as Route (Compressed)'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Compresses massive history using the Douglas-Peucker algorithm to guarantee zero server bottleneck!'),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Route Name',
-                      border: OutlineInputBorder(),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Compresses history using Douglas-Peucker algorithm to guarantee zero server lag.'),
+                    if (_allLatLng.length >= 4) ...[
+                      const SizedBox(height: 14),
+                      const Text('Route Scope / Section:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Full Trip (Loop)', style: TextStyle(fontSize: 11)),
+                            selected: selectedScope == 0,
+                            onSelected: (bool sel) {
+                              if (sel) {
+                                selectedScope = 0;
+                                updateSuggestedName(setDialogState);
+                              }
+                            },
+                          ),
+                          ChoiceChip(
+                            label: const Text('Outbound (Start ➔ Turn)', style: TextStyle(fontSize: 11)),
+                            selected: selectedScope == 1,
+                            onSelected: (bool sel) {
+                              if (sel) {
+                                selectedScope = 1;
+                                updateSuggestedName(setDialogState);
+                              }
+                            },
+                          ),
+                          ChoiceChip(
+                            label: const Text('Return (Turn ➔ End)', style: TextStyle(fontSize: 11)),
+                            selected: selectedScope == 2,
+                            onSelected: (bool sel) {
+                              if (sel) {
+                                selectedScope = 2;
+                                updateSuggestedName(setDialogState);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Route Name',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text('Deviation Tolerance: ${tolerance.round()} meters'),
-                  Slider(
-                    value: tolerance,
-                    min: 100,
-                    max: 1000,
-                    divisions: 9,
-                    label: '${tolerance.round()} m',
-                    onChanged: (double val) => setState(() => tolerance = val),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    Text('Deviation Tolerance: ${tolerance.round()} meters'),
+                    Slider(
+                      value: tolerance,
+                      min: 100,
+                      max: 1000,
+                      divisions: 9,
+                      label: '${tolerance.round()} m',
+                      onChanged: (double val) => setDialogState(() => tolerance = val),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -1386,13 +1511,21 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     if (nameCtrl.text.trim().isEmpty) return;
                     Navigator.pop(context);
                     
+                    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
                     try {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(content: Text('Compressing route...')),
                       );
                       
-                      // 1. Extract GPS coordinates
-                      final List<List<double>> rawCoords = _allLatLng
+                      // 1. Extract GPS coordinates based on scope
+                      List<LatLng> targetPts = _allLatLng;
+                      if (selectedScope == 1 && turnaroundIdx >= 1) {
+                        targetPts = _allLatLng.sublist(0, turnaroundIdx + 1);
+                      } else if (selectedScope == 2 && _allLatLng.length - turnaroundIdx >= 2) {
+                        targetPts = _allLatLng.sublist(turnaroundIdx);
+                      }
+
+                      final List<List<double>> rawCoords = targetPts
                           .map((LatLng pt) => <double>[pt.latitude, pt.longitude])
                           .toList(growable: false);
                           
@@ -1403,29 +1536,103 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         SnackBar(content: Text('Compressed ${rawCoords.length} points to ${compressedCoords.length} points! Saving...')),
                       );
                       
-                      // 3. Save to backend via route repository
+                      // 3. Save to backend and local storage via routeProvider
                       final AppRoute newRoute = AppRoute(
                         id: 'temp_${DateTime.now().millisecondsSinceEpoch}', 
                         name: nameCtrl.text.trim(),
                         coordinates: compressedCoords.map((c) => LatLng(c[0], c[1])).toList(),
                         toleranceMeters: tolerance,
                         isActive: true,
+                        vehicleIds: <String>[widget.vehicleId],
                         createdAt: DateTime.now(),
                       );
                       
-                      await ref.read(routeRepositoryProvider).createRoute(newRoute);
+                      final AppRoute? createdRoute = await ref.read(routeProvider.notifier).create(
+                            newRoute,
+                            vehicleIds: <String>[widget.vehicleId],
+                          );
+                      
+                      // 4. Record and store the trip run with start time, end time, duration, and stoppages
+                      int startIdx = 0;
+                      int endIdx = _points.isNotEmpty ? _points.length - 1 : 0;
+                      if (selectedScope == 1 && turnaroundIdx >= 1) {
+                        endIdx = turnaroundIdx.clamp(0, _points.length - 1);
+                      } else if (selectedScope == 2 && _points.length - turnaroundIdx >= 2) {
+                        startIdx = turnaroundIdx.clamp(0, _points.length - 1);
+                      }
+
+                      DateTime tripStart = _range.start;
+                      DateTime tripEnd = _range.end;
+                      if (_points.isNotEmpty && startIdx <= endIdx && endIdx < _points.length) {
+                        tripStart = _points[startIdx].timestamp;
+                        tripEnd = _points[endIdx].timestamp;
+                      }
+
+                      double tripDistKm = 0.0;
+                      if (_cumulativeDistances.isNotEmpty &&
+                          startIdx < _cumulativeDistances.length &&
+                          endIdx < _cumulativeDistances.length) {
+                        tripDistKm = (_cumulativeDistances[endIdx] - _cumulativeDistances[startIdx]).abs() / 1000.0;
+                      }
+                      if (tripDistKm <= 0.0) {
+                        tripDistKm = newRoute.approxLengthKm;
+                      }
+
+                      final int stopCount = _stoppages.where((StoppageEvent s) {
+                        return !s.startTime.isBefore(tripStart) && !s.endTime.isAfter(tripEnd);
+                      }).length;
+
+                      double maxSpd = 0;
+                      double sumSpd = 0;
+                      int countSpd = 0;
+                      for (int i = startIdx; i <= endIdx && i < _points.length; i++) {
+                        final double spd = _points[i].speed;
+                        if (spd > maxSpd) maxSpd = spd;
+                        if (spd > 0) {
+                          sumSpd += spd;
+                          countSpd++;
+                        }
+                      }
+                      final double avgSpd = countSpd > 0 ? (sumSpd / countSpd) : 0.0;
+
+                      final Vehicle? veh = ref
+                          .read(fleetProvider)
+                          .vehicles
+                          .where((Vehicle item) => item.id == widget.vehicleId)
+                          .firstOrNull;
+
+                      final UserTrip recordedTrip = UserTrip(
+                        id: 'trip_${DateTime.now().millisecondsSinceEpoch}',
+                        vehicleId: widget.vehicleId,
+                        name: '${newRoute.name} - Playback Run',
+                        status: 'completed',
+                        routeId: createdRoute?.id ?? newRoute.id,
+                        routeName: newRoute.name,
+                        vehicleName: veh?.displayName ?? widget.vehicleId,
+                        plate: veh?.registrationNumber ?? widget.vehicleId,
+                        startTime: tripStart,
+                        endTime: tripEnd,
+                        durationSecs: tripEnd.difference(tripStart).inSeconds,
+                        distanceKm: tripDistKm,
+                        stoppageCount: stopCount > 0 ? stopCount : _stoppages.length,
+                        maxSpeed: maxSpd.round(),
+                        avgSpeed: avgSpd,
+                        createdAt: DateTime.now(),
+                      );
+
+                      await ref.read(tripProvider.notifier).create(recordedTrip);
                       
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Route created successfully! It is now available in Routes menu.'),
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text('Route "${newRoute.name}" created with trip details & ${_stoppages.length} stops!'),
                             backgroundColor: Colors.green,
                           ),
                         );
                       }
                     } catch (e) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                         );
                       }
@@ -2278,11 +2485,14 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   String? _address;
   Timer? _debounce;
   int _lastRequestId = 0;
+  DateTime? _lastFetchTime;
+  double _lastFetchedLat = 0.0;
+  double _lastFetchedLng = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _resolveAddress();
+    _checkAddress(forceImmediate: true);
   }
 
   @override
@@ -2294,43 +2504,49 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   @override
   void didUpdateWidget(covariant _PlaybackFloatingCard old) {
     super.didUpdateWidget(old);
-
-    if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
-      if (_address != widget.point.address) {
-        setState(() => _address = widget.point.address);
-      }
-      if (!widget.point.address!.endsWith('...') && !widget.point.address!.endsWith('…')) {
-        _debounce?.cancel();
-        return;
-      }
-    }
-
-    _debounce?.cancel();
-    // Use a small 100ms debounce to avoid spamming if dragging the slider very fast,
-    // but fetch dynamically during normal fast playback without pausing.
-    _debounce = Timer(const Duration(milliseconds: 100), () {
-      if (mounted) _resolveAddress();
-    });
+    _checkAddress(forceImmediate: !widget.playing);
   }
 
-  void _resolveAddress() {
-    bool needsFetch = true;
+  void _checkAddress({bool forceImmediate = false}) {
+    // 1. If the point already carries an address string, show it immediately
     if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
-      if (!widget.point.address!.endsWith('...') && !widget.point.address!.endsWith('…')) {
-        needsFetch = false;
+      final String clean = widget.point.address!.replaceAll('...', '').replaceAll('…', '').trim();
+      if (clean.isNotEmpty && _address != clean) {
+        setState(() => _address = clean);
       }
-    }
-    
-    // Show the address without the trailing dots immediately
-    String? cleanAddr = widget.point.address?.replaceAll('...', '').replaceAll('…', '').trim();
-    if (cleanAddr != null && cleanAddr.isEmpty) cleanAddr = null;
-    
-    if (cleanAddr != null) {
-      setState(() => _address = cleanAddr);
+      return;
     }
 
-    if (!needsFetch) return;
+    // 2. Instant proximity cache check (0ms latency, updates while moving!)
+    final String? cached = Geocoder.getCachedAddress(widget.point.latitude, widget.point.longitude);
+    if (cached != null && cached != _address) {
+      setState(() => _address = cached);
+    }
 
+    // 3. Network fetch with throttle (avoids resetting debounces at 60fps)
+    final DateTime now = DateTime.now();
+    const Distance calc = Distance();
+    final double distMoved = calc(
+      LatLng(_lastFetchedLat, _lastFetchedLng),
+      LatLng(widget.point.latitude, widget.point.longitude),
+    );
+
+    final bool timeElapsed = _lastFetchTime == null || now.difference(_lastFetchTime!).inMilliseconds > 1200;
+    final bool movedFarEnough = distMoved > 250.0;
+
+    if (forceImmediate || (timeElapsed && movedFarEnough)) {
+      _lastFetchTime = now;
+      _lastFetchedLat = widget.point.latitude;
+      _lastFetchedLng = widget.point.longitude;
+      _fetchNetworkAddress();
+    } else if (_debounce == null || !_debounce!.isActive) {
+      _debounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) _fetchNetworkAddress();
+      });
+    }
+  }
+
+  void _fetchNetworkAddress() {
     final int currentId = ++_lastRequestId;
     final TrackPoint snap = widget.point;
     Geocoder.getAddress(snap.latitude, snap.longitude).then((String a) {

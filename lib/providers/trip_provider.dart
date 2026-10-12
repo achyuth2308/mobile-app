@@ -52,10 +52,31 @@ class TripController extends Notifier<TripState> {
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final List<UserTrip> trips = await _repo.getTrips();
-      state = state.copyWith(trips: trips, isLoading: false);
+      final List<UserTrip> remoteTrips = await _repo.getTrips();
+      final List<Map<String, dynamic>> localRaw =
+          ref.read(secureStoreProvider).getLocalTrips();
+      final List<UserTrip> localTrips =
+          localRaw.map(UserTrip.fromJson).toList();
+
+      final Map<String, UserTrip> map = <String, UserTrip>{};
+      for (final UserTrip t in remoteTrips) {
+        if (t.id.isNotEmpty) map[t.id] = t;
+      }
+      for (final UserTrip t in localTrips) {
+        if (t.id.isNotEmpty) map[t.id] = t;
+      }
+
+      state = state.copyWith(trips: map.values.toList(), isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final List<Map<String, dynamic>> localRaw =
+          ref.read(secureStoreProvider).getLocalTrips();
+      final List<UserTrip> localTrips =
+          localRaw.map(UserTrip.fromJson).toList();
+      state = state.copyWith(
+        trips: localTrips,
+        isLoading: false,
+        error: localTrips.isNotEmpty ? null : e.toString(),
+      );
     }
   }
 
@@ -66,14 +87,22 @@ class TripController extends Notifier<TripState> {
       if (startNow) {
         created = await _repo.startTrip(created.id);
       }
+      await ref.read(secureStoreProvider).saveLocalTrip(created.toJson());
       state = state.copyWith(
         isSaving: false,
-        trips: <UserTrip>[created, ...state.trips],
+        trips: <UserTrip>[created, ...state.trips.where((t) => t.id != created.id)],
       );
       return created;
     } catch (e) {
-      state = state.copyWith(isSaving: false, error: e.toString());
-      return null;
+      final UserTrip fallback = trip.id.isEmpty
+          ? trip.copyWith(id: 'local_${DateTime.now().millisecondsSinceEpoch}')
+          : trip;
+      await ref.read(secureStoreProvider).saveLocalTrip(fallback.toJson());
+      state = state.copyWith(
+        isSaving: false,
+        trips: <UserTrip>[fallback, ...state.trips.where((t) => t.id != fallback.id)],
+      );
+      return fallback;
     }
   }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -16,6 +15,7 @@ import '../../providers/auth_provider.dart';
 import '../../shared/map/app_map.dart';
 import '../../shared/map/app_map_controller.dart';
 import '../../shared/map/app_map_models.dart';
+import '../../core/utils/geocoder.dart';
 
 /// Full-screen sheet for drawing a route on the map and assigning it
 /// to one or more vehicles. Opened from [RoutesScreen].
@@ -32,12 +32,27 @@ class RouteEditorSheet extends ConsumerStatefulWidget {
 class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   final AppMapControllerWrapper _mapCtrl = AppMapControllerWrapper();
   final TextEditingController _nameCtrl = TextEditingController();
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _placeSearchCtrl = TextEditingController();
 
   final List<LatLng> _waypoints = <LatLng>[];
+  final List<LatLng> _initialWaypoints = <LatLng>[];
+  List<LatLng> _sourceWaypoints = <LatLng>[];
+  RangeValues _trimRange = const RangeValues(0, 1);
+  bool _canEditTrail = false;
   double _tolerance = 150; // metres
   final Set<String> _selectedVehicleIds = <String>{};
+  String _searchQuery = '';
+
+  bool _showPlaceSearch = false;
+  bool _isSearchingPlace = false;
+  List<_RouteStopMatch> _searchResults = <_RouteStopMatch>[];
+  List<_RouteQuickStop> _detectedStops = <_RouteQuickStop>[];
 
   bool _saving = false;
+  bool _isAutoNaming = false;
+  String _startPlace = '';
+  String _endPlace = '';
 
   @override
   void initState() {
@@ -46,14 +61,319 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
     if (ex != null) {
       _nameCtrl.text = ex.name;
       _waypoints.addAll(ex.coordinates);
+      _initialWaypoints.addAll(ex.coordinates);
+      _sourceWaypoints = List<LatLng>.from(ex.coordinates);
       _tolerance = ex.toleranceMeters;
       _selectedVehicleIds.addAll(ex.vehicleIds);
+      _canEditTrail = false; // Existing routes are locked by default so clicks won't move the trail
+    } else {
+      _sourceWaypoints = List<LatLng>.from(_waypoints);
+      _canEditTrail = true;
     }
+    if (_sourceWaypoints.length >= 2) {
+      _trimRange = RangeValues(0, (_sourceWaypoints.length - 1).toDouble());
+    }
+    if (_waypoints.length >= 2) {
+      _autoNameFromPlaces();
+    }
+    if (_sourceWaypoints.length >= 10) {
+      _detectMajorStops();
+    }
+  }
+
+  bool get _isLoop {
+    if (_waypoints.length < 3) return false;
+    const Distance dist = Distance();
+    return dist(_waypoints.first, _waypoints.last) < 200;
+  }
+
+  int _findTurnaroundIndex(List<LatLng> pts) {
+    if (pts.length < 3) return pts.length - 1;
+    const Distance dist = Distance();
+    final LatLng start = pts.first;
+    double maxDist = 0;
+    int idx = pts.length ~/ 2;
+    for (int i = 0; i < pts.length; i++) {
+      final double d = dist(start, pts[i]);
+      if (d > maxDist) {
+        maxDist = d;
+        idx = i;
+      }
+    }
+    return idx;
+  }
+
+  bool get _isSectionSelected {
+    if (_sourceWaypoints.length < 2) return false;
+    return _trimRange.start.round() > 0 ||
+        _trimRange.end.round() < _sourceWaypoints.length - 1;
+  }
+
+  void _onTrimChanged(RangeValues values) {
+    final int startIdx = values.start.round();
+    final int endIdx = values.end.round();
+    if (endIdx - startIdx < 1) return;
+    setState(() {
+      _trimRange = values;
+      _waypoints.clear();
+      _waypoints.addAll(_sourceWaypoints.sublist(startIdx, endIdx + 1));
+    });
+    _autoNameFromPlaces();
+  }
+
+  void _selectOutbound() {
+    final int turn = _findTurnaroundIndex(_sourceWaypoints);
+    if (turn >= 1) {
+      _onTrimChanged(RangeValues(0, turn.toDouble()));
+      _fitFullRoute();
+    }
+  }
+
+  void _selectReturn() {
+    final int turn = _findTurnaroundIndex(_sourceWaypoints);
+    final int last = _sourceWaypoints.length - 1;
+    if (last - turn >= 1) {
+      _onTrimChanged(RangeValues(turn.toDouble(), last.toDouble()));
+      _fitFullRoute();
+    }
+  }
+
+  void _selectFull() {
+    _onTrimChanged(RangeValues(0, (_sourceWaypoints.length - 1).toDouble()));
+    _fitFullRoute();
+  }
+
+  void _revertToOriginal() {
+    setState(() {
+      _waypoints.clear();
+      _waypoints.addAll(_initialWaypoints);
+      _sourceWaypoints = List<LatLng>.from(_initialWaypoints);
+      if (_sourceWaypoints.length >= 2) {
+        _trimRange = RangeValues(0, (_sourceWaypoints.length - 1).toDouble());
+      }
+      _canEditTrail = false;
+    });
+    _showSnack('Reverted to original route.');
+    _autoNameFromPlaces();
+    if (_waypoints.length >= 2) {
+      _fitFullRoute();
+    }
+  }
+
+  Future<void> _searchPlaceAlongRoute() async {
+    final String query = _placeSearchCtrl.text.trim();
+    if (query.isEmpty) return;
+    setState(() {
+      _isSearchingPlace = true;
+      _searchResults.clear();
+    });
+
+    try {
+      final List<GeocodeSearchResult> geoResults =
+          await Geocoder.searchPlaces(query);
+
+      const Distance dist = Distance();
+      final List<_RouteStopMatch> matches = <_RouteStopMatch>[];
+
+      for (final GeocodeSearchResult geo in geoResults) {
+        final LatLng target = LatLng(geo.lat, geo.lon);
+        int nearestIdx = 0;
+        double minD = double.infinity;
+
+        for (int i = 0; i < _sourceWaypoints.length; i++) {
+          final double d = dist(target, _sourceWaypoints[i]);
+          if (d < minD) {
+            minD = d;
+            nearestIdx = i;
+          }
+        }
+
+        // Calculate approximate distance along route from start to this point
+        double distFromStartKm = 0;
+        for (int i = 0; i < nearestIdx; i++) {
+          distFromStartKm += dist(_sourceWaypoints[i], _sourceWaypoints[i + 1]);
+        }
+        distFromStartKm /= 1000;
+
+        matches.add(_RouteStopMatch(
+          name: geo.name,
+          address: geo.address,
+          pointIndex: nearestIdx,
+          distanceKmFromStart: distFromStartKm,
+          distanceMetersFromTrail: minD,
+        ));
+      }
+
+      if (mounted) {
+        setState(() {
+          _searchResults = matches;
+          _isSearchingPlace = false;
+        });
+        if (matches.isEmpty) {
+          _showSnack('No locations matching "$query" found.');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSearchingPlace = false);
+        _showSnack('Search failed: $e');
+      }
+    }
+  }
+
+  void _trimUpTo(int pointIndex, String placeName) {
+    if (pointIndex < 1) {
+      _showSnack('Selected stop is at the start of the route.');
+      return;
+    }
+    _onTrimChanged(RangeValues(0, pointIndex.toDouble()));
+    _nameCtrl.text = '$_startPlace – $placeName';
+    _showSnack('Trimmed route up to $placeName (Point ${pointIndex + 1})');
+    _fitFullRoute();
+  }
+
+  void _trimFromHere(int pointIndex, String placeName) {
+    if (pointIndex >= _sourceWaypoints.length - 1) {
+      _showSnack('Selected stop is at the end of the route.');
+      return;
+    }
+    _onTrimChanged(RangeValues(pointIndex.toDouble(), (_sourceWaypoints.length - 1).toDouble()));
+    _nameCtrl.text = '$placeName – $_endPlace';
+    _showSnack('Set start from $placeName (Point ${pointIndex + 1})');
+    _fitFullRoute();
+  }
+
+  Future<void> _detectMajorStops() async {
+    if (_sourceWaypoints.length < 10) return;
+    try {
+      final List<int> sampleIndices = <int>[
+        (_sourceWaypoints.length * 0.25).round(),
+        (_sourceWaypoints.length * 0.50).round(),
+        (_sourceWaypoints.length * 0.75).round(),
+      ];
+
+      final List<_RouteQuickStop> stops = <_RouteQuickStop>[];
+      for (final int idx in sampleIndices) {
+        final LatLng pt = _sourceWaypoints[idx];
+        final String addr = await Geocoder.getAddress(pt.latitude, pt.longitude);
+        final String name = Geocoder.cleanPlaceName(addr);
+        if (name != 'Place' && !stops.any((_RouteQuickStop s) => s.name == name)) {
+          stops.add(_RouteQuickStop(name: name, pointIndex: idx));
+        }
+      }
+      if (mounted && stops.isNotEmpty) {
+        setState(() => _detectedStops = stops);
+      }
+    } catch (_) {}
+  }
+
+  double get _approxLengthKm {
+    if (_waypoints.length < 2) return 0;
+    const Distance haversine = Distance();
+    double total = 0;
+    for (int i = 0; i < _waypoints.length - 1; i++) {
+      total += haversine(_waypoints[i], _waypoints[i + 1]);
+    }
+    return total / 1000;
+  }
+
+  void _fitFullRoute() {
+    if (_waypoints.length >= 2) {
+      _mapCtrl.fitBounds(_waypoints, padding: 50.0);
+    } else if (_waypoints.isNotEmpty) {
+      _mapCtrl.move(_waypoints.first, 14.0);
+    }
+  }
+
+  Future<void> _autoNameFromPlaces({bool force = false}) async {
+    if (_waypoints.length < 2) return;
+    if (mounted) setState(() => _isAutoNaming = true);
+    try {
+      final LatLng startPt = _waypoints.first;
+      final LatLng endPt = _waypoints.last;
+
+      final List<String> addresses = await Future.wait(<Future<String>>[
+        Geocoder.getAddress(startPt.latitude, startPt.longitude),
+        Geocoder.getAddress(endPt.latitude, endPt.longitude),
+      ]);
+
+      final String start = Geocoder.cleanPlaceName(addresses[0]);
+      final String end = Geocoder.cleanPlaceName(addresses[1]);
+
+      if (mounted) {
+        setState(() {
+          _startPlace = start;
+          _endPlace = end;
+        });
+      }
+
+      final String suggested =
+          start == end ? '$start (Round Trip Loop)' : '$start – $end';
+
+      if (force ||
+          _isSectionSelected ||
+          _nameCtrl.text.trim().isEmpty ||
+          _nameCtrl.text.trim().startsWith('History Route') ||
+          _nameCtrl.text.trim().endsWith('(Round Trip Loop)') ||
+          _nameCtrl.text.trim() == 'Unnamed Route') {
+        _nameCtrl.text = suggested;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isAutoNaming = false);
+  }
+
+  Widget _buildEndpointBadge({
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white, width: 1.5),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(icon, color: Colors.white, size: 12),
+              const SizedBox(width: 3),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        CustomPaint(
+          size: const Size(6, 4),
+          painter: _TrianglePainter(color: color),
+        ),
+      ],
+    );
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _searchCtrl.dispose();
+    _placeSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -74,45 +394,46 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
       name: name,
       coordinates: List<LatLng>.from(_waypoints),
       toleranceMeters: _tolerance,
+      vehicleIds: _selectedVehicleIds.toList(),
     );
 
     final RouteController ctrl = ref.read(routeProvider.notifier);
     AppRoute? saved;
-    if (widget.existing == null) {
-      saved = await ctrl.create(route);
-    } else {
-      // Update existing
-      try {
-        saved = await ref.read(routeRepositoryProvider).updateRoute(
-              route.id,
-              name: route.name,
-              coordinates: route.coordinates
-                  .map((LatLng p) =>
-                      <String, double>{'lat': p.latitude, 'lng': p.longitude})
-                  .toList(),
-              tolerance: route.toleranceMeters,
-            );
-        // Refresh list
-        await ctrl.load();
-      } catch (e) {
+    try {
+      if (widget.existing == null) {
+        saved = await ctrl.create(route, vehicleIds: _selectedVehicleIds.toList());
+      } else {
+        saved = await ctrl.update(route, vehicleIds: _selectedVehicleIds.toList());
+      }
+
+      if (saved == null) {
         setState(() => _saving = false);
-        _showSnack('Failed to update: $e');
+        _showSnack(ref.read(routeProvider).error ?? 'Failed to save route.');
         return;
       }
-    }
 
-    if (saved == null) {
+      final AppRoute result = saved.copyWith(vehicleIds: _selectedVehicleIds.toList());
+
+      // Refresh list in provider so changes immediately reflect everywhere
+      await ctrl.load();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _selectedVehicleIds.isEmpty
+                  ? 'Route "${result.name}" saved.'
+                  : 'Route "${result.name}" saved and assigned to ${_selectedVehicleIds.length} vehicle${_selectedVehicleIds.length == 1 ? '' : 's'}.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(result);
+      }
+    } catch (e) {
       setState(() => _saving = false);
-      _showSnack(ref.read(routeProvider).error ?? 'Failed to save route.');
-      return;
+      _showSnack('Failed to save route: $e');
     }
-
-    // Assign vehicles
-    if (_selectedVehicleIds.isNotEmpty) {
-      await ctrl.assign(saved.id, _selectedVehicleIds.toList());
-    }
-
-    if (mounted) Navigator.of(context).pop(saved);
   }
 
   void _showSnack(String msg) {
@@ -123,15 +444,17 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   // ── Map tap → add waypoint ─────────────────────────────────────────────────
 
   void _onTap(LatLng point) {
-    if (_saving) return;
+    if (_saving || !_canEditTrail) return;
     setState(() {
       _waypoints.add(point);
+      _sourceWaypoints = List<LatLng>.from(_waypoints);
+      _trimRange = RangeValues(0, (_sourceWaypoints.length - 1).toDouble());
     });
+    if (_waypoints.length >= 2) {
+      _autoNameFromPlaces();
+    }
   }
 
-  void _removeWaypoint(int index) {
-    setState(() => _waypoints.removeAt(index));
-  }
 
   // ── UI ─────────────────────────────────────────────────────────────────────
 
@@ -140,6 +463,14 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
+
+    final List<Vehicle> filteredVehicles = vehicles.where((Vehicle v) {
+      if (_searchQuery.isEmpty) return true;
+      final String q = _searchQuery.toLowerCase();
+      return v.displayName.toLowerCase().contains(q) ||
+          v.name.toLowerCase().contains(q) ||
+          v.registrationNumber.toLowerCase().contains(q);
+    }).toList();
 
     return Scaffold(
       backgroundColor: scheme.surface,
@@ -180,7 +511,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
         children: <Widget>[
           // ── Map ────────────────────────────────────────────────────────────
           Expanded(
-            flex: 6,
+            flex: 5,
             child: Stack(
               children: <Widget>[
                 AppMap(
@@ -190,48 +521,71 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                       ? _waypoints.first
                       : const LatLng(17.385, 78.4867),
                   initialZoom: 13,
-                  onMapCreated: (controller) => _mapCtrl.setInner(controller),
+                  onMapCreated: (AppMapController controller) {
+                    _mapCtrl.setInner(controller);
+                    Future<void>.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) _fitFullRoute();
+                    });
+                  },
                   onTap: _onTap,
                   polylines: [
-                    if (_waypoints.length >= 2)
+                    if (_waypoints.length >= 2) ...<AppPolyline>[
+                      // Outer casing for contrast on dark and light maps
                       AppPolyline(
-                        id: 'route_line',
+                        id: 'route_trail_casing',
                         points: _waypoints,
-                        color: AppColors.brand,
-                        strokeWidth: 4,
+                        color: Colors.black.withOpacity(0.55),
+                        strokeWidth: 7,
                       ),
+                      // Core radiant trail
+                      AppPolyline(
+                        id: 'route_trail_core',
+                        points: _waypoints,
+                        color: const Color(0xFF00C6FF),
+                        strokeWidth: 4.5,
+                      ),
+                    ],
                   ],
                   markers: [
-                    for (int i = 0; i < _waypoints.length; i++)
+                    if (_waypoints.isNotEmpty)
                       AppMarker(
-                        id: 'wp_$i',
-                        position: _waypoints[i],
-                        width: 32,
-                        height: 32,
-                        widget: GestureDetector(
-                          onLongPress: () => _removeWaypoint(i),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: i == 0
-                                  ? Colors.green
-                                  : i == _waypoints.length - 1
-                                      ? Colors.red
-                                      : AppColors.brand,
-                              border: Border.all(
-                                  color: Colors.white, width: 2),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${i + 1}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
+                        id: 'route_start',
+                        position: _waypoints.first,
+                        width: _isLoop ? 125 : 80,
+                        height: 40,
+                        alignment: Alignment.topCenter,
+                        widget: _buildEndpointBadge(
+                          label: _isLoop ? 'START & FINISH' : 'START',
+                          icon: _isLoop
+                              ? Icons.all_inclusive_rounded
+                              : Icons.play_arrow_rounded,
+                          color: const Color(0xFF10B981),
+                        ),
+                      ),
+                    if (_waypoints.length >= 2 && !_isLoop)
+                      AppMarker(
+                        id: 'route_end',
+                        position: _waypoints.last,
+                        width: 80,
+                        height: 40,
+                        alignment: Alignment.topCenter,
+                        widget: _buildEndpointBadge(
+                          label: 'END',
+                          icon: Icons.flag_rounded,
+                          color: const Color(0xFFEF4444),
+                        ),
+                      ),
+                    if (_isLoop && _waypoints.length >= 4)
+                      AppMarker(
+                        id: 'route_turnaround',
+                        position: _waypoints[_findTurnaroundIndex(_waypoints)],
+                        width: 115,
+                        height: 40,
+                        alignment: Alignment.topCenter,
+                        widget: _buildEndpointBadge(
+                          label: 'TURNAROUND',
+                          icon: Icons.sync_alt_rounded,
+                          color: const Color(0xFFF59E0B),
                         ),
                       ),
                   ],
@@ -260,18 +614,186 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                       ),
                     ),
                   ),
-                // Undo last point
+                // Mode indicator & toggle button banner (Clickable pill!)
                 if (_waypoints.isNotEmpty)
                   Positioned(
                     top: 12,
-                    right: 12,
-                    child: FloatingActionButton.small(
-                      heroTag: 'undo',
-                      onPressed: () =>
-                          setState(() => _waypoints.removeLast()),
-                      backgroundColor: scheme.errorContainer,
-                      foregroundColor: scheme.onErrorContainer,
-                      child: const Icon(Icons.undo_rounded, size: 18),
+                    left: 12,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          setState(() => _canEditTrail = !_canEditTrail);
+                          _showSnack(_canEditTrail
+                              ? 'Trail editing enabled: Click map to add points'
+                              : 'Trail locked: Map clicks will not modify trail');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _canEditTrail
+                                ? const Color(0xFFF59E0B)
+                                : Colors.black.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: _canEditTrail
+                                  ? Colors.transparent
+                                  : Colors.white24,
+                            ),
+                            boxShadow: const <BoxShadow>[
+                              BoxShadow(
+                                color: Colors.black38,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                _canEditTrail
+                                    ? Icons.edit_road_rounded
+                                    : Icons.lock_rounded,
+                                size: 14,
+                                color: _canEditTrail
+                                    ? Colors.black87
+                                    : const Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _canEditTrail
+                                    ? 'Editing Active (Tap to Lock)'
+                                    : 'Trail Locked (Tap to Edit)',
+                                style: TextStyle(
+                                  color: _canEditTrail
+                                      ? Colors.black87
+                                      : Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Map control buttons (Fit Full Route, Lock/Edit, Undo, Revert)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (_waypoints.length >= 2)
+                        FloatingActionButton.small(
+                          heroTag: 'fit_bounds',
+                          tooltip: 'Fit Full Route',
+                          onPressed: _fitFullRoute,
+                          backgroundColor: scheme.surface,
+                          foregroundColor: scheme.onSurface,
+                          child: const Icon(Icons.fit_screen_rounded, size: 20),
+                        ),
+                      if (_waypoints.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 8),
+                        FloatingActionButton.small(
+                          heroTag: 'lock_trail',
+                          tooltip: _canEditTrail
+                              ? 'Trail editing active (Tap to lock trail)'
+                              : 'Trail locked (Tap to edit/add points)',
+                          onPressed: () {
+                            setState(() => _canEditTrail = !_canEditTrail);
+                            _showSnack(_canEditTrail
+                                ? 'Trail editing enabled: Click map to add points'
+                                : 'Trail locked: Map clicks will not modify trail');
+                          },
+                          backgroundColor: _canEditTrail
+                              ? const Color(0xFFF59E0B)
+                              : scheme.surface,
+                          foregroundColor:
+                              _canEditTrail ? Colors.black : scheme.onSurface,
+                          child: Icon(
+                            _canEditTrail
+                                ? Icons.edit_road_rounded
+                                : Icons.lock_rounded,
+                            size: 19,
+                          ),
+                        ),
+                      ],
+                      if (_canEditTrail && _waypoints.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 8),
+                        FloatingActionButton.small(
+                          heroTag: 'undo',
+                          tooltip: 'Undo last point',
+                          onPressed: () {
+                            setState(() => _waypoints.removeLast());
+                            if (_waypoints.length >= 2) {
+                              _autoNameFromPlaces();
+                            }
+                          },
+                          backgroundColor: scheme.errorContainer,
+                          foregroundColor: scheme.onErrorContainer,
+                          child: const Icon(Icons.undo_rounded, size: 18),
+                        ),
+                      ],
+                      if (_initialWaypoints.isNotEmpty &&
+                          (_waypoints.length != _initialWaypoints.length || _isSectionSelected)) ...<Widget>[
+                        const SizedBox(height: 8),
+                        FloatingActionButton.small(
+                          heroTag: 'revert_trail',
+                          tooltip:
+                              'Revert to original route (${_initialWaypoints.length} points)',
+                          onPressed: _revertToOriginal,
+                          backgroundColor: const Color(0xFFEF4444),
+                          foregroundColor: Colors.white,
+                          child: const Icon(Icons.restore_rounded, size: 19),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                // Floating distance & points info badge
+                if (_waypoints.length >= 2)
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(Icons.route_rounded,
+                              size: 13, color: Color(0xFF00C6FF)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${_approxLengthKm.toStringAsFixed(1)} km',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '•  ${_waypoints.length} points',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -280,7 +802,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
 
           // ── Settings panel ─────────────────────────────────────────────────
           Expanded(
-            flex: 4,
+            flex: 5,
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
                   Gap.md, Gap.sm, Gap.md, Gap.xl),
@@ -288,13 +810,472 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const SizedBox(height: Gap.sm),
+                  // ── Route Section Trimmer / Loop Selector ─────────────────
+                  if (_sourceWaypoints.length >= 4)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: Gap.sm),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isSectionSelected
+                              ? const Color(0xFF00C6FF)
+                              : scheme.outlineVariant.withOpacity(0.4),
+                          width: _isSectionSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              const Icon(Icons.linear_scale_rounded,
+                                  size: 16, color: Color(0xFF00C6FF)),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Select Route Section / Trim Trail',
+                                style: TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black26,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${_waypoints.length} / ${_sourceWaypoints.length} points',
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white70),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Quick selection presets for Round Trips / Loops & Search
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: <Widget>[
+                              ActionChip(
+                                avatar: const Icon(Icons.all_inclusive_rounded,
+                                    size: 13),
+                                label: const Text('Full Trip (100%)',
+                                    style: TextStyle(fontSize: 10)),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _selectFull,
+                              ),
+                              ActionChip(
+                                avatar: const Icon(Icons.arrow_forward_rounded,
+                                    size: 13, color: Color(0xFF10B981)),
+                                label: const Text('Outbound (Start ➔ Turn)',
+                                    style: TextStyle(fontSize: 10)),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _selectOutbound,
+                              ),
+                              ActionChip(
+                                avatar: const Icon(Icons.arrow_back_rounded,
+                                    size: 13, color: Color(0xFFEF4444)),
+                                label: const Text('Return (Turn ➔ End)',
+                                    style: TextStyle(fontSize: 10)),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _selectReturn,
+                              ),
+                              ActionChip(
+                                avatar: Icon(
+                                  _showPlaceSearch
+                                      ? Icons.close_rounded
+                                      : Icons.search_rounded,
+                                  size: 13,
+                                  color: const Color(0xFF00C6FF),
+                                ),
+                                label: Text(
+                                  _showPlaceSearch
+                                      ? 'Close Search'
+                                      : 'Search Stop / Town',
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF00C6FF),
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () {
+                                  setState(() {
+                                    _showPlaceSearch = !_showPlaceSearch;
+                                    if (!_showPlaceSearch) {
+                                      _searchResults.clear();
+                                      _placeSearchCtrl.clear();
+                                    }
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                          // Quick detected stops along the route
+                          if (_detectedStops.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: <Widget>[
+                                const Text('Stops: ',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white54,
+                                        fontWeight: FontWeight.w600)),
+                                for (final _RouteQuickStop qs in _detectedStops)
+                                  InkWell(
+                                    onTap: () =>
+                                        _trimUpTo(qs.pointIndex, qs.name),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.08),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        border:
+                                            Border.all(color: Colors.white12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          const Icon(Icons.location_on_rounded,
+                                              size: 10,
+                                              color: Color(0xFF00C6FF)),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            'Up to ${qs.name}',
+                                            style: const TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.white),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                          // Place Search Bar & Results
+                          if (_showPlaceSearch) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black38,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: const Color(0xFF00C6FF)
+                                        .withOpacity(0.4)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Row(
+                                    children: <Widget>[
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _placeSearchCtrl,
+                                          autofocus: true,
+                                          style:
+                                              const TextStyle(fontSize: 12),
+                                          decoration: InputDecoration(
+                                            isDense: true,
+                                            hintText:
+                                                'Search city or town (e.g. Vijayawada, Kondapalli)...',
+                                            hintStyle: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.white54),
+                                            prefixIcon: const Icon(
+                                                Icons.search_rounded,
+                                                size: 16,
+                                                color: Color(0xFF00C6FF)),
+                                            suffixIcon: _placeSearchCtrl
+                                                    .text.isNotEmpty
+                                                ? IconButton(
+                                                    icon: const Icon(
+                                                        Icons.clear,
+                                                        size: 14),
+                                                    onPressed: () {
+                                                      _placeSearchCtrl.clear();
+                                                      setState(() =>
+                                                          _searchResults
+                                                              .clear());
+                                                    },
+                                                  )
+                                                : null,
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 6),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              borderSide: const BorderSide(
+                                                  color: Colors.white24),
+                                            ),
+                                          ),
+                                          onSubmitted: (_) =>
+                                              _searchPlaceAlongRoute(),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      FilledButton(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          visualDensity:
+                                              VisualDensity.compact,
+                                        ),
+                                        onPressed: _isSearchingPlace
+                                            ? null
+                                            : _searchPlaceAlongRoute,
+                                        child: _isSearchingPlace
+                                            ? const SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white),
+                                              )
+                                            : const Text('Search',
+                                                style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_searchResults.isNotEmpty) ...<Widget>[
+                                    const SizedBox(height: 6),
+                                    for (final _RouteStopMatch match
+                                        in _searchResults)
+                                      Container(
+                                        margin:
+                                            const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.06),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color: Colors.white12),
+                                        ),
+                                        child: Row(
+                                          children: <Widget>[
+                                            const Icon(
+                                                Icons.location_on_rounded,
+                                                size: 14,
+                                                color: Color(0xFF00C6FF)),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: <Widget>[
+                                                  Text(
+                                                    match.name,
+                                                    style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: Colors.white),
+                                                  ),
+                                                  Text(
+                                                    'Point #${match.pointIndex + 1} • ~${match.distanceKmFromStart.toStringAsFixed(1)} km from start',
+                                                    style: const TextStyle(
+                                                        fontSize: 9,
+                                                        color:
+                                                            Colors.white70),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            FilledButton.tonal(
+                                              style: FilledButton.styleFrom(
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8),
+                                              ),
+                                              onPressed: () => _trimUpTo(
+                                                  match.pointIndex, match.name),
+                                              child: const Text(
+                                                  'Trim up to here 🏁',
+                                                  style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w700)),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            OutlinedButton(
+                                              style: OutlinedButton.styleFrom(
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 6),
+                                              ),
+                                              onPressed: () => _trimFromHere(
+                                                  match.pointIndex, match.name),
+                                              child: const Text('Start here 🟢',
+                                                  style: TextStyle(fontSize: 10)),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          RangeSlider(
+                            values: _trimRange,
+                            min: 0,
+                            max: (_sourceWaypoints.length - 1).toDouble(),
+                            divisions: (_sourceWaypoints.length - 1).clamp(1, 200),
+                            labels: RangeLabels(
+                              'Start (#${_trimRange.start.round() + 1})',
+                              'End (#${_trimRange.end.round() + 1})',
+                            ),
+                            onChanged: _onTrimChanged,
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              Text(
+                                '🟢 Start: Point ${_trimRange.start.round() + 1}',
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFF10B981),
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              if (_isSectionSelected)
+                                InkWell(
+                                  onTap: _selectFull,
+                                  child: const Text(
+                                    'Reset to Full',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: Color(0xFF00C6FF),
+                                        decoration: TextDecoration.underline),
+                                  ),
+                                ),
+                              Text(
+                                '🔴 End: Point ${_trimRange.end.round() + 1}',
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFFEF4444),
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Places strip
+                  if (_startPlace.isNotEmpty || _endPlace.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      margin: const EdgeInsets.only(bottom: Gap.sm),
+                      decoration: BoxDecoration(
+                        color:
+                            scheme.surfaceContainerHighest.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: scheme.outlineVariant.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          const Icon(Icons.circle,
+                              size: 8, color: Color(0xFF10B981)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _startPlace.isNotEmpty ? _startPlace : 'Start',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(Icons.arrow_forward_rounded,
+                                size: 12, color: Colors.grey),
+                          ),
+                          const Icon(Icons.circle,
+                              size: 8, color: Color(0xFFEF4444)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _endPlace.isNotEmpty ? _endPlace : 'End',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFEF4444),
+                            ),
+                          ),
+                          const Spacer(),
+                          InkWell(
+                            onTap: () => _autoNameFromPlaces(force: true),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Icon(Icons.auto_fix_high_rounded,
+                                      size: 12, color: AppColors.brand),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Auto-name',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.brand,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Name field
                   TextField(
                     controller: _nameCtrl,
                     decoration: InputDecoration(
                       labelText: 'Route Name',
-                      hintText: 'e.g. Hyderabad–Warangal Highway',
+                      hintText: 'e.g. Place A – Place B',
                       prefixIcon: const Icon(Icons.route_rounded),
+                      suffixIcon: IconButton(
+                        icon: _isAutoNaming
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2),
+                              )
+                            : const Icon(Icons.auto_fix_high_rounded,
+                                color: AppColors.brand, size: 18),
+                        tooltip: 'Auto-detect Route Name (Start – End)',
+                        onPressed: () => _autoNameFromPlaces(force: true),
+                      ),
                       border: OutlineInputBorder(
                           borderRadius: Corners.rMd),
                     ),
@@ -336,43 +1317,225 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
 
-                  const SizedBox(height: Gap.md),
-
-                  // Vehicle assignment
-                  Text(
-                    'Assign to Vehicles',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
+                  const SizedBox(height: Gap.lg),
+                  const Divider(),
                   const SizedBox(height: Gap.xs),
+
+                  // Vehicle assignment header with count & quick actions
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Row(
+                          children: <Widget>[
+                            Text(
+                              'Assign to Vehicles',
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _selectedVehicleIds.isNotEmpty
+                                    ? AppColors.brand.withOpacity(0.15)
+                                    : scheme.surfaceContainerHighest,
+                                borderRadius: Corners.rPill,
+                                border: Border.all(
+                                  color: _selectedVehicleIds.isNotEmpty
+                                      ? AppColors.brand
+                                      : scheme.outlineVariant,
+                                ),
+                              ),
+                              child: Text(
+                                '${_selectedVehicleIds.length} of ${vehicles.length} selected',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _selectedVehicleIds.isNotEmpty
+                                      ? AppColors.brand
+                                      : scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Quick action buttons
+                      TextButton(
+                        onPressed: vehicles.isEmpty
+                            ? null
+                            : () => setState(() {
+                                  _selectedVehicleIds.addAll(
+                                      vehicles.map((Vehicle v) => v.id));
+                                }),
+                        child: const Text('Select All', style: TextStyle(fontSize: 12)),
+                      ),
+                      if (_selectedVehicleIds.isNotEmpty)
+                        TextButton(
+                          onPressed: () => setState(() => _selectedVehicleIds.clear()),
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: Gap.xs),
+
+                  // Search filter
+                  if (vehicles.length > 5) ...<Widget>[
+                    TextField(
+                      controller: _searchCtrl,
+                      onChanged: (String text) => setState(() => _searchQuery = text.trim()),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'Search vehicle by number or name...',
+                        hintStyle: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 16),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: scheme.outlineVariant),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(height: Gap.sm),
+                  ],
+
                   if (vehicles.isEmpty)
-                    Text(
-                      'No vehicles found in your fleet.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'No vehicles found in your fleet.',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    )
+                  else if (filteredVehicles.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'No vehicles match "$_searchQuery".',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
                     )
                   else
                     Wrap(
                       spacing: 8,
-                      runSpacing: 4,
-                      children: vehicles.map((Vehicle v) {
-                        final bool selected =
+                      runSpacing: 8,
+                      children: filteredVehicles.map((Vehicle v) {
+                        final bool isSelected =
                             _selectedVehicleIds.contains(v.id);
-                        return FilterChip(
-                          label: Text(v.displayName),
-                          selected: selected,
-                          selectedColor: AppColors.brand.withOpacity(0.2),
-                          checkmarkColor: AppColors.brand,
-                          onSelected: (bool val) => setState(() {
-                            if (val) {
-                              _selectedVehicleIds.add(v.id);
-                            } else {
-                              _selectedVehicleIds.remove(v.id);
-                            }
-                          }),
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedVehicleIds.remove(v.id);
+                              } else {
+                                _selectedVehicleIds.add(v.id);
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.brand
+                                  : scheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.brand
+                                    : scheme.outlineVariant.withOpacity(0.5),
+                                width: isSelected ? 1.5 : 1.0,
+                              ),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.brand.withOpacity(0.35),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(
+                                  isSelected
+                                      ? Icons.check_circle_rounded
+                                      : Icons.directions_car_rounded,
+                                  size: 15,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : scheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  v.displayName,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : scheme.onSurface,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         );
                       }).toList(),
                     ),
+
+                  const SizedBox(height: Gap.xl),
+
+                  // Bottom Save button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        shape: RoundedRectangleBorder(borderRadius: Corners.rMd),
+                      ),
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check_rounded),
+                      label: Text(
+                        _saving
+                            ? 'Saving...'
+                            : widget.existing == null
+                                ? 'Create & Assign Route (${_selectedVehicleIds.length} Vehicles)'
+                                : 'Update Route & Assignments (${_selectedVehicleIds.length} Vehicles)',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -382,3 +1545,49 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
     );
   }
 }
+
+class _TrianglePainter extends CustomPainter {
+  const _TrianglePainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()..color = color;
+    final Path path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _RouteStopMatch {
+  _RouteStopMatch({
+    required this.name,
+    required this.address,
+    required this.pointIndex,
+    required this.distanceKmFromStart,
+    required this.distanceMetersFromTrail,
+  });
+
+  final String name;
+  final String address;
+  final int pointIndex;
+  final double distanceKmFromStart;
+  final double distanceMetersFromTrail;
+}
+
+class _RouteQuickStop {
+  _RouteQuickStop({
+    required this.name,
+    required this.pointIndex,
+  });
+
+  final String name;
+  final int pointIndex;
+}
+

@@ -24,6 +24,28 @@ class Geocoder {
     ),
   );
 
+  /// Synchronously returns a cached address for the coordinates or nearby coordinates (~200m).
+  static String? getCachedAddress(double lat, double lon) {
+    if (lat == 0 && lon == 0) return null;
+    final String key = '${lat.toStringAsFixed(3)},${lon.toStringAsFixed(3)}';
+    if (_cache.containsKey(key)) {
+      final String val = _cache[key]!;
+      if (val.isNotEmpty && val != 'Location unavailable') return val;
+    }
+
+    // Proximity search within adjacent 110m-200m grid tiles
+    for (final double dLat in const <double>[-0.001, 0.001, -0.002, 0.002]) {
+      for (final double dLon in const <double>[-0.001, 0.001, -0.002, 0.002]) {
+        final String nearbyKey = '${(lat + dLat).toStringAsFixed(3)},${(lon + dLon).toStringAsFixed(3)}';
+        if (_cache.containsKey(nearbyKey)) {
+          final String val = _cache[nearbyKey]!;
+          if (val.isNotEmpty && val != 'Location unavailable') return val;
+        }
+      }
+    }
+    return null;
+  }
+
   /// Reverse geocodes coordinates to a human-readable address.
   /// On Flutter Web, routes via our own backend proxy to avoid CORS issues
   /// with ArcGIS. On mobile/desktop, calls ArcGIS directly.
@@ -87,8 +109,48 @@ class Geocoder {
             if (data['status'] == 'OK' && data['results'] != null) {
               final List<dynamic> results = data['results'] as List<dynamic>;
               if (results.isNotEmpty) {
-                // Find the first result that is NOT just a plus code, as users 
-                // find plus codes (like "XGJ7+HC") confusing.
+                // 1. Look for specific landmark / POI / natural feature / neighborhood
+                String? landmark;
+                for (final dynamic item in results) {
+                  if (item is! Map<String, dynamic>) continue;
+                  final List<dynamic>? types = item['types'] as List<dynamic>?;
+                  if (types == null) continue;
+
+                  final bool isSpecific = types.any((t) => const <String>[
+                    'natural_feature',
+                    'point_of_interest',
+                    'establishment',
+                    'neighborhood',
+                    'sublocality_level_2',
+                    'transit_station',
+                    'bus_station',
+                    'park',
+                    'place_of_worship',
+                    'tourist_attraction',
+                  ].contains(t.toString()));
+
+                  if (isSpecific) {
+                    final dynamic comps = item['address_components'];
+                    String? candidate;
+                    if (comps is List && comps.isNotEmpty && comps.first is Map) {
+                      candidate = comps.first['long_name']?.toString();
+                    } else {
+                      final String? full = item['formatted_address']?.toString();
+                      candidate = full?.split(',').first.trim();
+                    }
+
+                    if (candidate != null &&
+                        candidate.isNotEmpty &&
+                        !candidate.toLowerCase().contains('unnamed') &&
+                        !RegExp(r'^[A-Z0-9]{4,8}\+').hasMatch(candidate) &&
+                        !RegExp(r'^\d+$').hasMatch(candidate)) {
+                      landmark = candidate;
+                      break;
+                    }
+                  }
+                }
+
+                // 2. Find the primary road/street address
                 final dynamic bestResult = results.firstWhere(
                   (dynamic r) {
                     final List<dynamic>? types = (r as Map<String, dynamic>)['types'] as List<dynamic>?;
@@ -101,17 +163,25 @@ class Geocoder {
                 
                 // Extra safety: strip plus code string if it somehow still leads the address
                 if (label != null) {
-                  label = label!.replaceAll(RegExp(r'^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}[,\s]*'), '');
+                  label = label.replaceAll(RegExp(r'^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}[,\s]*'), '');
                   
                   // Remove "Unnamed Road" to keep the address clean and beautiful
-                  label = label!.replaceAll(RegExp(r'Unnamed Road,\s*'), '');
-                  label = label!.replaceAll('Unnamed Road', '').trim();
+                  label = label.replaceAll(RegExp(r'Unnamed Road,\s*'), '');
+                  label = label.replaceAll('Unnamed Road', '').trim();
                   
                   // Clean up any dangling commas that might have been left at the start
-                  if (label!.startsWith(', ')) {
-                    label = label!.substring(2).trim();
+                  if (label.startsWith(', ')) {
+                    label = label.substring(2).trim();
                   }
-                  if (label!.isEmpty) {
+
+                  // 3. Prepend landmark / area name if discovered and not already included
+                  if (landmark != null &&
+                      landmark.isNotEmpty &&
+                      !label.toLowerCase().contains(landmark.toLowerCase())) {
+                    label = '$landmark, $label';
+                  }
+
+                  if (label.isEmpty) {
                     label = null; // Let it fallback to coordinates if it's completely empty
                   }
                 }
@@ -143,4 +213,82 @@ class Geocoder {
       _isProcessing = false;
     });
   }
+
+  /// Extracts a clean, concise town or locality name from a formatted address.
+  /// E.g. "Moktyala, Krishna, Andhra Pradesh 521175, India" -> "Moktyala".
+  static String cleanPlaceName(String raw) {
+    if (raw.isEmpty || raw.startsWith('Location')) return 'Place';
+    if (RegExp(r'^\d+\.\d+').hasMatch(raw)) return 'Place';
+    final List<String> parts = raw.split(',').map((String s) => s.trim()).toList();
+    const Set<String> ignored = <String>{
+      'india',
+      'andhra pradesh',
+      'telangana',
+      'karnataka',
+      'maharashtra',
+      'tamil nadu',
+      'unnamed road',
+    };
+    final List<String> candidates = parts.where((String p) {
+      if (p.isEmpty) return false;
+      if (RegExp(r'^\d+$').hasMatch(p)) return false;
+      if (RegExp(r'\b\d{6}\b').hasMatch(p)) return false;
+      if (ignored.contains(p.toLowerCase())) return false;
+      if (RegExp(r'^(nh|sh)\s*\d+', caseSensitive: false).hasMatch(p)) return false;
+      return true;
+    }).toList();
+
+    if (candidates.isNotEmpty) {
+      return candidates.first;
+    }
+    return parts.first.isNotEmpty ? parts.first : 'Place';
+  }
+
+  /// Geocodes a text query to a list of matching locations.
+  static Future<List<GeocodeSearchResult>> searchPlaces(String query) async {
+    final String q = query.trim();
+    if (q.isEmpty) return <GeocodeSearchResult>[];
+    try {
+      const String apiKey = 'AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk';
+      final String url =
+          'https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(q)}&key=$apiKey';
+      final Response<dynamic> res = await _dio.get(url);
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        final Map<String, dynamic> data = res.data as Map<String, dynamic>;
+        if (data['status'] == 'OK' && data['results'] != null) {
+          final List<dynamic> results = data['results'] as List<dynamic>;
+          return results.map((dynamic r) {
+            final Map<String, dynamic> item = r as Map<String, dynamic>;
+            final dynamic geom = item['geometry'];
+            final dynamic loc = geom is Map ? geom['location'] : null;
+            final double lat = (loc?['lat'] as num?)?.toDouble() ?? 0.0;
+            final double lng = (loc?['lng'] as num?)?.toDouble() ?? 0.0;
+            final String fullAddress = item['formatted_address']?.toString() ?? '';
+            final String name = cleanPlaceName(fullAddress.isNotEmpty ? fullAddress : q);
+            return GeocodeSearchResult(
+              name: name,
+              address: fullAddress,
+              lat: lat,
+              lon: lng,
+            );
+          }).toList();
+        }
+      }
+    } catch (_) {}
+    return <GeocodeSearchResult>[];
+  }
+}
+
+class GeocodeSearchResult {
+  const GeocodeSearchResult({
+    required this.name,
+    required this.address,
+    required this.lat,
+    required this.lon,
+  });
+
+  final String name;
+  final String address;
+  final double lat;
+  final double lon;
 }

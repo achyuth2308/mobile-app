@@ -22,6 +22,7 @@ class UserTrip extends Equatable {
     this.maxSpeed = 0,
     this.avgSpeed = 0.0,
     this.durationSecs,
+    this.stoppageCount = 0,
     this.createdAt,
   });
 
@@ -42,6 +43,7 @@ class UserTrip extends Equatable {
   final int maxSpeed;
   final double avgSpeed;
   final int? durationSecs;
+  final int stoppageCount;
   final DateTime? createdAt;
 
   bool get isActive    => status == 'in_progress';
@@ -58,38 +60,138 @@ class UserTrip extends Equatable {
 
   String get distanceLabel => '${distanceKm.toStringAsFixed(1)} km';
 
-  factory UserTrip.fromJson(Map<String, dynamic> json) => UserTrip(
-        id:           asString(json, ['id']),
-        vehicleId:    asString(json, ['vehicle_id']),
-        name:         asString(json, ['name'], fallback: 'Unnamed Trip'),
-        status:       asString(json, ['status'], fallback: 'planned'),
-        routeId:      asStringOrNull(json, ['route_id']),
-        routeName:    asStringOrNull(json, ['route_name']),
-        vehicleName:  asStringOrNull(json, ['vehicle_name']),
-        plate:        asStringOrNull(json, ['plate']),
-        origin:       asStringOrNull(json, ['origin']),
-        destination:  asStringOrNull(json, ['destination']),
-        notes:        asStringOrNull(json, ['notes']),
-        startTime:    asDate(json, ['start_time']),
-        endTime:      asDate(json, ['end_time']),
-        distanceKm:   asDouble(json, ['distance_km'], fallback: 0.0),
-        maxSpeed:     asInt(json, ['max_speed'], fallback: 0),
-        avgSpeed:     asDouble(json, ['avg_speed'], fallback: 0.0),
-        durationSecs: json['duration_secs'] is num
-            ? (json['duration_secs'] as num).toInt()
-            : null,
-        createdAt:    asDate(json, ['created_at']),
+  String get formattedStartTime {
+    if (startTime == null) return '—';
+    final DateTime t = startTime!;
+    final String day = '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}';
+    final String hour = (t.hour % 12 == 0 ? 12 : t.hour % 12).toString().padLeft(2, '0');
+    final String min = t.minute.toString().padLeft(2, '0');
+    final String ampm = t.hour >= 12 ? 'PM' : 'AM';
+    return '$day $hour:$min $ampm';
+  }
+
+  String get formattedEndTime {
+    if (endTime == null) return '—';
+    final DateTime t = endTime!;
+    final String day = '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}';
+    final String hour = (t.hour % 12 == 0 ? 12 : t.hour % 12).toString().padLeft(2, '0');
+    final String min = t.minute.toString().padLeft(2, '0');
+    final String ampm = t.hour >= 12 ? 'PM' : 'AM';
+    return '$day $hour:$min $ampm';
+  }
+
+  String get formattedTimeRange {
+    if (startTime == null && endTime == null) return 'Time not specified';
+    return '$formattedStartTime → $formattedEndTime';
+  }
+
+  UserTrip copyWith({
+    String? id,
+    String? vehicleId,
+    String? name,
+    String? status,
+    String? routeId,
+    String? routeName,
+    String? vehicleName,
+    String? plate,
+    String? origin,
+    String? destination,
+    String? notes,
+    DateTime? startTime,
+    DateTime? endTime,
+    double? distanceKm,
+    int? maxSpeed,
+    double? avgSpeed,
+    int? durationSecs,
+    int? stoppageCount,
+    DateTime? createdAt,
+  }) =>
+      UserTrip(
+        id: id ?? this.id,
+        vehicleId: vehicleId ?? this.vehicleId,
+        name: name ?? this.name,
+        status: status ?? this.status,
+        routeId: routeId ?? this.routeId,
+        routeName: routeName ?? this.routeName,
+        vehicleName: vehicleName ?? this.vehicleName,
+        plate: plate ?? this.plate,
+        origin: origin ?? this.origin,
+        destination: destination ?? this.destination,
+        notes: notes ?? this.notes,
+        startTime: startTime ?? this.startTime,
+        endTime: endTime ?? this.endTime,
+        distanceKm: distanceKm ?? this.distanceKm,
+        maxSpeed: maxSpeed ?? this.maxSpeed,
+        avgSpeed: avgSpeed ?? this.avgSpeed,
+        durationSecs: durationSecs ?? this.durationSecs,
+        stoppageCount: stoppageCount ?? this.stoppageCount,
+        createdAt: createdAt ?? this.createdAt,
       );
 
+  factory UserTrip.fromJson(Map<String, dynamic> json) => UserTrip(
+        id:           asString(json, ['id', '_id']),
+        vehicleId:    asString(json, ['vehicle_id', 'vehicleId']),
+        name:         asString(json, ['name', 'title'], fallback: 'Unnamed Trip'),
+        status:       asString(json, ['status'], fallback: 'planned'),
+        routeId:      asStringOrNull(json, ['route_id', 'routeId']),
+        routeName:    asStringOrNull(json, ['route_name', 'routeName']),
+        vehicleName:  asStringOrNull(json, ['vehicle_name', 'vehicleName']),
+        plate:        asStringOrNull(json, ['plate', 'registrationNumber']),
+        origin:       asStringOrNull(json, ['origin', 'fromAddress']),
+        destination:  asStringOrNull(json, ['destination', 'toAddress']),
+        notes:        asStringOrNull(json, ['notes', 'description']),
+        startTime:    asDate(json, ['start_time', 'startTime', 'startedAt']),
+        endTime:      asDate(json, ['end_time', 'endTime', 'endedAt']),
+        distanceKm:   asDouble(json, ['distance_km', 'distanceKm', 'distance'], fallback: 0.0),
+        maxSpeed:     asInt(json, ['max_speed', 'maxSpeed'], fallback: 0),
+        avgSpeed:     asDouble(json, ['avg_speed', 'avgSpeed'], fallback: 0.0),
+        durationSecs: json['duration_secs'] is num
+            ? (json['duration_secs'] as num).toInt()
+            : json['durationSecs'] is num
+                ? (json['durationSecs'] as num).toInt()
+                : null,
+        stoppageCount: asInt(json, ['stoppage_count', 'stoppageCount', 'stoppages', 'stops'], fallback: 0),
+        createdAt:    asDate(json, ['created_at', 'createdAt']),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'vehicle_id': vehicleId,
+        'name': name,
+        'status': status,
+        if (routeId != null) 'route_id': routeId,
+        if (routeName != null) 'route_name': routeName,
+        if (vehicleName != null) 'vehicle_name': vehicleName,
+        if (plate != null) 'plate': plate,
+        if (origin != null) 'origin': origin,
+        if (destination != null) 'destination': destination,
+        if (notes != null) 'notes': notes,
+        if (startTime != null) 'start_time': startTime!.toIso8601String(),
+        if (endTime != null) 'end_time': endTime!.toIso8601String(),
+        'distance_km': distanceKm,
+        'max_speed': maxSpeed,
+        'avg_speed': avgSpeed,
+        if (durationSecs != null) 'duration_secs': durationSecs,
+        'stoppage_count': stoppageCount,
+        if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      };
+
   Map<String, dynamic> toCreateJson() => <String, dynamic>{
-        'vehicleId':    vehicleId,
-        'name':         name,
-        if (routeId != null)      'routeId':     routeId,
-        if (origin != null)       'origin':      origin,
-        if (destination != null)  'destination': destination,
-        if (notes != null)        'notes':       notes,
+        'vehicleId':      vehicleId,
+        'name':           name,
+        'status':         status,
+        if (routeId != null)       'routeId':       routeId,
+        if (routeName != null)     'routeName':     routeName,
+        if (origin != null)        'origin':        origin,
+        if (destination != null)   'destination':   destination,
+        if (notes != null)         'notes':         notes,
+        if (startTime != null)     'startTime':     startTime!.toIso8601String(),
+        if (endTime != null)       'endTime':       endTime!.toIso8601String(),
+        if (distanceKm > 0)        'distanceKm':    distanceKm,
+        if (durationSecs != null)  'durationSecs':  durationSecs,
+        if (stoppageCount > 0)     'stoppageCount': stoppageCount,
       };
 
   @override
-  List<Object?> get props => [id, status, distanceKm];
+  List<Object?> get props => [id, status, distanceKm, stoppageCount];
 }
