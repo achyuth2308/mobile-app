@@ -136,6 +136,7 @@ class _GoogleLiveMapState extends State<GoogleLiveMap> {
       VehicleStatus.idle => gm.BitmapDescriptor.hueOrange,
       VehicleStatus.stopped => gm.BitmapDescriptor.hueAzure,
       VehicleStatus.offline => gm.BitmapDescriptor.hueViolet,
+      VehicleStatus.noData => gm.BitmapDescriptor.hueRose,
     };
   }
 
