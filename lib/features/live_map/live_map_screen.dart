@@ -69,21 +69,44 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   void _setFollowingId(String? id) {
     if (!mounted) return;
-    setState(() {
-      _followingId = id;
-      _isHistoryMode =
-          false; // Reset to Live mode when selecting/following vehicle
-    });
-    Future.microtask(() {
-      if (mounted) {
+    void apply() {
+      if (!mounted) return;
+      setState(() {
+        _followingId = id;
+        _isHistoryMode =
+            false; // Reset to Live mode when selecting/following vehicle
+      });
+      try {
         ref.read(activeFollowingVehicleIdProvider.notifier).state = id;
-      }
-    });
+      } catch (_) {}
+    }
+
+    final WidgetsBinding binding = WidgetsBinding.instance;
+    if (binding.buildOwner?.debugBuilding == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+    } else {
+      apply();
+    }
   }
 
   void _handleBack() {
     debugPrint(
         '[LiveMapScreen] _handleBack: canPop=${context.canPop()}, focus=${widget.focusVehicleId}, following=$_followingId');
+    if (mounted) {
+      setState(() {
+        _followingId = null;
+        _selectedId = null;
+        _pendingFocusId = null;
+      });
+    } else {
+      _followingId = null;
+      _selectedId = null;
+      _pendingFocusId = null;
+    }
+    try {
+      ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+    } catch (_) {}
+
     if (context.canPop()) {
       debugPrint('[LiveMapScreen] popping context');
       context.pop();
@@ -98,12 +121,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (widget.focusVehicleId != null && widget.focusVehicleId!.isNotEmpty) {
       debugPrint('[LiveMapScreen] navigating to /dashboard');
       context.go('/dashboard');
-      return;
-    }
-
-    if (_followingId != null) {
-      debugPrint('[LiveMapScreen] un-following vehicle');
-      _setFollowingId(null);
       return;
     }
 
@@ -146,12 +163,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   @override
   void dispose() {
-    // Clear active following vehicle globally
-    Future.microtask(() {
-      try {
-        ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
-      } catch (_) {}
-    });
+    try {
+      ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+    } catch (_) {}
+    _sheetExtentNotifier.dispose();
     super.dispose();
   }
 
@@ -192,11 +207,19 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
     if (target != null) {
       _pendingFocusId = null;
-      _setFollowingId(target.id);
-      if (mounted) {
+      void apply() {
+        if (!mounted) return;
+        _setFollowingId(target.id);
         setState(() {
           _selectedId = target.id;
         });
+      }
+
+      final WidgetsBinding binding = WidgetsBinding.instance;
+      if (binding.buildOwner?.debugBuilding == true) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+      } else {
+        apply();
       }
 
       if (target.hasLocation && _mapReady) {
@@ -409,8 +432,11 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
     // Follow mode — recentre as new frames arrive, unless the user is panning.
     ref.listen<FleetState>(fleetProvider, (FleetState? _, FleetState next) {
+      if (!mounted) return;
       if (_pendingFocusId != null) {
-        _focusVehicle(_pendingFocusId);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusVehicle(_pendingFocusId);
+        });
       }
 
       if (_followingId == null || _userInteracting || !_mapReady) return;
@@ -473,8 +499,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                       followingId: _followingId,
                       pendingFocusId: _pendingFocusId,
                       onMapReady: () {
-                        setState(() => _mapReady = true);
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        void initMap() {
+                          if (!mounted) return;
+                          setState(() => _mapReady = true);
                           if (widget.focusVehicleId != null) {
                             _focusVehicle(widget.focusVehicleId);
                           } else if (_pendingFocusId != null) {
@@ -482,7 +510,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                           } else {
                             _fitAll(vehicles);
                           }
-                        });
+                        }
+
+                        final WidgetsBinding binding = WidgetsBinding.instance;
+                        if (binding.buildOwner?.debugBuilding == true) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) => initMap());
+                        } else {
+                          initMap();
+                        }
                       },
                       onUserInteracting: (interacting) {
                         _userInteracting = interacting;
@@ -509,8 +544,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                       followingId: _followingId,
                       pendingFocusId: _pendingFocusId,
                       onMapReady: () {
-                        setState(() => _mapReady = true);
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        void initMap() {
+                          if (!mounted) return;
+                          setState(() => _mapReady = true);
                           if (widget.focusVehicleId != null) {
                             _focusVehicle(widget.focusVehicleId);
                           } else if (_pendingFocusId != null) {
@@ -518,7 +555,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                           } else {
                             _fitAll(vehicles);
                           }
-                        });
+                        }
+
+                        final WidgetsBinding binding = WidgetsBinding.instance;
+                        if (binding.buildOwner?.debugBuilding == true) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) => initMap());
+                        } else {
+                          initMap();
+                        }
                       },
                       onUserInteracting: (interacting) {
                         _userInteracting = interacting;
@@ -669,26 +713,28 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             top: MediaQuery.paddingOf(context).top + Gap.sm,
             left: Gap.lg,
             right: 80,
-            child: _MapHeader(
-              locatedCount: located,
-              totalCount: vehicles.length,
-              followingName: following?.displayName,
-              isHistoryMode: _isHistoryMode,
-              onStopFollowing: _handleBack,
-              onBack: _handleBack,
-              onToggleHistoryMode: _toggleHistoryMode,
-              onRecenter: following != null && following.hasLocation
-                  ? () => _move(
-                        LatLng(following.latitude!, following.longitude!),
-                        zoom: 14.5,
-                      )
-                  : null,
-              onRefresh: () {
-                ref.invalidate(fleetProvider);
-                if (activeId.isNotEmpty) {
-                  ref.invalidate(vehicleDailyHistoryProvider(activeId));
-                }
-              },
+            child: PointerInterceptor(
+              child: _MapHeader(
+                locatedCount: located,
+                totalCount: vehicles.length,
+                followingName: following?.displayName,
+                isHistoryMode: _isHistoryMode,
+                onStopFollowing: _handleBack,
+                onBack: _handleBack,
+                onToggleHistoryMode: _toggleHistoryMode,
+                onRecenter: following != null && following.hasLocation
+                    ? () => _move(
+                          LatLng(following.latitude!, following.longitude!),
+                          zoom: 14.5,
+                        )
+                    : null,
+                onRefresh: () {
+                  ref.invalidate(fleetProvider);
+                  if (activeId.isNotEmpty) {
+                    ref.invalidate(vehicleDailyHistoryProvider(activeId));
+                  }
+                },
+              ),
             ),
           ),
 
@@ -764,7 +810,7 @@ class _MapHeader extends StatelessWidget {
                 customBorder: const CircleBorder(),
                 onTap: () {
                   debugPrint('[LiveMapScreen] Back button tapped in _MapHeader!');
-                  onStopFollowing();
+                  (onBack ?? onStopFollowing)();
                 },
                 child: SizedBox(
                   width: 44,
@@ -901,7 +947,7 @@ class _NoLocationCard extends StatelessWidget {
     return Container(
       padding: Gap.card,
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer.withOpacity(0.96),
+        color: scheme.surfaceContainer.withValues(alpha: 0.96),
         borderRadius: Corners.rLg,
         border: Border.all(color: scheme.outlineVariant),
       ),

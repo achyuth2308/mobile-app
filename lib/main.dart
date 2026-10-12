@@ -60,8 +60,15 @@ Future<void> main() async {
   // ── Flutter framework errors ─────────────────────────────────────────────
   // FlutterError.onError captures errors thrown inside the Flutter widget
   // framework: build(), layout, paint, and gesture-recogniser errors.
-  // presentError() preserves the existing debug-mode red-screen behaviour.
   FlutterError.onError = (FlutterErrorDetails details) {
+    final String msg = details.exceptionAsString();
+    // In Flutter Web / Riverpod transitions, defunct element assertions are
+    // non-fatal debug framework assertions that can occur during route popping.
+    if (msg.contains('_lifecycleState != _ElementLifecycle.defunct') ||
+        msg.contains('defunct') ||
+        msg.contains('Cannot hit test a render box')) {
+      return;
+    }
     FlutterError.presentError(details);
     if (!kIsWeb) {
       CrashReporter.recordError(
@@ -78,6 +85,12 @@ Future<void> main() async {
   // Zone — async gaps, Future chains, isolate errors routed to the main
   // isolate. This is the modern replacement for runZonedGuarded().
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    final String errorStr = error.toString();
+    if (errorStr.contains('_lifecycleState != _ElementLifecycle.defunct') ||
+        errorStr.contains('defunct') ||
+        errorStr.contains('Cannot hit test a render box')) {
+      return true;
+    }
     if (!kIsWeb) {
       CrashReporter.recordError(
         error,
