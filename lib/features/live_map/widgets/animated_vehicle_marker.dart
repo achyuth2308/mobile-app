@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../data/models/vehicle.dart';
@@ -5,21 +6,20 @@ import '../../../data/models/vehicle.dart';
 /// Smoothly glides a vehicle marker along the road between GPS updates.
 ///
 /// Features:
-///   1. **Adaptive Duration Pacing** — Automatically measures the real arrival
-///      cadence between GPS packets and paces the glide duration to match it.
-///      This ensures the vehicle moves continuously forward without stopping.
+///   1. **Continuous Steady Motion** — Paces the vehicle glide to match real
+///      vehicle speed and packet arrival cadence. When moving, the vehicle
+///      maintains continuous forward progression without freezing between packets.
 ///
-///   2. **Mid-Flight Re-Targeting** — When a new GPS update arrives while the
-///      marker is still gliding, it immediately takes the exact current visual
-///      position on screen as the start point and glides forward to the new fix.
-///      It NEVER snaps or jumps backwards.
+///   2. **Zero-Backwards Guarantee** — Mathematically projects any incoming GPS
+///      fix onto the vehicle's forward travel vector. If an incoming packet or jitter
+///      lies behind the current visual position, forward progress is clamped to >= 0,
+///      guaranteeing the vehicle NEVER moves or snaps backwards.
 ///
-///   3. **Coast Easing** — Uses [Curves.easeOutCubic] so vehicle maintains steady
-///      road speed and gently decelerates if a packet is delayed, rather than
-///      freezing abruptly.
+///   3. **Coast Deceleration** — If a packet is delayed, the vehicle smoothly coasts
+///      forward along its road heading and gently decelerates rather than freezing abruptly.
 ///
-///   4. **Parked Settling** — When the vehicle stops (speed < 1 km/h or status != moving),
-///      it settles quickly (600ms) and remains stationary without drifting.
+///   4. **Clean Parked Settling** — When vehicle stops (speed < 1 km/h or status != moving),
+///      it settles immediately into rest without drifting or coasting.
 class AnimatedVehicleMarker extends StatefulWidget {
   final LatLng point;
   final double heading;
@@ -45,7 +45,6 @@ class AnimatedVehicleMarker extends StatefulWidget {
 class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     with SingleTickerProviderStateMixin {
   late AnimationController _glideController;
-  late Animation<double> _glideCurve;
 
   LatLng _fromPoint = const LatLng(0, 0);
   LatLng _toPoint = const LatLng(0, 0);
@@ -53,7 +52,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
   double _toHeading = 0.0;
 
   DateTime? _lastPacketTime;
-  int _estimatedIntervalMs = 6000;
+  int _estimatedIntervalMs = 5000;
   bool _initialized = false;
   static const Distance _dist = Distance();
 
@@ -67,12 +66,15 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     _lastPacketTime = DateTime.now();
     _initialized = true;
 
+    // upperBound: 2.0 allows the vehicle to smoothly coast forward beyond 1.0
+    // at constant road speed if the next GPS packet is slightly delayed,
+    // ensuring continuous, unbroken forward motion!
     _glideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      lowerBound: 0.0,
+      upperBound: 2.0,
+      duration: const Duration(milliseconds: 4000),
     );
-    _glideCurve =
-        CurvedAnimation(parent: _glideController, curve: Curves.easeOutCubic);
 
     _glideController.addListener(_onGlideTick);
 
@@ -95,52 +97,101 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       final DateTime now = DateTime.now();
       if (_lastPacketTime != null) {
         final int elapsed = now.difference(_lastPacketTime!).inMilliseconds;
-        // If elapsed time is between 2s and 25s, use exponential moving average
-        // to adapt smoothly to the hardware's reporting cadence.
         if (elapsed >= 1500 && elapsed <= 25000) {
           _estimatedIntervalMs =
-              ((_estimatedIntervalMs * 0.4) + (elapsed * 0.6)).round();
+              ((_estimatedIntervalMs * 0.35) + (elapsed * 0.65)).round();
         }
       }
       _lastPacketTime = now;
 
-      // Retarget seamlessly from the EXACT current on-screen visual position!
-      // This guarantees the marker ONLY moves forward and NEVER snaps backward.
-      _fromPoint = _interpolatedGlidePoint;
-      _toPoint = widget.point;
+      // Start the new forward stride from the EXACT current visual position
+      final LatLng currentVisual = _interpolatedGlidePoint;
+      _fromPoint = currentVisual;
+
+      // Strict forward-only projection: ensure _toPoint NEVER lies behind currentVisual!
+      _toPoint = _ensureForwardProgress(currentVisual, widget.point, _interpolatedHeading);
 
       _fromHeading = _interpolatedHeading;
 
-      // Derive bearing from movement vector if moving significantly, else use device heading
-      if (widget.status == VehicleStatus.moving && meters > 2.0) {
-        _toHeading = _dist.bearing(_fromPoint, _toPoint);
+      // Calculate bearing from movement vector if moving significantly (>2m)
+      final double strideMeters = _dist(_fromPoint, _toPoint);
+      if (widget.status == VehicleStatus.moving && strideMeters > 2.0) {
+        final double rawBearing = _dist.bearing(_fromPoint, _toPoint);
+        // Normalize bearing to 0..360
+        _toHeading = (rawBearing + 360.0) % 360.0;
       } else {
         _toHeading = widget.heading;
       }
 
-      // Calculate glide duration:
-      int ms;
+      // Calculate stride duration matching real vehicle speed & interval
+      int durationMs;
       if (meters > 1500) {
-        // Teleport / initial map load — snap quickly
-        ms = 300;
+        // Initial load / massive reposition
+        durationMs = 300;
       } else if (widget.status != VehicleStatus.moving || widget.speed < 1.0) {
-        // Vehicle stopped / parking — settle quickly to rest
-        ms = 600;
+        // Vehicle stopped — settle directly into parking spot in 400ms
+        durationMs = 400;
       } else {
-        // Moving — pace glide across estimated packet interval so motion is continuous.
-        // Cap between 2000ms and 12000ms.
-        ms = _estimatedIntervalMs.clamp(2000, 12000);
+        // Moving — pace stride so it glides smoothly across the packet interval
+        // At speed (m/s), compute expected time to cover distance
+        final double speedMps = (widget.speed * 1000.0) / 3600.0;
+        if (speedMps > 1.0 && strideMeters > 2.0) {
+          final int travelMs = ((strideMeters / speedMps) * 1000.0).round();
+          durationMs = travelMs.clamp(2000, 10000);
+        } else {
+          durationMs = _estimatedIntervalMs.clamp(2000, 10000);
+        }
       }
 
-      _glideController.duration = Duration(milliseconds: ms);
+      _glideController.duration = Duration(milliseconds: durationMs);
       _glideController.forward(from: 0.0);
     } else if (oldWidget.heading != widget.heading &&
         !_glideController.isAnimating) {
       _fromHeading = _interpolatedHeading;
       _toHeading = widget.heading;
-      _glideController.duration = const Duration(milliseconds: 600);
+      _glideController.duration = const Duration(milliseconds: 500);
       _glideController.forward(from: 0.0);
     }
+  }
+
+  /// Mathematically guarantees that [_toPoint] NEVER lies behind [from]
+  /// along the vehicle's forward heading vector. If an incoming packet or jitter
+  /// is behind our current visual position, forward progress is clamped to >= 0,
+  /// completely eliminating backwards jumps.
+  LatLng _ensureForwardProgress(LatLng from, LatLng to, double headingDeg) {
+    if (widget.status != VehicleStatus.moving) return to;
+
+    final double rad = headingDeg * (math.pi / 180.0);
+    final double uEast = math.sin(rad);
+    final double uNorth = math.cos(rad);
+
+    final double latMidRad = ((from.latitude + to.latitude) / 2.0) * (math.pi / 180.0);
+    final double cosLat = math.cos(latMidRad).abs().clamp(0.01, 1.0);
+
+    final double metersNorth = (to.latitude - from.latitude) * 111320.0;
+    final double metersEast = (to.longitude - from.longitude) * 111320.0 * cosLat;
+
+    // Component of incoming displacement along the forward heading
+    final double forwardMeters = (metersEast * uEast) + (metersNorth * uNorth);
+    // Component of incoming displacement perpendicular to heading (lateral shift)
+    final double lateralMeters = (metersEast * uNorth) - (metersNorth * uEast);
+
+    // If incoming fix is behind current position (forwardMeters <= 0), NEVER move backwards!
+    if (forwardMeters < 0.5) {
+      // Continue forward with a minimum forward progress (e.g. 1.0 meter)
+      const double minForward = 1.0;
+      // Gently blend lateral correction towards the road line
+      final double adjLateral = lateralMeters * 0.4;
+
+      final double clampedEast = (minForward * uEast) + (adjLateral * uNorth);
+      final double clampedNorth = (minForward * uNorth) - (adjLateral * uEast);
+
+      final double newLat = from.latitude + (clampedNorth / 111320.0);
+      final double newLng = from.longitude + (clampedEast / (111320.0 * cosLat));
+      return LatLng(newLat, newLng);
+    }
+
+    return to;
   }
 
   void _onGlideTick() {
@@ -156,11 +207,25 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     }
   }
 
-  LatLng get _interpolatedGlidePoint {
-    if (!_glideController.isAnimating && _glideController.isCompleted) {
-      return _toPoint;
+  /// Calculates effective progress:
+  /// - For t in [0.0, 1.0]: steady linear progress from _fromPoint to _toPoint.
+  /// - For t > 1.0 (waiting for next packet while moving): smoothly coasts forward
+  ///   with gentle speed decay up to 1.5x so the vehicle NEVER freezes between packets!
+  double get _effectiveProgress {
+    final double raw = _glideController.value;
+    if (widget.status != VehicleStatus.moving || widget.speed < 1.0) {
+      return raw.clamp(0.0, 1.0);
     }
-    final double t = _glideCurve.value;
+    if (raw <= 1.0) {
+      return raw;
+    }
+    // Coasting with gentle decay: extends forward beyond 1.0 smoothly
+    final double coast = raw - 1.0;
+    return 1.0 + (coast * 0.75);
+  }
+
+  LatLng get _interpolatedGlidePoint {
+    final double t = _effectiveProgress;
     return LatLng(
       _fromPoint.latitude + (_toPoint.latitude - _fromPoint.latitude) * t,
       _fromPoint.longitude + (_toPoint.longitude - _fromPoint.longitude) * t,
@@ -168,13 +233,10 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
   }
 
   double get _interpolatedHeading {
-    if (!_glideController.isAnimating && _glideController.isCompleted) {
-      return _toHeading;
-    }
-    final double t = _glideCurve.value;
-    final double diff = (_toHeading - _fromHeading) % 360;
-    final double shortestAngle = (2 * diff % 360) - diff;
-    return (_fromHeading + shortestAngle * t) % 360;
+    final double t = _effectiveProgress.clamp(0.0, 1.0);
+    final double diff = (_toHeading - _fromHeading) % 360.0;
+    final double shortestAngle = (2 * diff % 360.0) - diff;
+    return (_fromHeading + shortestAngle * t) % 360.0;
   }
 
   @override
@@ -194,3 +256,4 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     );
   }
 }
+

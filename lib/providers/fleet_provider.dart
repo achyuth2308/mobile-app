@@ -176,11 +176,21 @@ class FleetController extends Notifier<FleetState> {
       };
 
       final List<Vehicle> merged = incomingMap.values.map((Vehicle incoming) {
+        // If an in-flight socket frame is buffered, prefer the live socket frame
+        final Vehicle? pendingSocketFrame = _pending[incoming.id];
+        if (pendingSocketFrame != null) return pendingSocketFrame;
+
         final Vehicle? existing = current[incoming.id];
         if (existing == null) return incoming;
+
+        if (incoming.lastPacketAt == null && existing.lastPacketAt != null) {
+          return existing;
+        }
+
         final DateTime? a = existing.lastPacketAt;
         final DateTime? b = incoming.lastPacketAt;
-        if (a != null && b != null && a.isAfter(b)) return existing;
+        // Never let REST polling rewind an active vehicle to an older packet
+        if (a != null && b != null && !b.isAfter(a)) return existing;
         return incoming;
       }).toList();
 
