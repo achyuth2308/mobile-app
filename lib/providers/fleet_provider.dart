@@ -1,11 +1,6 @@
 import 'dart:async';
-import 'dart:convert' as dart_convert;
-import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart' as flutter_local_notifications;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config/app_config.dart';
@@ -317,17 +312,24 @@ class FleetController extends Notifier<FleetState> {
     _pending[existing.id] = existing.mergeLive(frame);
   }
 
-  /// Updates provider state safely post-frame so state mutations never collide
+  /// Updates provider state safely so state mutations never collide
   /// with widget unmounting or frame pipeline execution.
   void _safeSetState(FleetState nextState) {
     if (!_mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_mounted) {
-        try {
-          state = nextState;
-        } on Object catch (_) {}
+    try {
+      final WidgetsBinding binding = WidgetsBinding.instance;
+      if (binding.buildOwner?.debugBuilding == true) {
+        Future.microtask(() {
+          if (_mounted) {
+            try {
+              state = nextState;
+            } catch (_) {}
+          }
+        });
+      } else {
+        state = nextState;
       }
-    });
+    } catch (_) {}
   }
 
   /// Flush buffered socket frames. Snapshots _pending immediately (so new

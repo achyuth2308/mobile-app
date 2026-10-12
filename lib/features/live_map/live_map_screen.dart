@@ -26,7 +26,6 @@ import 'widgets/stoppage_detail_card.dart';
 import 'widgets/vehicle_peek_sheet.dart';
 import 'widgets/universal_live_map.dart';
 import 'widgets/google_live_map.dart';
-import 'widgets/navigation_hud.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 /// Full-screen live fleet map, rendered with OpenStreetMap tiles via
@@ -82,6 +81,36 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     });
   }
 
+  void _handleBack() {
+    debugPrint(
+        '[LiveMapScreen] _handleBack: canPop=${context.canPop()}, focus=${widget.focusVehicleId}, following=$_followingId');
+    if (context.canPop()) {
+      debugPrint('[LiveMapScreen] popping context');
+      context.pop();
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      debugPrint('[LiveMapScreen] popping Navigator');
+      Navigator.of(context).pop();
+      return;
+    }
+
+    if (widget.focusVehicleId != null && widget.focusVehicleId!.isNotEmpty) {
+      debugPrint('[LiveMapScreen] navigating to /dashboard');
+      context.go('/dashboard');
+      return;
+    }
+
+    if (_followingId != null) {
+      debugPrint('[LiveMapScreen] un-following vehicle');
+      _setFollowingId(null);
+      return;
+    }
+
+    debugPrint('[LiveMapScreen] fallback to /dashboard');
+    context.go('/dashboard');
+  }
+
   void _toggleHistoryMode(bool history) {
     final String activeId = _selectedId ?? _followingId ?? '';
     if (history && activeId.isNotEmpty) {
@@ -118,7 +147,11 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   @override
   void dispose() {
     // Clear active following vehicle globally
-    ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+    Future.microtask(() {
+      try {
+        ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
+      } catch (_) {}
+    });
     super.dispose();
   }
 
@@ -128,7 +161,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (widget.focusVehicleId != null &&
         (widget.focusVehicleId != oldWidget.focusVehicleId ||
             _followingId != widget.focusVehicleId)) {
-      _focusVehicle(widget.focusVehicleId);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusVehicle(widget.focusVehicleId);
+      });
     }
   }
 
@@ -146,7 +181,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   }
 
   void _focusVehicle(String? vehicleId, {double zoom = 14.0}) {
-    if (vehicleId == null || vehicleId.isEmpty) return;
+    if (vehicleId == null || vehicleId.isEmpty || !mounted) return;
     _pendingFocusId = vehicleId;
 
     final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
@@ -158,9 +193,11 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (target != null) {
       _pendingFocusId = null;
       _setFollowingId(target.id);
-      setState(() {
-        _selectedId = target.id;
-      });
+      if (mounted) {
+        setState(() {
+          _selectedId = target.id;
+        });
+      }
 
       if (target.hasLocation && _mapReady) {
         _move(LatLng(target.latitude!, target.longitude!), zoom: zoom);
@@ -405,183 +442,153 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ? vehicles.where((v) => v.id == widget.focusVehicleId).toList()
             : vehicles;
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: <Widget>[
-          ValueListenableBuilder<double>(
-            valueListenable: _sheetExtentNotifier,
-            builder: (context, extent, child) {
-              return Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: _followingId != null ? (extent * MediaQuery.sizeOf(context).height) - 40 : 0,
-                child: child!,
-              );
-            },
-            child: _useGoogleMap
-                ? GoogleLiveMap(
-                    controller: _googleMap,
-                    vehicles: visibleVehicles,
-                    style: _style,
-                    fallbackCenter: _fallbackCenter,
-                    selectedId: _selectedId,
-                    followingId: _followingId,
-                    pendingFocusId: _pendingFocusId,
-                    onMapReady: () {
-                      setState(() => _mapReady = true);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (widget.focusVehicleId != null) {
-                          _focusVehicle(widget.focusVehicleId);
-                        } else if (_pendingFocusId != null) {
-                          _focusVehicle(_pendingFocusId);
-                        } else {
-                          _fitAll(vehicles);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        body: Stack(
+          children: <Widget>[
+            ValueListenableBuilder<double>(
+              valueListenable: _sheetExtentNotifier,
+              builder: (context, extent, child) {
+                return Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: _followingId != null ? (extent * MediaQuery.sizeOf(context).height) - 40 : 0,
+                  child: child!,
+                );
+              },
+              child: _useGoogleMap
+                  ? GoogleLiveMap(
+                      controller: _googleMap,
+                      vehicles: visibleVehicles,
+                      style: _style,
+                      fallbackCenter: _fallbackCenter,
+                      selectedId: _selectedId,
+                      followingId: _followingId,
+                      pendingFocusId: _pendingFocusId,
+                      onMapReady: () {
+                        setState(() => _mapReady = true);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (widget.focusVehicleId != null) {
+                            _focusVehicle(widget.focusVehicleId);
+                          } else if (_pendingFocusId != null) {
+                            _focusVehicle(_pendingFocusId);
+                          } else {
+                            _fitAll(vehicles);
+                          }
+                        });
+                      },
+                      onUserInteracting: (interacting) {
+                        _userInteracting = interacting;
+                        if (interacting && _followingId != null) {
+                          _setFollowingId(null);
                         }
-                      });
-                    },
-                    onUserInteracting: (interacting) {
-                      _userInteracting = interacting;
-                      if (interacting && _followingId != null) {
-                        _setFollowingId(null);
-                      }
-                    },
-                    onTapMap: () {
-                      if (_selectedId != null) setState(() => _selectedId = null);
-                    },
-                    onSelectVehicle: _selectVehicle,
-                    route: dailyDataAsync.valueOrNull?.route ?? [],
-                    stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
-                    showTrail: true,
-                    onTapStoppage: _showStoppageCard,
-                  )
-                : UniversalLiveMap(
-                    mapController: _map,
-                    vehicles: visibleVehicles,
-                    style: _style,
-                    apiKey: apiKey,
-                    fallbackCenter: _fallbackCenter,
-                    selectedId: _selectedId,
-                    followingId: _followingId,
-                    pendingFocusId: _pendingFocusId,
-                    onMapReady: () {
-                      setState(() => _mapReady = true);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (widget.focusVehicleId != null) {
-                          _focusVehicle(widget.focusVehicleId);
-                        } else if (_pendingFocusId != null) {
-                          _focusVehicle(_pendingFocusId);
-                        } else {
-                          _fitAll(vehicles);
+                      },
+                      onTapMap: () {
+                        if (_selectedId != null) setState(() => _selectedId = null);
+                      },
+                      onSelectVehicle: _selectVehicle,
+                      route: dailyDataAsync.valueOrNull?.route ?? [],
+                      stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
+                      showTrail: true,
+                      onTapStoppage: _showStoppageCard,
+                    )
+                  : UniversalLiveMap(
+                      mapController: _map,
+                      vehicles: visibleVehicles,
+                      style: _style,
+                      apiKey: apiKey,
+                      fallbackCenter: _fallbackCenter,
+                      selectedId: _selectedId,
+                      followingId: _followingId,
+                      pendingFocusId: _pendingFocusId,
+                      onMapReady: () {
+                        setState(() => _mapReady = true);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (widget.focusVehicleId != null) {
+                            _focusVehicle(widget.focusVehicleId);
+                          } else if (_pendingFocusId != null) {
+                            _focusVehicle(_pendingFocusId);
+                          } else {
+                            _fitAll(vehicles);
+                          }
+                        });
+                      },
+                      onUserInteracting: (interacting) {
+                        _userInteracting = interacting;
+                        if (interacting && _followingId != null) {
+                          _setFollowingId(null);
                         }
-                      });
-                    },
-                    onUserInteracting: (interacting) {
-                      _userInteracting = interacting;
-                      if (interacting && _followingId != null) {
-                        _setFollowingId(null);
-                      }
-                    },
-                    onTapMap: () {
-                      if (_selectedId != null) setState(() => _selectedId = null);
-                    },
-                    onSelectVehicle: _selectVehicle,
-                    route: dailyDataAsync.valueOrNull?.route ?? [],
-                    stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
-                    showTrail: true,
-                    onTapStoppage: _showStoppageCard,
-                  ),
-          ),
+                      },
+                      onTapMap: () {
+                        if (_selectedId != null) setState(() => _selectedId = null);
+                      },
+                      onSelectVehicle: _selectVehicle,
+                      route: dailyDataAsync.valueOrNull?.route ?? [],
+                      stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
+                      showTrail: true,
+                      onTapStoppage: _showStoppageCard,
+                    ),
+            ),
 
-          // Legibility scrim behind the top controls.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: MediaQuery.paddingOf(context).top + 90,
-            child: const IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(gradient: AppColors.mapTopScrim),
+            // Legibility scrim behind the top controls.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MediaQuery.paddingOf(context).top + 90,
+              child: const IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(gradient: AppColors.mapTopScrim),
+                ),
               ),
             ),
-          ),
-
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + Gap.sm,
-            left: Gap.lg,
-            right: Gap.lg,
-            child: PointerInterceptor(
-              child: _MapHeader(
-                locatedCount: located,
-                totalCount: vehicles.length,
-                followingName: following?.displayName,
-                isHistoryMode: _isHistoryMode,
-                onStopFollowing: () {
-                  if (widget.focusVehicleId != null && context.canPop()) {
-                    context.pop();
-                  } else {
-                    _setFollowingId(null);
-                  }
-                },
-                onToggleHistoryMode: _toggleHistoryMode,
-                onRecenter: following != null && following.hasLocation
-                    ? () => _move(
-                          LatLng(following.latitude!, following.longitude!),
-                          zoom: 14.5,
-                        )
-                    : null,
-                onRefresh: () {
-                  ref.invalidate(fleetProvider);
-                  if (activeId.isNotEmpty) {
-                    ref.invalidate(vehicleDailyHistoryProvider(activeId));
-                  }
-                },
-              ),
-            ),
-          ),
 
           if (following != null)
-            PointerInterceptor(
-              child: NotificationListener<DraggableScrollableNotification>(
-                onNotification: (notification) {
-                  _sheetExtentNotifier.value = notification.extent;
-                  if (notification.extent > 0.5 && !_isShowingOverallTrip) {
-                    _isShowingOverallTrip = true;
-                    _fitRoute(_followingId);
-                  } else if (notification.extent <= 0.5 && _isShowingOverallTrip) {
-                    _isShowingOverallTrip = false;
-                    _focusVehicle(_followingId);
-                  }
-                  return false;
-                },
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context).copyWith(
-                    dragDevices: {
-                      PointerDeviceKind.touch,
-                      PointerDeviceKind.mouse,
-                      PointerDeviceKind.trackpad,
-                    },
-                  ),
-                  child: DraggableScrollableSheet(
-                    initialChildSize: 0.32,
-                    minChildSize: 0.12,
-                    maxChildSize: 0.85,
-                    builder: (ctx, scrollController) {
-                      return VehiclePeekSheet(
-                        vehicleId: following.id,
-                        isFollowing: _followingId == following.id,
-                        onToggleFollow: () {
-                          _setFollowingId(
-                              _followingId == following.id ? null : following.id);
-                        },
-                        onOpenDetails: () {
-                          context.push('/vehicle/${following.id}?tab=history');
-                        },
-                        scrollController: scrollController,
-                      );
-                    },
-                  ),
+            NotificationListener<DraggableScrollableNotification>(
+              onNotification: (notification) {
+                _sheetExtentNotifier.value = notification.extent;
+                if (notification.extent > 0.5 && !_isShowingOverallTrip) {
+                  _isShowingOverallTrip = true;
+                  _fitRoute(_followingId);
+                } else if (notification.extent <= 0.5 && _isShowingOverallTrip) {
+                  _isShowingOverallTrip = false;
+                  _focusVehicle(_followingId);
+                }
+                return false;
+              },
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                  },
+                ),
+                child: DraggableScrollableSheet(
+                  initialChildSize: 0.32,
+                  minChildSize: 0.12,
+                  maxChildSize: 0.85,
+                  builder: (ctx, scrollController) {
+                    return VehiclePeekSheet(
+                      vehicleId: following.id,
+                      isFollowing: _followingId == following.id,
+                      onToggleFollow: () {
+                        _setFollowingId(
+                            _followingId == following.id ? null : following.id);
+                      },
+                      onOpenDetails: () {
+                        context.push('/vehicle/${following.id}?tab=history');
+                      },
+                      scrollController: scrollController,
+                    );
+                  },
                 ),
               ),
             ),
@@ -657,6 +664,34 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ),
           ),
 
+          // Header positioned on top of sheets and other controls
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + Gap.sm,
+            left: Gap.lg,
+            right: 80,
+            child: _MapHeader(
+              locatedCount: located,
+              totalCount: vehicles.length,
+              followingName: following?.displayName,
+              isHistoryMode: _isHistoryMode,
+              onStopFollowing: _handleBack,
+              onBack: _handleBack,
+              onToggleHistoryMode: _toggleHistoryMode,
+              onRecenter: following != null && following.hasLocation
+                  ? () => _move(
+                        LatLng(following.latitude!, following.longitude!),
+                        zoom: 14.5,
+                      )
+                  : null,
+              onRefresh: () {
+                ref.invalidate(fleetProvider);
+                if (activeId.isNotEmpty) {
+                  ref.invalidate(vehicleDailyHistoryProvider(activeId));
+                }
+              },
+            ),
+          ),
+
           if (!_useGoogleMap)
             Positioned(
               right: 0,
@@ -681,7 +716,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 
@@ -693,6 +729,7 @@ class _MapHeader extends StatelessWidget {
     required this.isHistoryMode,
     required this.onStopFollowing,
     required this.onToggleHistoryMode,
+    this.onBack,
     this.onRecenter,
     this.onRefresh,
   });
@@ -702,6 +739,7 @@ class _MapHeader extends StatelessWidget {
   final String? followingName;
   final bool isHistoryMode;
   final VoidCallback onStopFollowing;
+  final VoidCallback? onBack;
   final ValueChanged<bool> onToggleHistoryMode;
   final VoidCallback? onRecenter;
   final VoidCallback? onRefresh;
@@ -717,26 +755,28 @@ class _MapHeader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             // White Circular Back button matching reference image
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
+            Material(
+              shape: const CircleBorder(),
+              color: theme.colorScheme.surface,
+              elevation: 4,
+              shadowColor: Colors.black26,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  debugPrint('[LiveMapScreen] Back button tapped in _MapHeader!');
+                  onStopFollowing();
+                },
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: Icon(
+                      Icons.arrow_back_rounded,
+                      size: 24,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
-                ],
-              ),
-              child: IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                icon: Icon(Icons.arrow_back_rounded,
-                    size: 22, color: Theme.of(context).colorScheme.onSurface),
-                onPressed: onStopFollowing,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -787,35 +827,29 @@ class _MapHeader extends StatelessWidget {
       );
     }
 
-    // Fleet view — just a back button replacing the tracked badge
+    // Fleet view — back button
     return Align(
       alignment: Alignment.centerLeft,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.85),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-            },
-            child: const SizedBox(
-              width: 44,
-              height: 44,
-              child:
-                  Icon(Icons.arrow_back_rounded, size: 22, color: Colors.white),
+      child: Material(
+        shape: const CircleBorder(),
+        color: theme.colorScheme.surface,
+        elevation: 4,
+        shadowColor: Colors.black26,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () {
+            debugPrint('[LiveMapScreen] Fleet view back button tapped!');
+            (onBack ?? onStopFollowing)();
+          },
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Icon(
+                Icons.arrow_back_rounded,
+                size: 24,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
         ),

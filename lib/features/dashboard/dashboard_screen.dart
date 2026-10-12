@@ -3,13 +3,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/realtime/socket_service.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/alerts_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/connectivity_banner.dart';
@@ -45,9 +43,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final int alertCount = ref.watch(unreadAlertsCountProvider);
     final List<Vehicle> vehicles = ref.watch(filteredVehiclesProvider);
     final String? name = ref.watch(authProvider).user?.name;
-    final AsyncValue<SocketStatus> socket = ref.watch(socketStatusProvider);
-
-    final bool isLive = socket.valueOrNull == SocketStatus.connected;
 
     return Scaffold(
       body: RefreshIndicator(
@@ -285,7 +280,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       onTap: () => context.push('/vehicle/${v.id}'),
                       onTrack: () {
                         if (v.hasLocation) {
-                          context.go('/map?focus=${v.id}');
+                          context.push('/vehicle-map?focus=${v.id}');
                         }
                       },
                     );

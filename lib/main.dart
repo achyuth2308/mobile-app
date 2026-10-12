@@ -15,7 +15,6 @@ import 'core/notifications/push_service.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/secure_store.dart';
 import 'core/theme/app_theme.dart';
-import 'features/shell/app_shell.dart';
 import 'providers/auth_provider.dart';
 import 'providers/core_providers.dart';
 import 'providers/fleet_provider.dart';
@@ -24,7 +23,11 @@ import 'shared/widgets/connectivity_banner.dart';
 
 Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: binding);
+  if (!kIsWeb) {
+    try {
+      FlutterNativeSplash.preserve(widgetsBinding: binding);
+    } catch (_) {}
+  }
 
   // Portrait-only: a fleet map in landscape on a phone is worse, not better,
   // and it doubles the layout surface we have to QA.
@@ -86,7 +89,11 @@ Future<void> main() async {
     return true; // Returning true suppresses the default uncaught-error log.
   };
 
-  FlutterNativeSplash.remove();
+  if (!kIsWeb) {
+    try {
+      FlutterNativeSplash.remove();
+    } catch (_) {}
+  }
 
   runApp(
     ProviderScope(

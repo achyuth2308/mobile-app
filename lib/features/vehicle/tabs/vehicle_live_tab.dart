@@ -123,7 +123,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                                 height: 36,
                                 alignment: Alignment.bottomCenter,
                                 child: GestureDetector(
-                                  onTap: () => context.go('/map?focus=${vehicle.id}'),
+                                  onTap: () => context.push('/vehicle-map?focus=${vehicle.id}'),
                                   child: VehicleMarkerPin(
                                     vehicle: vehicle,
                                     selected: true,
@@ -151,8 +151,8 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                           borderRadius: BorderRadius.circular(20),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(20),
-                            onTap: () => context.go(
-                              '/map?focus=${vehicle.id}',
+                            onTap: () => context.push(
+                              '/vehicle-map?focus=${vehicle.id}',
                             ),
                             child: const Padding(
                               padding: EdgeInsets.symmetric(
