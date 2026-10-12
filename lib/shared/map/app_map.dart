@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart' as ll;
 
 import 'app_map_models.dart';
 import 'app_map_controller.dart';
+import '../../core/config/app_config.dart';
 import '../../core/theme/map_styles.dart';
 
 class _FmAppMapController implements AppMapController {
@@ -102,7 +103,7 @@ class AppMap extends StatefulWidget {
 
   const AppMap({
     Key? key,
-    this.mapType = 'osm',
+    this.mapType = 'google',
     this.apiKey,
     required this.initialCenter,
     this.initialZoom = 13.0,
@@ -131,7 +132,12 @@ class _AppMapState extends State<AppMap> {
     });
   }
 
-  bool get _isOsm => widget.mapType == 'osm' || widget.apiKey == null || widget.apiKey!.isEmpty;
+  String get _effectiveApiKey =>
+      (widget.apiKey != null && widget.apiKey!.isNotEmpty)
+          ? widget.apiKey!
+          : AppConfig.googleMapsApiKey;
+
+  bool get _isOsm => widget.mapType == 'osm' && _effectiveApiKey.isEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -143,30 +149,22 @@ class _AppMapState extends State<AppMap> {
   }
 
   Widget _buildFlutterMap(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    Widget tileLayer = fm.TileLayer(
-      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      userAgentPackageName: 'com.fueltracks.mobile',
-    );
+    final String key = _effectiveApiKey;
+    final String keyParam = key.isNotEmpty ? '&key=$key' : '';
 
-    if (isDark) {
-      tileLayer = ColorFiltered(
-        colorFilter: const ColorFilter.matrix(<double>[
-          -1.0, 0.0, 0.0, 0.0, 255.0,
-          0.0, -1.0, 0.0, 0.0, 255.0,
-          0.0, 0.0, -1.0, 0.0, 255.0,
-          0.0, 0.0, 0.0, 1.0, 0.0,
-        ]),
-        child: ColorFiltered(
-          colorFilter: const ColorFilter.mode(
-            Colors.blueGrey,
-            BlendMode.saturation,
-          ),
-          child: tileLayer,
-        ),
-      );
-    }
+    final Widget tileLayer = fm.TileLayer(
+      key: const ValueKey<String>('app_map_tile_layer'),
+      urlTemplate: widget.mapType == 'satellite'
+          ? 'https://mt{s}.google.com/vt/lyrs=y&scale=2&x={x}&y={y}&z={z}$keyParam'
+          : 'https://mt{s}.google.com/vt/lyrs=m&scale=2&x={x}&y={y}&z={z}$keyParam',
+      subdomains: const <String>['0', '1', '2', '3'],
+      maxNativeZoom: 20,
+      maxZoom: 22.0,
+      userAgentPackageName: 'com.fueltracks.mobile',
+      panBuffer: 4,
+      keepBuffer: 6,
+      tileDisplay: const fm.TileDisplay.instantaneous(),
+    );
 
     return fm.FlutterMap(
       mapController: _fmController,
@@ -223,10 +221,8 @@ class _AppMapState extends State<AppMap> {
   }
 
   Widget _buildGoogleMap(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-
     return gm.GoogleMap(
-      style: isDark ? MapStyles.dark : null,
+      style: null,
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(widget.initialCenter.latitude, widget.initialCenter.longitude),
         zoom: widget.initialZoom,

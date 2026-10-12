@@ -110,7 +110,6 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                               ref.read(secureStoreProvider).mapType,
                             ),
                             apiKey: ref.read(authProvider).user?.apiKey,
-                            isDark: Theme.of(context).brightness == Brightness.dark,
                           ),
                           MarkerLayer(
                             markers: <Marker>[

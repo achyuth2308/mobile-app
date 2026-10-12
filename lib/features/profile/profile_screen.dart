@@ -50,7 +50,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppUser? user = ref.watch(authProvider).user;
-    final ThemeMode themeMode = ref.watch(themeModeProvider);
     final AsyncValue<SocketStatus> socket = ref.watch(socketStatusProvider);
 
     if (user == null) return const SizedBox.shrink();
@@ -152,34 +151,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.md),
                 child: Row(
                   children: <Widget>[
-                    Icon(Icons.palette_outlined,
-                        size: 20, color: theme.colorScheme.onSurfaceVariant),
+                    Icon(Icons.light_mode_rounded,
+                        size: 20, color: theme.colorScheme.primary),
                     const SizedBox(width: Gap.lg),
                     Expanded(
-                      child: Text('Theme', style: theme.textTheme.titleSmall),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Theme', style: theme.textTheme.titleSmall),
+                          Text('Light Mode',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              )),
+                        ],
+                      ),
                     ),
-                    SegmentedButton<ThemeMode>(
-                      showSelectedIcon: false,
-                      segments: const <ButtonSegment<ThemeMode>>[
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode_rounded, size: 17),
-                          tooltip: 'Light',
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Active',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
                         ),
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode_rounded, size: 17),
-                          tooltip: 'Dark',
-                        ),
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.system,
-                          icon: Icon(Icons.brightness_auto_rounded, size: 17),
-                          tooltip: 'System',
-                        ),
-                      ],
-                      selected: <ThemeMode>{themeMode},
-                      onSelectionChanged: (Set<ThemeMode> s) =>
-                          ref.read(themeModeProvider.notifier).set(s.first),
+                      ),
                     ),
                   ],
                 ),

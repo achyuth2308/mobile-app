@@ -7,6 +7,7 @@ import '../../core/realtime/socket_service.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/vehicle.dart';
+import '../../providers/alerts_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
@@ -41,6 +42,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final FleetState fleet = ref.watch(fleetProvider);
+    final int alertCount = ref.watch(unreadAlertsCountProvider);
     final List<Vehicle> vehicles = ref.watch(filteredVehiclesProvider);
     final String? name = ref.watch(authProvider).user?.name;
     final AsyncValue<SocketStatus> socket = ref.watch(socketStatusProvider);
@@ -97,7 +99,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               actions: <Widget>[
                 IconButton(
                   tooltip: 'Alerts',
-                  icon: const Icon(Icons.notifications_outlined),
+                  icon: Badge(
+                    isLabelVisible: alertCount > 0,
+                    backgroundColor: const Color(0xFFEF4444),
+                    textColor: Colors.white,
+                    textStyle: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    label: Text(alertCount > 99 ? '99+' : '$alertCount'),
+                    child: const Icon(Icons.notifications_outlined),
+                  ),
                   onPressed: () => context.push('/alerts'),
                 ),
                 const SizedBox(width: Gap.xs),

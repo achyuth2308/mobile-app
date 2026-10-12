@@ -244,15 +244,14 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
     // internally by GoRouter's refreshListenable (_authNotifier), which does
     // NOT trigger a widget rebuild — only GoRouter's own redirect logic runs.
     final GoRouter router = ref.read(routerProvider);
-    final ThemeMode themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
       title: 'FuelTracks',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: themeMode,
+      darkTheme: AppTheme.light(),
+      themeMode: ThemeMode.light,
       builder: (BuildContext context, Widget? child) {
         // Order matters:
         //   AppLifecycleObserver  → enforces the socket battery contract

@@ -40,12 +40,23 @@ class AlertRepository {
         },
       );
 
+      final DateTime? lastReadTime = _store.getLastAlertsReadTime();
+      final Set<String> readIds = _store.getReadAlertIds();
+
       final List<FleetAlert> alerts = asMapList(res)
           .map(FleetAlert.fromJson)
           .where((FleetAlert a) =>
               a.id.isNotEmpty &&
               !deletedIds.contains(a.id) &&
               a.type.toLowerCase().trim() != 'stoppage')
+          .map((FleetAlert a) {
+            final bool isLocallyRead = a.isRead ||
+                readIds.contains(a.id) ||
+                (lastReadTime != null &&
+                    a.createdAt != null &&
+                    !a.createdAt!.isAfter(lastReadTime));
+            return isLocallyRead ? a.copyWith(isRead: true) : a;
+          })
           .toList(growable: false);
 
       if (alerts.isNotEmpty || vehicleId != null) {
@@ -68,7 +79,19 @@ class AlertRepository {
             ),
           ),
         );
-        final List<FleetAlert> combined = perVehicle.expand((l) => l).toList();
+        final DateTime? lastReadTime = _store.getLastAlertsReadTime();
+        final Set<String> readIds = _store.getReadAlertIds();
+        final List<FleetAlert> combined = perVehicle
+            .expand((l) => l)
+            .map((FleetAlert a) {
+              final bool isLocallyRead = a.isRead ||
+                  readIds.contains(a.id) ||
+                  (lastReadTime != null &&
+                      a.createdAt != null &&
+                      !a.createdAt!.isAfter(lastReadTime));
+              return isLocallyRead ? a.copyWith(isRead: true) : a;
+            })
+            .toList();
         combined.sort((a, b) {
           final DateTime tA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
           final DateTime tB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -81,27 +104,37 @@ class AlertRepository {
     return const <FleetAlert>[];
   }
 
-  Future<int> getUnreadCount() async {
-    if (!BackendCapabilities.alertsHistory) return 0;
-    try {
-      final dynamic res = await _api.get<dynamic>('/alerts/unread-count');
-      if (res is Map<String, dynamic>) {
-        return asInt(res, <String>['count', 'unread', 'total']);
-      }
-      if (res is num) return res.toInt();
-    } on ApiException {
-      // Endpoint is optional — the badge simply stays hidden.
+  Future<int> getUnreadCount({List<String>? vehicleIds}) async {
+    final DateTime? lastReadTime = _store.getLastAlertsReadTime();
+
+    // If server provides unread count AND we haven't marked everything read locally
+    if (BackendCapabilities.alertsHistory && lastReadTime == null) {
+      try {
+        final dynamic res = await _api.get<dynamic>('/alerts/unread-count');
+        if (res is Map<String, dynamic>) {
+          return asInt(res, <String>['count', 'unread', 'total']);
+        }
+        if (res is num) return res.toInt();
+      } on ApiException {/* optional */}
     }
-    return 0;
+
+    // Otherwise compute accurate unread count from recent alerts
+    final List<FleetAlert> recent = await getAlerts(
+      limit: 50,
+      vehicleIds: vehicleIds,
+    );
+    return recent.where((FleetAlert a) => !a.isRead).length;
   }
 
   Future<void> markAsRead(String alertId) async {
+    await _store.addReadAlertId(alertId);
     try {
       await _api.put<dynamic>('/alerts/$alertId/read');
     } on ApiException {/* non-critical */}
   }
 
-  Future<void> markAllAsRead() async {
+  Future<void> markAllAsRead({DateTime? upToTime}) async {
+    await _store.setLastAlertsReadTime(upToTime ?? DateTime.now());
     try {
       await _api.put<dynamic>('/alerts/read-all');
     } on ApiException {/* non-critical */}

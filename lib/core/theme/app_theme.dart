@@ -11,58 +11,8 @@ import 'app_typography.dart';
 class AppTheme {
   const AppTheme._();
 
-  // ── DARK (primary experience) ────────────────────────────────────
-  static ThemeData dark() {
-    const ColorScheme scheme = ColorScheme(
-      brightness: Brightness.dark,
-      primary: AppColors.brandBright,
-      onPrimary: Color(0xFF0A1030),
-      primaryContainer: AppColors.brandDeep,
-      onPrimaryContainer: Color(0xFFE6EAFF),
-      secondary: AppColors.signal,
-      onSecondary: Color(0xFF00232C),
-      secondaryContainer: AppColors.signalDeep,
-      onSecondaryContainer: Color(0xFFD6FBFF),
-      tertiary: Color(0xFFA78BFA),
-      onTertiary: Color(0xFF1B1038),
-      tertiaryContainer: Color(0xFF3B2A73),
-      onTertiaryContainer: Color(0xFFEDE4FF),
-      error: AppColors.danger,
-      onError: Color(0xFF2B0410),
-      errorContainer: AppColors.dangerSoft,
-      onErrorContainer: Color(0xFFFFD9E0),
-      surface: AppColors.night1,
-      onSurface: AppColors.textOnNightHigh,
-      surfaceContainerLowest: AppColors.night0,
-      surfaceContainerLow: AppColors.night1,
-      surfaceContainer: AppColors.night2,
-      surfaceContainerHigh: AppColors.night3,
-      surfaceContainerHighest: AppColors.night4,
-      onSurfaceVariant: AppColors.textOnNightMed,
-      outline: AppColors.nightBorder,
-      outlineVariant: Color(0xFF202B47),
-      inverseSurface: AppColors.day1,
-      onInverseSurface: AppColors.textOnDayHigh,
-      inversePrimary: AppColors.brandDeep,
-      scrim: Color(0xCC04060D),
-      shadow: Color(0xFF000000),
-    );
-
-    return _build(
-      scheme,
-      AppTypography.textTheme(
-        AppColors.textOnNightHigh,
-        AppColors.textOnNightMed,
-      ),
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: AppColors.night1,
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
-    );
-  }
+  // ── DARK (Safely mapped to light to ensure high quality light theme everywhere) ──
+  static ThemeData dark() => light();
 
   // ── LIGHT ────────────────────────────────────────────────────────
   static ThemeData light() {

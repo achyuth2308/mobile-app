@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -49,97 +50,80 @@ class FastCachedTileProvider extends TileProvider {
   }
 }
 
-enum MapStyle { standard, satellite, google }
+enum MapStyle { standard, satellite, google, terrain }
 
 extension MapStyleX on MapStyle {
   String get label => switch (this) {
-        MapStyle.standard => 'Modern Light',
-        MapStyle.satellite => 'Satellite (Google)',
-        MapStyle.google => 'Google Maps',
+        MapStyle.satellite => 'Google Satellite (Hybrid)',
+        MapStyle.terrain => 'Google Terrain',
+        MapStyle.standard || MapStyle.google => 'Google Maps (Roadmap)',
       };
 
   IconData get icon => switch (this) {
-        MapStyle.standard => Icons.map_rounded,
         MapStyle.satellite => Icons.satellite_alt_rounded,
-        MapStyle.google => Icons.public,
+        MapStyle.terrain => Icons.terrain_rounded,
+        MapStyle.standard || MapStyle.google => Icons.map_rounded,
       };
 
-  String urlTemplate(String? apiKey) => switch (this) {
-        MapStyle.standard =>
-          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        MapStyle.satellite =>
-          'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Hybrid (Satellite + Labels)
-        MapStyle.google =>
-          'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${apiKey != null && apiKey.isNotEmpty ? '&key=$apiKey' : ''}', // Google Maps Roadmap
-      };
+  String urlTemplate(String? apiKey) {
+    final String key = (apiKey != null && apiKey.isNotEmpty)
+        ? apiKey
+        : AppConfig.googleMapsApiKey;
+    final String keyParam = key.isNotEmpty ? '&key=$key' : '';
 
-  List<String> get subdomains => switch (this) {
-        MapStyle.standard => const <String>['a', 'b', 'c'],
-        MapStyle.satellite => const <String>['0', '1', '2', '3'],
-        MapStyle.google => const <String>['0', '1', '2', '3'],
-      };
+    return switch (this) {
+      MapStyle.satellite =>
+        'https://mt{s}.google.com/vt/lyrs=y&scale=2&x={x}&y={y}&z={z}$keyParam', // 512px HD Google Hybrid
+      MapStyle.terrain =>
+        'https://mt{s}.google.com/vt/lyrs=p&scale=2&x={x}&y={y}&z={z}$keyParam', // 512px HD Google Terrain
+      MapStyle.standard || MapStyle.google =>
+        'https://mt{s}.google.com/vt/lyrs=m&scale=2&x={x}&y={y}&z={z}$keyParam', // 512px HD Google Roadmap
+    };
+  }
+
+  List<String> get subdomains => const <String>['0', '1', '2', '3'];
 
   /// Max zoom the source serves reliably everywhere.
   double get maxZoom => switch (this) {
         MapStyle.satellite => 20,
-        MapStyle.google => 20,
-        _ => 19,
+        MapStyle.terrain => 18,
+        _ => 20,
       };
 
-  String get attribution => switch (this) {
-        MapStyle.standard => 'OpenStreetMap',
-        MapStyle.satellite => 'Google Maps',
-        MapStyle.google => 'Google Maps',
-      };
+  String get attribution => 'Google Maps';
 
-  static MapStyle fromKey(String key) => MapStyle.values.firstWhere(
-        (MapStyle s) => s.name == key,
-        orElse: () => MapStyle.google,
-      );
+  static MapStyle fromKey(String key) => switch (key.toLowerCase()) {
+        'satellite' || 'hybrid' => MapStyle.satellite,
+        'terrain' => MapStyle.terrain,
+        _ => MapStyle.google,
+      };
 }
 
-/// Builds the ultra-fast tile layer for a given style.
+/// Builds the ultra-fast tile layer for a given style in pristine high-definition light quality.
 Widget buildTileLayer(
   MapStyle style, {
   bool retina = false,
   String? apiKey,
   bool isDark = false,
 }) {
-  final TileLayer layer = TileLayer(
+  return TileLayer(
     key: ValueKey<String>('tile_layer_${style.name}'),
     urlTemplate: style.urlTemplate(apiKey),
     subdomains: style.subdomains,
     maxNativeZoom: style.maxZoom.toInt(),
     maxZoom: 22.0,
     userAgentPackageName: AppConfig.tileUserAgent,
-    tileProvider: kIsWeb ? null : FastCachedTileProvider(),
+    tileProvider: kIsWeb
+        ? CancellableNetworkTileProvider()
+        : FastCachedTileProvider(),
     retinaMode: false,
     panBuffer: 1,
-    keepBuffer: 2,
-    tileDisplay: const TileDisplay.fadeIn(duration: Duration(milliseconds: 100)),
+    keepBuffer: 3,
+    tileDisplay: const TileDisplay.fadeIn(
+      duration: Duration(milliseconds: 150),
+    ),
     errorTileCallback: (TileImage tile, Object error, StackTrace? _) {},
   );
-
-  if (isDark) {
-    // Basic color inversion + hue shift for dark mode tiles
-    return ColorFiltered(
-      colorFilter: const ColorFilter.matrix(<double>[
-        -1.0, 0.0, 0.0, 0.0, 255.0, // R
-        0.0, -1.0, 0.0, 0.0, 255.0, // G
-        0.0, 0.0, -1.0, 0.0, 255.0, // B
-        0.0, 0.0, 0.0, 1.0, 0.0,    // A
-      ]),
-      child: ColorFiltered(
-        colorFilter: const ColorFilter.mode(
-          Colors.blueGrey,
-          BlendMode.saturation, // Optional: slightly desaturate
-        ),
-        child: layer,
-      ),
-    );
-  }
-
-  return layer;
 }
 
 /// ODbL-compliant attribution widget.

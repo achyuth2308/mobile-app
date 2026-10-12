@@ -15,6 +15,7 @@ import '../../core/utils/geocoder.dart';
 import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/alert.dart';
 import '../../data/models/vehicle.dart';
+import '../../providers/alerts_provider.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
@@ -210,6 +211,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         _loading = false;
         _loadingMore = false;
       });
+      final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
+      ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -253,6 +256,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         }
         _markingRead = false;
       });
+      final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
+      ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -281,6 +286,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       final int i = _alerts.indexWhere((FleetAlert a) => a.id == alert.id);
       if (i != -1) _alerts[i] = alert.copyWith(isRead: true);
     });
+    final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
+    ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
   }
 
   Future<void> _confirmClearAll(BuildContext context) async {
@@ -320,6 +327,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         setState(() {
           _alerts.clear();
         });
+        ref.read(unreadAlertsCountProvider.notifier).reset();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Alerts cleared successfully'),

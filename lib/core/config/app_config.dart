@@ -55,6 +55,12 @@ class AppConfig {
   /// absent UAs get blocked.
   static const String tileUserAgent = 'in.fueltracks.app';
 
+  /// Google Maps API Key for high quality satellite & roadmap rendering.
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: 'AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk',
+  );
+
   // ── Timeouts ─────────────────────────────────────────────────────
   static const Duration connectTimeout = Duration(seconds: 20);
   static const Duration receiveTimeout = Duration(seconds: 30);

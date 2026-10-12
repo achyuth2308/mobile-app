@@ -102,10 +102,10 @@ class SecureStore {
   }
 
   // ── Preferences ──────────────────────────────────────────────────
-  String get themeMode => _prefs.getString(_kThemeMode) ?? 'dark';
-  Future<void> setThemeMode(String v) => _prefs.setString(_kThemeMode, v);
+  String get themeMode => _prefs.getString(_kThemeMode) ?? 'light';
+  Future<void> setThemeMode(String v) => _prefs.setString(_kThemeMode, 'light');
 
-  String get mapType => _prefs.getString(_kMapType) ?? 'normal';
+  String get mapType => _prefs.getString(_kMapType) ?? 'google';
   Future<void> setMapType(String v) => _prefs.setString(_kMapType, v);
 
   String get units => _prefs.getString(_kUnits) ?? 'metric';
@@ -161,6 +161,38 @@ class SecureStore {
     final Set<String> current = getDeletedAlertIds();
     current.addAll(ids.where((String id) => id.isNotEmpty));
     await _prefs.setStringList(_kDeletedAlerts, current.toList());
+  }
+
+  // ── Read Alerts & Read Timestamp Persistence ──────────────────────
+  static const _kLastAlertsReadTime = 'ft_last_alerts_read_time';
+  static const _kReadAlerts = 'ft_read_alerts';
+
+  DateTime? getLastAlertsReadTime() {
+    final String? str = _prefs.getString(_kLastAlertsReadTime);
+    if (str == null || str.isEmpty) return null;
+    return DateTime.tryParse(str);
+  }
+
+  Future<void> setLastAlertsReadTime(DateTime time) async {
+    await _prefs.setString(_kLastAlertsReadTime, time.toIso8601String());
+  }
+
+  Set<String> getReadAlertIds() {
+    final List<String>? list = _prefs.getStringList(_kReadAlerts);
+    return list?.toSet() ?? <String>{};
+  }
+
+  Future<void> addReadAlertId(String id) async {
+    if (id.isEmpty) return;
+    final Set<String> current = getReadAlertIds();
+    current.add(id);
+    await _prefs.setStringList(_kReadAlerts, current.toList());
+  }
+
+  Future<void> addReadAlertIds(Iterable<String> ids) async {
+    final Set<String> current = getReadAlertIds();
+    current.addAll(ids.where((String id) => id.isNotEmpty));
+    await _prefs.setStringList(_kReadAlerts, current.toList());
   }
 
   // ── Route Vehicle Assignments Persistence ───────────────────────────

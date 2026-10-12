@@ -300,7 +300,9 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             minZoom: 2,
             maxZoom:
                 22.0, // Allow zooming in deeply (tiles will be scaled up by TileLayer)
-            backgroundColor: theme.colorScheme.surface,
+            backgroundColor: widget.style == MapStyle.satellite
+                ? const Color(0xFF1D262B)
+                : const Color(0xFFE5E9EC),
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
             ),
@@ -319,7 +321,6 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
             buildTileLayer(
               widget.style,
               apiKey: widget.apiKey,
-              isDark: Theme.of(context).brightness == Brightness.dark,
             ),
             ValueListenableBuilder<LatLng?>(
               valueListenable: _activeVisualPosition,

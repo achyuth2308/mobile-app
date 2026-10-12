@@ -120,17 +120,12 @@ final NotifierProvider<ThemeModeNotifier, ThemeMode> themeModeProvider =
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   @override
   ThemeMode build() {
-    final String raw = ref.read(secureStoreProvider).themeMode;
-    return switch (raw) {
-      'light' => ThemeMode.light,
-      'system' => ThemeMode.system,
-      _ => ThemeMode.dark,
-    };
+    return ThemeMode.light;
   }
 
   Future<void> set(ThemeMode mode) async {
-    state = mode;
-    await ref.read(secureStoreProvider).setThemeMode(mode.name);
+    state = ThemeMode.light;
+    await ref.read(secureStoreProvider).setThemeMode('light');
   }
 }
 
