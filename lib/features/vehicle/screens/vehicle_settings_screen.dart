@@ -516,6 +516,7 @@ class _StatusBadge extends StatelessWidget {
       VehicleStatus.idle => (const Color(0xFFED6C02), 'Idle'),
       VehicleStatus.stopped => (const Color(0xFF757575), 'Parking'),
       VehicleStatus.offline => (const Color(0xFFD32F2F), 'Offline'),
+      VehicleStatus.noData => (const Color(0xFF94A3B8), 'No Data'),
     };
 
     return Container(

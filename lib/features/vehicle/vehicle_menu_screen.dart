@@ -36,11 +36,6 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
 
   @override
   void dispose() {
-    final socketService = ref.read(socketServiceProvider);
-    final vId = widget.vehicleId;
-    Future.microtask(() {
-      socketService.leaveVehicle(vId);
-    });
     super.dispose();
   }
 

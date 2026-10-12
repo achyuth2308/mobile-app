@@ -207,18 +207,21 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
               VehicleStatus.idle => 'Vehicle Idling',
               VehicleStatus.stopped => 'Vehicle Stopped',
               VehicleStatus.offline => 'Vehicle Offline',
+              VehicleStatus.noData => 'No Data Available',
             };
             final String sinceText = switch (vehicle.status) {
               VehicleStatus.moving => 'Moving since',
               VehicleStatus.idle => 'Idling since',
               VehicleStatus.stopped => 'Stopped since',
               VehicleStatus.offline => 'Offline since',
+              VehicleStatus.noData => 'Status',
             };
             final IconData statusIcon = switch (vehicle.status) {
               VehicleStatus.moving => Icons.play_circle_filled_rounded,
               VehicleStatus.idle => Icons.pause_circle_filled_rounded,
               VehicleStatus.stopped => Icons.pause_circle_filled_rounded,
               VehicleStatus.offline => Icons.cloud_off_rounded,
+              VehicleStatus.noData => Icons.sensors_off_rounded,
             };
 
             return Container(

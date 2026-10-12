@@ -137,27 +137,41 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     final List<StoppageEvent> stops = <StoppageEvent>[];
     TrackPoint? stopStart;
     TrackPoint? stopEnd;
+    List<TrackPoint> currentStopPoints = <TrackPoint>[];
 
     for (int i = 0; i < points.length; i++) {
       final TrackPoint p = points[i];
       if (p.speed <= 3) {
         stopStart ??= p;
         stopEnd = p;
+        currentStopPoints.add(p);
       } else {
         if (stopStart != null && stopEnd != null) {
           final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
           if (diff.inMinutes >= 5 && stopStart.timestamp != points.first.timestamp) {
+            TrackPoint bestPt = stopStart;
+            if (currentStopPoints.isNotEmpty) {
+              final List<TrackPoint> zeroPts =
+                  currentStopPoints.where((TrackPoint tp) => tp.speed == 0).toList();
+              if (zeroPts.isNotEmpty) {
+                bestPt = zeroPts[zeroPts.length ~/ 2];
+              } else {
+                bestPt = currentStopPoints.reduce((TrackPoint a, TrackPoint b) =>
+                    a.speed <= b.speed ? a : b);
+              }
+            }
             stops.add(StoppageEvent(
-              lat: stopStart.latitude,
-              lng: stopStart.longitude,
+              lat: bestPt.latitude,
+              lng: bestPt.longitude,
               startTime: stopStart.timestamp,
               endTime: stopEnd.timestamp,
               duration: diff,
-              address: stopStart.address,
+              address: bestPt.address ?? stopStart.address,
             ));
           }
           stopStart = null;
           stopEnd = null;
+          currentStopPoints = <TrackPoint>[];
         }
       }
     }
@@ -165,13 +179,24 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (stopStart != null && stopEnd != null) {
       final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
       if (diff.inMinutes >= 5 && stopStart.timestamp != points.first.timestamp) {
+        TrackPoint bestPt = stopStart;
+        if (currentStopPoints.isNotEmpty) {
+          final List<TrackPoint> zeroPts =
+              currentStopPoints.where((TrackPoint tp) => tp.speed == 0).toList();
+          if (zeroPts.isNotEmpty) {
+            bestPt = zeroPts[zeroPts.length ~/ 2];
+          } else {
+            bestPt = currentStopPoints.reduce((TrackPoint a, TrackPoint b) =>
+                a.speed <= b.speed ? a : b);
+          }
+        }
         stops.add(StoppageEvent(
-          lat: stopStart.latitude,
-          lng: stopStart.longitude,
+          lat: bestPt.latitude,
+          lng: bestPt.longitude,
           startTime: stopStart.timestamp,
           endTime: stopEnd.timestamp,
           duration: diff,
-          address: stopStart.address,
+          address: bestPt.address ?? stopStart.address,
           isOngoing: true,
         ));
       }

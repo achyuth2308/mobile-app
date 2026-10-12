@@ -18,6 +18,7 @@ class FleetStats {
     this.idle = 0,
     this.stopped = 0,
     this.offline = 0,
+    this.noData = 0,
     this.overspeeding = 0,
     this.expiringSoon = 0,
     this.totalDistanceToday = 0,
@@ -28,17 +29,18 @@ class FleetStats {
   final int idle;
   final int stopped;
   final int offline;
+  final int noData;
   final int overspeeding;
   final int expiringSoon;
   final double totalDistanceToday;
 
-  int get online => total - offline;
+  int get online => moving + idle + stopped;
 
   double get onlinePercent => total == 0 ? 0 : online / total;
   double get utilisation => total == 0 ? 0 : moving / total;
 
   factory FleetStats.from(List<Vehicle> vehicles) {
-    int moving = 0, idle = 0, stopped = 0, offline = 0;
+    int moving = 0, idle = 0, stopped = 0, offline = 0, noData = 0;
     int over = 0, expiring = 0;
     double distance = 0;
 
@@ -52,8 +54,14 @@ class FleetStats {
           stopped++;
         case VehicleStatus.offline:
           offline++;
+        case VehicleStatus.noData:
+          noData++;
       }
-      if (v.status != VehicleStatus.offline && v.isOverspeeding) over++;
+      if (v.status != VehicleStatus.offline &&
+          v.status != VehicleStatus.noData &&
+          v.isOverspeeding) {
+        over++;
+      }
       if (v.isExpiringSoon) expiring++;
       distance += v.todayDistanceKm ?? 0;
     }
@@ -64,6 +72,7 @@ class FleetStats {
       idle: idle,
       stopped: stopped,
       offline: offline,
+      noData: noData,
       overspeeding: over,
       expiringSoon: expiring,
       totalDistanceToday: distance,
@@ -369,6 +378,7 @@ class FleetController extends Notifier<FleetState> {
           VehicleStatus.idle => 1,
           VehicleStatus.stopped => 2,
           VehicleStatus.offline => 3,
+          VehicleStatus.noData => 4,
         };
 
     list.sort((Vehicle a, Vehicle b) {

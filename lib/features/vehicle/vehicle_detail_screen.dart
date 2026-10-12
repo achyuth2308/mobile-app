@@ -51,11 +51,6 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    final socketService = ref.read(socketServiceProvider);
-    final vId = widget.vehicleId;
-    Future.microtask(() {
-      socketService.leaveVehicle(vId);
-    });
     super.dispose();
   }
 

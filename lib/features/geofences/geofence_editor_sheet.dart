@@ -85,10 +85,16 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
 
     _latController.addListener(_onCoordinateInputChanged);
     _lngController.addListener(_onCoordinateInputChanged);
+    _name.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() {
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _name.removeListener(_onNameChanged);
     _name.dispose();
     _latController.dispose();
     _lngController.dispose();
@@ -427,8 +433,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
-                    labelText: 'Geofence name',
-                    hintText: 'e.g. Main Depot',
+                    labelText: 'Geofence name *',
+                    hintText: 'Enter geofence name (e.g. Main Depot)',
                     prefixIcon: Icon(Icons.label_outline_rounded, size: 20),
                   ),
                 ),
@@ -591,7 +597,7 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                 const SizedBox(height: Gap.xl),
 
                 FilledButton(
-                  onPressed: _saving ? null : _save,
+                  onPressed: (!_saving && _name.text.trim().isNotEmpty) ? _save : null,
                   child: _saving
                       ? const SizedBox(
                           width: 20,

@@ -151,17 +151,28 @@ DateTime? asDate(Map<String, dynamic> json, List<String> keys) {
       }
 
       // If the backend sends UTC without a Z or offset (e.g. "2026-07-30 12:47:00")
-      // we must append Z so it parses as UTC, otherwise the vehicle appears offline.
-      if (!str.endsWith('Z') &&
-          !str.contains('+') &&
-          !str.contains(RegExp(r'-[0-9]{2}:?[0-9]{2}$'))) {
+      // we append Z, but verify it does not jump into the future if the string was already local.
+      final bool hadOffset = str.endsWith('Z') ||
+          str.contains('+') ||
+          str.contains(RegExp(r'-[0-9]{2}:?[0-9]{2}$'));
+      if (!hadOffset) {
         str = str.replaceAll(' ', 'T');
         if (str.contains('T')) {
           str = '${str}Z';
         }
       }
       final DateTime? d = DateTime.tryParse(str);
-      if (d != null) return d.toLocal();
+      if (d != null) {
+        final DateTime local = d.toLocal();
+        // If appending 'Z' pushed this timestamp more than 5 minutes into the future,
+        // the original string was already local time, not UTC.
+        if (!hadOffset && local.isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+          final String withoutZ = str.replaceAll(RegExp(r'[Zz]$'), '');
+          final DateTime? fallbackLocal = DateTime.tryParse(withoutZ);
+          if (fallbackLocal != null) return fallbackLocal;
+        }
+        return local;
+      }
       final int? ms = int.tryParse(v);
       if (ms != null) {
         return DateTime.fromMillisecondsSinceEpoch(

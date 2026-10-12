@@ -78,6 +78,8 @@ class SocketService {
     'alert:new',
     'geofence:event',
     'vehicle:status',
+    'vehicle:state',
+    'data:update',
     'device:status',
   ];
 
@@ -123,7 +125,7 @@ class SocketService {
             'token': token,
             'auth': token,
           })
-          .setTransports(<String>['websocket'])
+          .setTransports(<String>['websocket', 'polling'])
           .enableForceNew()
           .disableAutoConnect()
           .enableReconnection()

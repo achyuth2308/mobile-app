@@ -110,7 +110,7 @@ class FleetOverviewCard extends ConsumerWidget {
           const SizedBox(height: Gap.md),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              if (constraints.maxWidth < 360) {
+              if (constraints.maxWidth < 580) {
                 return Column(
                   children: [
                     Row(
@@ -138,11 +138,7 @@ class FleetOverviewCard extends ConsumerWidget {
                             isDark: isDark,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: Gap.sm),
-                    Row(
-                      children: <Widget>[
+                        const SizedBox(width: Gap.sm),
                         Expanded(
                           child: _StatusTile(
                             label: 'Stopped',
@@ -154,7 +150,11 @@ class FleetOverviewCard extends ConsumerWidget {
                             isDark: isDark,
                           ),
                         ),
-                        const SizedBox(width: Gap.sm),
+                      ],
+                    ),
+                    const SizedBox(height: Gap.sm),
+                    Row(
+                      children: <Widget>[
                         Expanded(
                           child: _StatusTile(
                             label: 'Offline',
@@ -166,13 +166,25 @@ class FleetOverviewCard extends ConsumerWidget {
                             isDark: isDark,
                           ),
                         ),
+                        const SizedBox(width: Gap.sm),
+                        Expanded(
+                          child: _StatusTile(
+                            label: 'No Data',
+                            count: stats.noData,
+                            color: AppColors.noData,
+                            icon: Icons.sensors_off_rounded,
+                            selected: active == VehicleStatus.noData,
+                            onTap: () => _toggle(ref, VehicleStatus.noData),
+                            isDark: isDark,
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 );
               }
               
-              // Normal Wide Layout
+              // Wide Layout (≥ 580px)
               return Row(
                 children: <Widget>[
                   Expanded(
@@ -222,6 +234,18 @@ class FleetOverviewCard extends ConsumerWidget {
                       isDark: isDark,
                     ),
                   ),
+                  const SizedBox(width: Gap.sm),
+                  Expanded(
+                    child: _StatusTile(
+                      label: 'No Data',
+                      count: stats.noData,
+                      color: AppColors.noData,
+                      icon: Icons.sensors_off_rounded,
+                      selected: active == VehicleStatus.noData,
+                      onTap: () => _toggle(ref, VehicleStatus.noData),
+                      isDark: isDark,
+                    ),
+                  ),
                 ],
               );
             },
@@ -260,6 +284,7 @@ class _CompositionBar extends StatelessWidget {
       (stats.idle, AppColors.idle),
       (stats.stopped, AppColors.stopped),
       (stats.offline, AppColors.offline),
+      (stats.noData, AppColors.noData),
     ].where(((int, Color) s) => s.$1 > 0).toList();
 
     return ClipRRect(

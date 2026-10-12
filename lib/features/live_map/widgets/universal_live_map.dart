@@ -30,6 +30,7 @@ class UniversalLiveMap extends StatefulWidget {
     this.route = const <TrackPoint>[],
     this.stoppages = const <ReportRow>[],
     this.showTrail = false,
+    this.showFullTrail = false,
     this.onTapStoppage,
   });
 
@@ -48,6 +49,7 @@ class UniversalLiveMap extends StatefulWidget {
   final List<TrackPoint> route;
   final List<ReportRow> stoppages;
   final bool showTrail;
+  final bool showFullTrail;
   final void Function(ReportRow, int)? onTapStoppage;
 
   @override
@@ -56,35 +58,35 @@ class UniversalLiveMap extends StatefulWidget {
 
 class _UniversalLiveMapState extends State<UniversalLiveMap> {
   final ValueNotifier<LatLng?> _activeVisualPosition = ValueNotifier(null);
-  // Stores the confirmed trail history (points the marker has ACTUALLY visited).
+  // Stores confirmed GPS waypoints the vehicle has ALREADY completed.
   final Map<String, List<LatLng>> _sessionTrails = {};
-  // Stores position of last GPS update for all non-active vehicles
-  final Map<String, LatLng> _lastKnownPos = {};
+  // Stores the pending target position that the vehicle is currently animating towards.
+  // The pending target is held here until the glide finishes and the next packet arrives,
+  // guaranteeing the trail is NEVER drawn in front of the vehicle or folded backwards!
+  final Map<String, LatLng> _pendingTargetPos = {};
   bool _isUserInteracting = false;
 
   @override
   void didUpdateWidget(UniversalLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     const Distance dist = Distance();
-    final String? activeId = widget.selectedId ?? widget.followingId;
 
     for (final v in widget.vehicles) {
       if (!v.hasLocation) continue;
       final LatLng currentPos = LatLng(v.latitude!, v.longitude!);
+      final List<LatLng> trail =
+          _sessionTrails.putIfAbsent(v.id, () => <LatLng>[currentPos]);
+      final LatLng? prevTarget = _pendingTargetPos[v.id];
 
-      // For NON-active vehicles, record trail directly since they don't animate
-      if (v.id != activeId) {
-        final List<LatLng> trail =
-            _sessionTrails.putIfAbsent(v.id, () => <LatLng>[]);
-        final LatLng? prev = _lastKnownPos[v.id];
-        if (prev == null || dist(prev, currentPos) > 5.0) {
-          trail.add(currentPos);
-          _lastKnownPos[v.id] = currentPos;
+      if (prevTarget == null) {
+        _pendingTargetPos[v.id] = currentPos;
+      } else if (dist(prevTarget, currentPos) >= 4.0) {
+        // Commit the previous target that the vehicle has completed into the confirmed past trail!
+        if (trail.isEmpty || dist(trail.last, prevTarget) >= 3.0) {
+          trail.add(prevTarget);
         }
-      } else {
-        // For the ACTIVE vehicle, just initialize if needed.
-        // Trail recording happens via the _activeVisualPosition listener.
-        _sessionTrails.putIfAbsent(v.id, () => <LatLng>[currentPos]);
+        // currentPos becomes the new destination target the marker is currently animating towards
+        _pendingTargetPos[v.id] = currentPos;
       }
     }
   }
@@ -93,31 +95,14 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   void initState() {
     super.initState();
     _activeVisualPosition.addListener(_onVisualPositionChanged);
-    _activeVisualPosition.addListener(_recordActiveVehicleTrail);
 
-    // Populate initial trail points immediately when map opens
+    // Populate initial starting position immediately when map session begins
     for (final v in widget.vehicles) {
       if (v.hasLocation) {
         final LatLng pos = LatLng(v.latitude!, v.longitude!);
         _sessionTrails[v.id] = <LatLng>[pos];
-        _lastKnownPos[v.id] = pos;
+        _pendingTargetPos[v.id] = pos;
       }
-    }
-  }
-
-  /// Records the active vehicle's position as the marker actually animates.
-  /// This ensures the trail tip is ALWAYS at the marker, never ahead of it.
-  void _recordActiveVehicleTrail() {
-    final LatLng? pos = _activeVisualPosition.value;
-    if (pos == null) return;
-    final String? activeId = widget.selectedId ?? widget.followingId;
-    if (activeId == null) return;
-
-    final List<LatLng> trail =
-        _sessionTrails.putIfAbsent(activeId, () => <LatLng>[]);
-    const Distance dist = Distance();
-    if (trail.isEmpty || dist(trail.last, pos) > 3.0) {
-      trail.add(pos);
     }
   }
 
@@ -135,102 +120,8 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   @override
   void dispose() {
     _activeVisualPosition.removeListener(_onVisualPositionChanged);
-    _activeVisualPosition.removeListener(_recordActiveVehicleTrail);
     _activeVisualPosition.dispose();
     super.dispose();
-  }
-
-  List<Marker> _buildStaticMarkers(String? activeId) {
-    final bool manyVehicles = widget.vehicles.length > 50;
-
-    return widget.vehicles
-        .where((Vehicle v) => v.hasLocation && v.id != activeId)
-        .map(
-      (Vehicle v) {
-        final bool isSelected = v.id == widget.selectedId;
-
-        Widget markerChild = VehicleMarkerPin(
-          vehicle: v,
-          selected: isSelected,
-          showLabel: false,
-          useSprite: true,
-          headingOverride: v.heading,
-        );
-
-        if (!manyVehicles) {
-          markerChild = AnimatedVehicleMarker(
-            key: ValueKey<String>('anim_${v.id}'),
-            point: LatLng(v.latitude!, v.longitude!),
-            heading: v.heading,
-            status: v.status,
-            speed: v.speed,
-            builder: (BuildContext context, double animatedHeading) =>
-                VehicleMarkerPin(
-              vehicle: v,
-              selected: isSelected,
-              showLabel: false,
-              useSprite: true,
-              headingOverride: animatedHeading,
-            ),
-          );
-        }
-
-        return Marker(
-          key: ValueKey<String>(v.id),
-          point: LatLng(v.latitude!, v.longitude!),
-          width: 28,
-          height: 36,
-          alignment: Alignment.topCenter,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => widget.onSelectVehicle(v),
-            child: markerChild,
-          ),
-        );
-      },
-    ).toList();
-  }
-
-  Widget _buildActiveMarkerLayer(Vehicle activeV, bool isSelected) {
-    return ValueListenableBuilder<LatLng?>(
-      valueListenable: _activeVisualPosition,
-      builder: (BuildContext context, LatLng? visualPos, Widget? child) {
-        final LatLng markerPos =
-            visualPos ?? LatLng(activeV.latitude!, activeV.longitude!);
-
-        return MarkerLayer(
-          markers: [
-            Marker(
-              key: ValueKey<String>('active_${activeV.id}'),
-              point: markerPos,
-              width: 28,
-              height: 36,
-              alignment: Alignment.topCenter,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => widget.onSelectVehicle(activeV),
-                child: AnimatedVehicleMarker(
-                  key: ValueKey<String>('anim_${activeV.id}'),
-                  point: LatLng(activeV.latitude!, activeV.longitude!),
-                  heading: activeV.heading,
-                  status: activeV.status,
-                  speed: activeV.speed,
-                  visualPositionNotifier: _activeVisualPosition,
-                  builder: (BuildContext context, double animatedHeading) =>
-                      VehicleMarkerPin(
-                    vehicle: activeV,
-                    selected: isSelected,
-                    showLabel: false,
-                    useSprite: true,
-                    headingOverride: animatedHeading,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -259,10 +150,9 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
 
       pointMarkers.add(Marker(
         point: LatLng(lat, lng),
-        width: 24,
+        width: 20,
         height: 24,
-        alignment:
-            const Alignment(1.2, -1.2), // Shift slightly up and right (aside)
+        alignment: Alignment.topCenter,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
@@ -272,7 +162,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
           },
           child: Center(
             child: CustomPaint(
-              size: const Size(18, 22),
+              size: const Size(20, 24),
               painter: _MessageBubblePainter(
                   number: i + 1, color: const Color(0xFFFF6B6B)), // Red
             ),
@@ -335,75 +225,72 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                 final List<Polyline> allPolylines = [];
 
                 if (widget.showTrail) {
-                  if (activeV != null && widget.route.isNotEmpty) {
-                    final List<LatLng> trailPoints = [];
-                    final LatLng currentPos = activeVisualPos!;
-                    int cutIdx = -1;
-                    double minDistance = double.infinity;
-                    const Distance dist = Distance();
+                  const Distance dist = Distance();
 
-                    for (int i = 0; i < widget.route.length; i++) {
-                      final TrackPoint tp = widget.route[i];
-                      if (!tp.isValid) continue;
-
-                      final double d = dist(tp.latLng, currentPos);
-                      if (d < minDistance) {
-                        minDistance = d;
-                        cutIdx = i;
-                      }
-                    }
-
-                    if (cutIdx != -1 && minDistance < 1000) {
-                      for (int i = 0; i <= cutIdx; i++) {
-                        if (widget.route[i].isValid) {
-                          trailPoints.add(widget.route[i].latLng);
-                        }
-                      }
-                    } else {
-                      for (final TrackPoint tp in widget.route) {
-                        if (tp.isValid) {
-                          if (activeV.lastPacketAt != null &&
-                              tp.timestamp.isAfter(activeV.lastPacketAt!)) {
-                            break;
-                          }
-                          trailPoints.add(tp.latLng);
-                        }
-                      }
-                    }
-                    if (trailPoints.isEmpty) {
-                      trailPoints.add(currentPos);
-                    } else {
-                      trailPoints.add(currentPos);
-                    }
-                    allPolylines.addAll(_splitPolyline(
-                        points: trailPoints,
-                        color: const Color(0xFF10B981),
-                        strokeWidth: 4.5));
-                  } else if (widget.route.isNotEmpty) {
-                    final List<LatLng> trailPoints = [];
+                  if (widget.showFullTrail && activeV != null && widget.route.isNotEmpty) {
+                    // ── FULL TRAIL MODE (Shown ONLY when marker is clicked) ──
+                    final List<LatLng> fullPoints = [];
                     for (final TrackPoint tp in widget.route) {
-                      if (tp.isValid) trailPoints.add(tp.latLng);
+                      if (tp.isValid) fullPoints.add(tp.latLng);
                     }
+
+                    // Seamlessly append confirmed session points that arrived after history
+                    final List<LatLng> sessionPts = _sessionTrails[activeV.id] ?? const [];
+                    for (final LatLng sPt in sessionPts) {
+                      if (fullPoints.isEmpty) {
+                        fullPoints.add(sPt);
+                      } else {
+                        final double d = dist(fullPoints.last, sPt);
+                        if (d > 4.0) {
+                          fullPoints.add(sPt);
+                        }
+                      }
+                    }
+
+                    // Strict anti-overshoot guard: If fullPoints.last happens to be at or near
+                    // the pending future target, pop it so the polyline strictly terminates AT activeVisualPos!
+                    if (activeVisualPos != null) {
+                      final LatLng? pending = _pendingTargetPos[activeV.id];
+                      if (pending != null && fullPoints.isNotEmpty) {
+                        final double distLastToPending = dist(fullPoints.last, pending);
+                        final double distVisualToPending = dist(activeVisualPos, pending);
+                        if (distLastToPending < 5.0 && distVisualToPending > 4.0) {
+                          fullPoints.removeLast();
+                        }
+                      }
+
+                      if (fullPoints.isEmpty || dist(fullPoints.last, activeVisualPos) > 1.5) {
+                        fullPoints.add(activeVisualPos);
+                      }
+                    }
+
                     allPolylines.addAll(_splitPolyline(
-                        points: trailPoints,
-                        color: const Color(0xFF10B981),
-                        strokeWidth: 4.5));
+                      points: fullPoints,
+                      color: const Color(0xFF10B981),
+                      strokeWidth: 4.5,
+                    ));
                   } else {
-                    // Live session trails for all vehicles
+                    // ── SESSION TRAIL MODE (Default from where page opened) ──
                     for (final v in widget.vehicles) {
                       if (!v.hasLocation) continue;
 
                       final List<LatLng> trail =
-                          _sessionTrails[v.id]?.toList() ?? [];
+                          List<LatLng>.from(_sessionTrails[v.id] ?? <LatLng>[]);
 
-                      // For the active vehicle, the trail is already being kept
-                      // current by _recordActiveVehicleTrail listener. No appending needed.
-                      // For non-active vehicles, make sure current pos is included.
-                      if (v.id != activeId) {
-                        final LatLng staticPos =
-                            LatLng(v.latitude!, v.longitude!);
-                        if (trail.isEmpty || trail.last != staticPos) {
-                          trail.add(staticPos);
+                      // For the active vehicle, activeVisualPos is currently gliding
+                      // between trail.last and _pendingTargetPos.
+                      // Appending activeVisualPos smoothly extends the trail to the truck tip!
+                      // Because _pendingTargetPos is NOT in trail, the line NEVER overshoots
+                      // and NEVER folds backwards!
+                      if (v.id == activeId && activeVisualPos != null) {
+                        if (trail.isEmpty || dist(trail.last, activeVisualPos) > 1.5) {
+                          trail.add(activeVisualPos);
+                        }
+                      } else {
+                        // For non-active vehicles (static), connect to pending target
+                        final LatLng? target = _pendingTargetPos[v.id];
+                        if (target != null && (trail.isEmpty || dist(trail.last, target) > 1.5)) {
+                          trail.add(target);
                         }
                       }
 
@@ -463,7 +350,8 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                   children: <Widget>[
                     if (allPolylines.isNotEmpty)
                       PolylineLayer(polylines: allPolylines),
-                    if (widget.showTrail && pointMarkers.isNotEmpty)
+                    // Stoppage markers shown ONLY when full trail mode is active (marker clicked)
+                    if (widget.showTrail && widget.showFullTrail && pointMarkers.isNotEmpty)
                       MarkerLayer(markers: pointMarkers),
                     MarkerLayer(markers: vehicleMarkers),
                   ],
@@ -477,99 +365,24 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   }
 }
 
-/// Splits a list of GPS points into multiple [Polyline] segments, breaking
-/// the line wherever two consecutive points are more than [gapThresholdMeters]
-/// apart. This eliminates the long "crow-fly" drift lines that appear when
-/// the GPS tracker loses signal for a while.
+/// Renders GPS points as a continuous, unbroken [Polyline] connecting all
+/// consecutive points with rounded joints and caps so there are no visual cuts.
 List<Polyline> _splitPolyline({
   required List<LatLng> points,
   required Color color,
   double strokeWidth = 4.5,
-  double gapThresholdMeters = 1000,
 }) {
   if (points.length < 2) return const <Polyline>[];
 
-  const Distance _dist = Distance();
-  final List<Polyline> segments = <Polyline>[];
-  List<LatLng> current = <LatLng>[points.first];
-
-  for (int i = 1; i < points.length; i++) {
-    final double d = _dist(points[i - 1], points[i]);
-    if (d > gapThresholdMeters) {
-      if (current.length >= 2) {
-        segments.add(Polyline(
-          points: _smoothPoints(current),
-          strokeWidth: strokeWidth,
-          color: color,
-        ));
-      }
-      current = <LatLng>[points[i]];
-    } else {
-      current.add(points[i]);
-    }
-  }
-
-  if (current.length >= 2) {
-    segments.add(Polyline(
-      points: _smoothPoints(current),
+  return <Polyline>[
+    Polyline(
+      points: points,
       strokeWidth: strokeWidth,
       color: color,
-    ));
-  }
-
-  return segments;
-}
-
-/// Catmull-Rom spline interpolation for smooth, natural road-aligned GPS polyline rendering.
-List<LatLng> _smoothPoints(List<LatLng> pts) {
-  if (pts.length < 3) return pts;
-  final List<LatLng> smoothed = <LatLng>[pts.first];
-
-  for (int i = 0; i < pts.length - 1; i++) {
-    final LatLng p0 = i == 0 ? pts[i] : pts[i - 1];
-    final LatLng p1 = pts[i];
-    final LatLng p2 = pts[i + 1];
-    final LatLng p3 = (i + 2 < pts.length) ? pts[i + 2] : pts[i + 1];
-
-    const int steps = 4;
-    for (int t = 1; t <= steps; t++) {
-      final double u = t / steps;
-      final double u2 = u * u;
-      final double u3 = u2 * u;
-
-      final double lat = 0.5 *
-          ((2 * p1.latitude) +
-              (-p0.latitude + p2.latitude) * u +
-              (2 * p0.latitude -
-                      5 * p1.latitude +
-                      4 * p2.latitude -
-                      p3.latitude) *
-                  u2 +
-              (-p0.latitude + 3 * p1.latitude - 3 * p2.latitude + p3.latitude) *
-                  u3);
-
-      final double lng = 0.5 *
-          ((2 * p1.longitude) +
-              (-p0.longitude + p2.longitude) * u +
-              (2 * p0.longitude -
-                      5 * p1.longitude +
-                      4 * p2.longitude -
-                      p3.longitude) *
-                  u2 +
-              (-p0.longitude +
-                      3 * p1.longitude -
-                      3 * p2.longitude +
-                      p3.longitude) *
-                  u3);
-
-      smoothed.add(LatLng(lat, lng));
-    }
-  }
-
-  if (smoothed.isNotEmpty && pts.isNotEmpty) {
-    smoothed[smoothed.length - 1] = pts.last;
-  }
-  return smoothed;
+      strokeCap: StrokeCap.round,
+      strokeJoin: StrokeJoin.round,
+    ),
+  ];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -162,23 +162,23 @@ class VehicleCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: use2Columns
                           ? [
-                              // Responsive Column 1
+                              // Responsive Column 1 (Speed, Today km, Battery)
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _MetricItem(
-                                      label: 'Today km',
-                                      value:
-                                          '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
-                                      dotColor: const Color(0xFFE91E63), // Pink
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _MetricItem(
                                       label: 'Speed',
                                       value: '${vehicle.speed.round()} km/h',
                                       dotColor:
                                           const Color(0xFF4CAF50), // Green
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _MetricItem(
+                                      label: 'Today km',
+                                      value:
+                                          '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
+                                      dotColor: const Color(0xFFE91E63), // Pink
                                     ),
                                     const SizedBox(height: 12),
                                     _MetricItem(
@@ -193,7 +193,7 @@ class VehicleCard extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              // Responsive Column 2
+                              // Responsive Column 2 (Odometer & Signal/GPS)
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,7 +224,7 @@ class VehicleCard extends ConsumerWidget {
                                                   size: 20,
                                                   color: Colors.grey),
                                               Text(
-                                                '${vehicle.satellites}',
+                                                  '${vehicle.satellites}',
                                                 style: const TextStyle(
                                                   fontSize: 8,
                                                   fontWeight: FontWeight.bold,
@@ -240,16 +240,16 @@ class VehicleCard extends ConsumerWidget {
                               ),
                             ]
                           : [
-                              // Standard Column 1
+                              // Standard Column 1 (Speed & Battery)
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _MetricItem(
-                                      label: 'Today km',
-                                      value:
-                                          '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
-                                      dotColor: const Color(0xFFE91E63), // Pink
+                                      label: 'Speed',
+                                      value: '${vehicle.speed.round()} km/h',
+                                      dotColor:
+                                          const Color(0xFF4CAF50), // Green
                                     ),
                                     const SizedBox(height: 12),
                                     _MetricItem(
@@ -263,21 +263,21 @@ class VehicleCard extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              // Standard Column 2
+                              // Standard Column 2 (Today km)
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _MetricItem(
-                                      label: 'Speed',
-                                      value: '${vehicle.speed.round()} km/h',
-                                      dotColor:
-                                          const Color(0xFF4CAF50), // Green
+                                      label: 'Today km',
+                                      value:
+                                          '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
+                                      dotColor: const Color(0xFFE91E63), // Pink
                                     ),
                                   ],
                                 ),
                               ),
-                              // Standard Column 3
+                              // Standard Column 3 (Odometer & Signal/GPS)
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,10 +526,9 @@ class _LiveStatusDurationState extends State<_LiveStatusDuration> {
   void _startTimer() {
     if (widget.timestamp == null) return;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
-      });
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
@@ -202,10 +203,15 @@ class VehiclePeekSheet extends ConsumerStatefulWidget {
   static String _formatDurationShort(Duration d) {
     final hours = d.inHours;
     final mins = d.inMinutes.remainder(60);
+    final secs = d.inSeconds.remainder(60);
     if (hours > 0) {
-      return '${hours}hrs ${mins}mins';
+      return secs > 0
+          ? '${hours}h ${mins}m ${secs}s'
+          : (mins > 0 ? '${hours}h ${mins}m' : '${hours}h');
+    } else if (mins > 0) {
+      return secs > 0 ? '${mins}m ${secs}s' : '${mins}m';
     } else {
-      return '${mins}mins';
+      return '${secs}s';
     }
   }
 
@@ -217,7 +223,8 @@ class VehiclePeekSheet extends ConsumerStatefulWidget {
     final hour = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
     final period = dt.hour >= 12 ? 'PM' : 'AM';
     final min = dt.minute.toString().padLeft(2, '0');
-    return '$hour:$min $period';
+    final sec = dt.second.toString().padLeft(2, '0');
+    return '$hour:$min:$sec $period';
   }
 
   @override
@@ -226,6 +233,23 @@ class VehiclePeekSheet extends ConsumerStatefulWidget {
 
 class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
   final Set<int> _alertsSet = <int>{};
+  Timer? _historyRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Gentle 45-second refresh keeps trip timeline updated while viewing this vehicle
+    _historyRefreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (!mounted) return;
+      ref.invalidate(vehicleDailyHistoryProvider(widget.vehicleId));
+    });
+  }
+
+  @override
+  void dispose() {
+    _historyRefreshTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -536,7 +560,7 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                                                               Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
                                                               SizedBox(width: 4),
                                                               Text(
-                                                                'Alert set',
+                                                                'Geofence set',
                                                                 style: TextStyle(
                                                                   fontSize: 12,
                                                                   fontWeight: FontWeight.bold,
@@ -555,7 +579,6 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                                                                 builder: (BuildContext ctx) => GeofenceEditorSheet(
                                                                   initialLocation: LatLng(seg.lat, seg.lng),
                                                                   initialVehicleId: widget.vehicleId,
-                                                                  initialName: '${seg.title} Alert',
                                                                 ),
                                                               );
                                                               if (created == true) {
@@ -568,7 +591,7 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                                                               mainAxisSize: MainAxisSize.min,
                                                               children: [
                                                                 Text(
-                                                                  'Set up an alert',
+                                                                  'Set geofence',
                                                                   style: TextStyle(
                                                                     fontSize: 12,
                                                                     fontWeight: FontWeight.bold,
@@ -645,35 +668,49 @@ class _VehicleStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String sinceStr = '';
-    if (vehicle.statusChangedAt != null) {
-      final diff = DateTime.now().difference(vehicle.statusChangedAt!);
-      sinceStr = 'since ${VehiclePeekSheet._formatDurationShort(diff)}';
-    }
-
-    String lastUpdated = 'just now';
-    if (vehicle.lastPacketAt != null) {
-      final diff = DateTime.now().difference(vehicle.lastPacketAt!);
-      if (diff.inMinutes > 0) {
-        lastUpdated = '${diff.inMinutes}m ago';
-      }
-    }
+    final DateTime? sinceTime = vehicle.statusChangedAt ?? vehicle.lastPacketAt;
+    final String durationStr = Fmt.statusDuration(sinceTime);
+    final String timeStr = Fmt.time12Sec(sinceTime);
 
     IconData icon;
     Color iconBg;
     Color textCol;
-    if (vehicle.status == VehicleStatus.moving) {
-      icon = Icons.navigation_rounded;
-      iconBg = const Color(0xFF22C55E);
-      textCol = const Color(0xFF22C55E);
-    } else if (vehicle.status == VehicleStatus.idle) {
-      icon = Icons.key_rounded;
-      iconBg = const Color(0xFFF59E0B);
-      textCol = const Color(0xFFF59E0B);
-    } else {
-      icon = Icons.local_parking_rounded;
-      iconBg = const Color(0xFFEF4444);
-      textCol = const Color(0xFFEF4444);
+    String statusTitle;
+
+    switch (vehicle.status) {
+      case VehicleStatus.moving:
+        icon = Icons.navigation_rounded;
+        iconBg = const Color(0xFF22C55E);
+        textCol = const Color(0xFF22C55E);
+        statusTitle = sinceTime != null
+            ? 'Moving Since $timeStr ($durationStr)'
+            : 'Moving';
+      case VehicleStatus.idle:
+        icon = Icons.key_rounded;
+        iconBg = const Color(0xFFF59E0B);
+        textCol = const Color(0xFFF59E0B);
+        statusTitle = sinceTime != null
+            ? 'Idling Since $timeStr ($durationStr)'
+            : 'Idling';
+      case VehicleStatus.stopped:
+        icon = Icons.local_parking_rounded;
+        iconBg = const Color(0xFF64748B);
+        textCol = const Color(0xFF64748B);
+        statusTitle = sinceTime != null
+            ? 'Parking Since $timeStr ($durationStr)'
+            : 'Parking';
+      case VehicleStatus.offline:
+        icon = Icons.cloud_off_rounded;
+        iconBg = const Color(0xFFEF4444);
+        textCol = const Color(0xFFEF4444);
+        statusTitle = sinceTime != null
+            ? 'Offline Since $timeStr ($durationStr)'
+            : 'Offline';
+      case VehicleStatus.noData:
+        icon = Icons.sensors_off_rounded;
+        iconBg = const Color(0xFF94A3B8);
+        textCol = const Color(0xFF94A3B8);
+        statusTitle = 'No Data Available';
     }
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -763,25 +800,17 @@ class _VehicleStatusCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        vehicle.status.label,
+                        statusTitle,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: isDark ? textCol : textCol,
+                          color: textCol,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Last updated $lastUpdated',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.white70 : const Color(0xFF64748B),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.location_on_rounded, size: 14, color: isDark ? textCol : textCol),
+                          Icon(Icons.location_on_rounded, size: 14, color: textCol),
                           const SizedBox(width: 4),
                           Expanded(
                             child: CoordinateAddress(

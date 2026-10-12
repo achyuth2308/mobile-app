@@ -63,6 +63,10 @@ class AppColors {
   static const Color offline = Color(0xFFEF4444);
   static const Color offlineSoft = Color(0xFF3B1122);
 
+  /// No telemetry or GPS data ever received / unavailable — (Slate Gray).
+  static const Color noData = Color(0xFF94A3B8);
+  static const Color noDataSoft = Color(0xFF1E293B);
+
   /// Alerts / overspeed / SOS.
   static const Color danger = Color(0xFFFF4D6D);
   static const Color dangerSoft = Color(0xFF3B1122);
@@ -112,6 +116,8 @@ class AppColors {
         'moving' || 'running' || 'online' => moving,
         'idle' || 'idling' => idle,
         'stopped' || 'parked' => stopped,
+        'nodata' || 'no_data' || 'no data' => noData,
+        'offline' || 'disconnected' => offline,
         'alert' || 'sos' || 'overspeed' => danger,
         _ => offline,
       };
@@ -120,6 +126,8 @@ class AppColors {
         'moving' || 'running' || 'online' => movingSoft,
         'idle' || 'idling' => idleSoft,
         'stopped' || 'parked' => stoppedSoft,
+        'nodata' || 'no_data' || 'no data' => noDataSoft,
+        'offline' || 'disconnected' => offlineSoft,
         'alert' || 'sos' || 'overspeed' => dangerSoft,
         _ => offlineSoft,
       };

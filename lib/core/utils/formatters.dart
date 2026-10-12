@@ -7,6 +7,7 @@ class Fmt {
 
   static final DateFormat _time = DateFormat('HH:mm');
   static final DateFormat _timeSec = DateFormat('HH:mm:ss');
+  static final DateFormat _time12Sec = DateFormat('hh:mm:ss a');
   static final DateFormat _date = DateFormat('dd MMM yyyy');
   static final DateFormat _dateShort = DateFormat('dd MMM');
   static final DateFormat _dateTime = DateFormat('dd MMM, HH:mm');
@@ -18,6 +19,7 @@ class Fmt {
 
   static String time(DateTime? d) => d == null ? '—' : _time.format(d);
   static String timeSec(DateTime? d) => d == null ? '—' : _timeSec.format(d);
+  static String time12Sec(DateTime? d) => d == null ? '—' : _time12Sec.format(d);
   static String date(DateTime? d) => d == null ? '—' : _date.format(d);
   static String dateShort(DateTime? d) => d == null ? '—' : _dateShort.format(d);
   static String dateTime(DateTime? d) => d == null ? '—' : _dateTime.format(d);

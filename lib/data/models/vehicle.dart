@@ -6,7 +6,7 @@ import 'json_utils.dart';
 
 /// Derived operational state. Computed client-side from telemetry so the
 /// list, map and detail screens never disagree about what a vehicle is doing.
-enum VehicleStatus { moving, idle, stopped, offline }
+enum VehicleStatus { moving, idle, stopped, offline, noData }
 
 extension VehicleStatusX on VehicleStatus {
   String get key => name;
@@ -16,6 +16,7 @@ extension VehicleStatusX on VehicleStatus {
         VehicleStatus.idle => 'Idle',
         VehicleStatus.stopped => 'Parking',
         VehicleStatus.offline => 'Offline',
+        VehicleStatus.noData => 'No Data',
       };
 
   String get sinceLabel => switch (this) {
@@ -23,6 +24,7 @@ extension VehicleStatusX on VehicleStatus {
         VehicleStatus.idle => 'Idling Since',
         VehicleStatus.stopped => 'Parking Since',
         VehicleStatus.offline => 'Offline Since',
+        VehicleStatus.noData => 'No Data',
       };
 
   String get description => switch (this) {
@@ -30,6 +32,7 @@ extension VehicleStatusX on VehicleStatus {
         VehicleStatus.idle => 'Ignition on, not moving',
         VehicleStatus.stopped => 'Parked, ignition off',
         VehicleStatus.offline => 'No recent data received',
+        VehicleStatus.noData => 'Location unavailable and no data received',
       };
 }
 
@@ -166,21 +169,49 @@ class Vehicle extends Equatable {
       longitude != null &&
       !(latitude == 0 && longitude == 0);
 
+  /// True for bike / scooter / motorcycle type vehicles.
+  /// Two-wheelers typically power their GPS tracker off the bike battery,
+  /// so when the bike stops the device goes offline immediately. We treat
+  /// them as Parked (stopped) rather than Offline when the last known
+  /// data shows a standstill.
+  bool get isTwoWheeler {
+    final String t = type.toLowerCase().trim();
+    return t == 'bike' ||
+        t == 'motorcycle' ||
+        t == 'scooter' ||
+        t == 'scooty' ||
+        t == 'two-wheeler' ||
+        t == 'two_wheeler' ||
+        t == 'moped' ||
+        t == 'ebike' ||
+        t == 'e-bike';
+  }
+
   Duration? get sinceLastPacket =>
       lastPacketAt == null ? null : DateTime.now().difference(lastPacketAt!);
 
   /// Single source of truth for status across the app.
   VehicleStatus get status {
-    // 0. If the server explicitly says it's offline, trust the server perfectly.
-    // This fixes timezone parsing issues where lastPacketAt evaluates to the future.
+    // 0. Vehicles with no packet or unavailable location are classified as No Data.
+    if (lastPacketAt == null || !hasLocation) {
+      return VehicleStatus.noData;
+    }
+
+    // 1. If the server explicitly says it's offline:
+    // EXCEPTION: Two-wheelers power their GPS tracker off the bike battery.
+    // When the ignition cuts off the device immediately goes silent and the
+    // server marks it offline. That is NORMAL parking behaviour, not a fault.
+    // So for two-wheelers we always show Stopped (Parking) instead of Offline.
     if (!isOnline) {
+      if (isTwoWheeler) return VehicleStatus.stopped;
       return VehicleStatus.offline;
     }
 
-    // 1. Always evaluate if the packet is stale FIRST as a fallback.
-    // If we haven't heard from the device in 10 minutes, it's offline regardless.
+    // 2. Stale packet fallback — haven't heard from device in >10 minutes.
+    // EXCEPTION: Same two-wheeler parking logic as above.
     final Duration? age = sinceLastPacket;
     if (age == null || age > AppConfig.offlineThreshold) {
+      if (isTwoWheeler) return VehicleStatus.stopped;
       return VehicleStatus.offline;
     }
 
@@ -711,6 +742,17 @@ class Vehicle extends Equatable {
       acceptLocation = false;
     }
 
+    // Guard against coordinates outside India bounding box (6-38°N, 65-100°E) or 0,0
+    if (incoming.latitude != null && incoming.longitude != null) {
+      final double inLat = incoming.latitude!;
+      final double inLng = incoming.longitude!;
+      if (inLat == 0 && inLng == 0) {
+        acceptLocation = false;
+      } else if (inLat < 6.0 || inLat > 38.0 || inLng < 65.0 || inLng > 100.0) {
+        acceptLocation = false;
+      }
+    }
+
     double? nextOdometer = incoming.odometer;
     double? nextTodayDistanceKm = incoming.todayDistanceKm;
 
@@ -729,14 +771,37 @@ class Vehicle extends Equatable {
       final double distanceMeters = 6371000 * c;
 
       final DateTime newPacketTime = incoming.lastPacketAt ?? DateTime.now();
-      final double timeDiffSecs = newPacketTime.difference(lastPacketAt!).inSeconds.abs().toDouble();
+      final double timeDiffSecs = newPacketTime.difference(lastPacketAt!).inMilliseconds.toDouble() / 1000.0;
 
-      if (timeDiffSecs > 0) {
-        final double speedKmph = (distanceMeters / timeDiffSecs) * 3.6;
-        if (speedKmph > 200 && distanceMeters > 100) {
+      // ── MONOTONIC TIMESTAMP GUARD ─────────────────────────────────
+      // If the incoming packet's deviceTime is OLDER than our current lastPacketAt
+      // (by more than a 2-second clock jitter tolerance), reject the location.
+      // This prevents out-of-order / buffered GPS packets from moving the marker
+      // BACKWARD along the road, which is the root cause of the trail dragging line.
+      // Without this, a delayed packet from 30s ago at 200m behind passes the
+      // 220 km/h teleport guard (200m/30s = 24 km/h) and moves the pin backward.
+      if (timeDiffSecs < -2.0) {
+        acceptLocation = false;
+      }
+
+      // ── GPS DRIFT FILTER ──
+      // If vehicle is stationary (speed <= 2 and not moving and ignition off),
+      // ignore jitter movements < 12 meters so the parked pin stays locked in place!
+      final bool isMovingPacket = (hasExplicitSpeed ? incoming.speed > 3 : (incoming.speed != 0 ? incoming.speed > 3 : speed > 3)) ||
+          (hasExplicitMotion && incoming.isMoving) ||
+          (hasExplicitIgnition && incoming.ignition);
+
+      if (!isMovingPacket && distanceMeters < 12.0) {
+        // Stationary jitter — keep locked to previous coordinates to prevent visual drift
+        acceptLocation = false;
+      } else if (acceptLocation && timeDiffSecs.abs() > 1.0) {
+        // Teleport jump filter: commercial vehicles cannot exceed 220 km/h over > 150m
+        final double speedKmph = (distanceMeters / timeDiffSecs.abs()) * 3.6;
+        if (speedKmph > 220 && distanceMeters > 150) {
           acceptLocation = false;
         }
-      } else if (distanceMeters > 50) {
+      } else if (distanceMeters > 500) {
+        // Sub-second jump > 500m is an impossible teleport
         acceptLocation = false;
       }
 
@@ -754,6 +819,14 @@ class Vehicle extends Equatable {
       }
     }
 
+    final bool hasExplicitOnline = frame.containsKey('is_online') ||
+        frame.containsKey('isOnline') ||
+        frame.containsKey('online');
+
+    final bool nextIsOnline = hasExplicitOnline
+        ? incoming.isOnline
+        : isOnline;
+
     final Vehicle mergedDraft = copyWith(
       latitude: acceptLocation ? (incoming.latitude ?? latitude) : latitude,
       longitude: acceptLocation ? (incoming.longitude ?? longitude) : longitude,
@@ -761,6 +834,7 @@ class Vehicle extends Equatable {
       heading: incoming.heading != 0 ? incoming.heading : heading,
       ignition: hasExplicitIgnition ? incoming.ignition : ignition,
       isMoving: hasExplicitMotion ? incoming.isMoving : isMoving,
+      isOnline: nextIsOnline,
       odometer: nextOdometer ?? odometer,
       fuelLevel: (incoming.fuelLevel != null && incoming.fuelLevel! >= 0) ? incoming.fuelLevel : fuelLevel,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
@@ -776,9 +850,63 @@ class Vehicle extends Equatable {
     final VehicleStatus oldStatus = status;
     final VehicleStatus newStatus = mergedDraft.status;
 
-    final DateTime? finalStatusChangedAt = (oldStatus != newStatus)
-        ? (incoming.statusChangedAt ?? DateTime.now())
-        : (statusChangedAt ?? incoming.statusChangedAt);
+    // ── STATUS-CHANGE GUARD ───────────────────────────────────────────────
+    // If the server sent an authoritative statusSince timestamp (via the
+    // backend fix), prefer it unconditionally. This is always accurate.
+    //
+    // If no server timestamp is available, we compute the transition locally.
+    // IMPORTANT: Speed often oscillates around the 2 km/h threshold (e.g.
+    // a vehicle does 1.8 → 2.1 → 1.9 → 2.3 km/h in a 30-second window).
+    // Without a guard, every oscillation would reset statusChangedAt to now(),
+    // showing "Moving Since (0s)" on every packet.
+    //
+    // Hysteresis dead-band:
+    //   - Already MOVING → only stop being moving below 1.0 km/h  (not at 2.0)
+    //   - Already STOPPED/IDLE → only start moving above 3.0 km/h (not at 2.0)
+    // This prevents micro-transitions while preserving correct macroscopic state.
+    DateTime? finalStatusChangedAt;
+    if (incoming.statusChangedAt != null) {
+      // Server supplied an authoritative timestamp — use it when status matches
+      if (oldStatus != newStatus) {
+        // Genuine transition: use the server's since-timestamp
+        finalStatusChangedAt = incoming.statusChangedAt;
+      } else {
+        // Same status: preserve the earlier timestamp (don't move it forward)
+        final DateTime? serverTs = incoming.statusChangedAt;
+        if (statusChangedAt == null) {
+          finalStatusChangedAt = serverTs;
+        } else if (serverTs != null && serverTs.isBefore(statusChangedAt!)) {
+          // Prefer the earlier (older) timestamp — it's the real start of the state
+          finalStatusChangedAt = serverTs;
+        } else {
+          finalStatusChangedAt = statusChangedAt;
+        }
+      }
+    } else if (oldStatus != newStatus) {
+      // No server timestamp — genuine transition detected locally.
+      // Apply hysteresis: only commit the transition when speed has crossed
+      // clearly past the boundary, not just oscillating around it.
+      final double currentSpd = mergedDraft.speed;
+      bool committedTransition = true;
+
+      if (oldStatus == VehicleStatus.moving && newStatus != VehicleStatus.moving) {
+        // Was moving → now not moving: only commit if speed < 1.0 km/h
+        if (currentSpd >= 1.0) committedTransition = false;
+      } else if (oldStatus != VehicleStatus.moving && newStatus == VehicleStatus.moving) {
+        // Was stopped/idle → now moving: only commit if speed > 3.0 km/h
+        if (currentSpd <= 3.0) committedTransition = false;
+      }
+
+      if (committedTransition) {
+        finalStatusChangedAt = DateTime.now();
+      } else {
+        // Oscillation — treat as same status, preserve existing timestamp
+        finalStatusChangedAt = statusChangedAt;
+      }
+    } else {
+      // Same status: preserve the existing timestamp always
+      finalStatusChangedAt = statusChangedAt;
+    }
 
     return mergedDraft.copyWith(statusChangedAt: finalStatusChangedAt);
   }
@@ -811,6 +939,7 @@ class Vehicle extends Equatable {
     String? rawStatus,
     Map<String, dynamic>? raw,
     bool? isImmobilized,
+    bool? isOnline,
   }) =>
       Vehicle(
         id: id,
@@ -845,6 +974,7 @@ class Vehicle extends Equatable {
         rawStatus: rawStatus ?? this.rawStatus,
         raw: raw ?? this.raw,
         isImmobilized: isImmobilized ?? this.isImmobilized,
+        isOnline: isOnline ?? this.isOnline,
       );
 
   @override
@@ -858,6 +988,7 @@ class Vehicle extends Equatable {
         heading,
         ignition,
         isMoving,
+        isOnline,
         lastPacketAt,
         fuelLevel,
         batteryLevel,

@@ -61,6 +61,7 @@ final vehicleDailyHistoryProvider =
   final List<ReportRow> stoppages = [];
   TrackPoint? stopStart;
   TrackPoint? stopEnd;
+  List<TrackPoint> currentStopPoints = [];
   int movingCount = 0;
 
   for (int i = 0; i < pts.length; i++) {
@@ -68,6 +69,7 @@ final vehicleDailyHistoryProvider =
     if (p.speed <= 3) {
       stopStart ??= p;
       stopEnd = p;
+      currentStopPoints.add(p);
       movingCount = 0;
     } else {
       if (stopStart != null && stopEnd != null) {
@@ -76,12 +78,22 @@ final vehicleDailyHistoryProvider =
         if (movingCount >= 2) {
           final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
           if (diff.inMinutes >= 5) {
+            // Pick representative resting point (lowest speed / stationary cluster center)
+            TrackPoint bestPt = stopStart;
+            if (currentStopPoints.isNotEmpty) {
+              final zeroPts = currentStopPoints.where((tp) => tp.speed == 0).toList();
+              if (zeroPts.isNotEmpty) {
+                bestPt = zeroPts[zeroPts.length ~/ 2];
+              } else {
+                bestPt = currentStopPoints.reduce((a, b) => a.speed <= b.speed ? a : b);
+              }
+            }
             // Show ALL stoppages >= 5 mins, even if it's the initial one
             stoppages.add(ReportRow(
               cells: const {},
               raw: {
-                'start_lat': stopStart.latitude,
-                'start_lng': stopStart.longitude,
+                'start_lat': bestPt.latitude,
+                'start_lng': bestPt.longitude,
                 'end_lat': stopEnd.latitude,
                 'end_lng': stopEnd.longitude,
                 'start_time': stopStart.timestamp,
@@ -92,6 +104,7 @@ final vehicleDailyHistoryProvider =
           }
           stopStart = null;
           stopEnd = null;
+          currentStopPoints = [];
           movingCount = 0;
         }
       }
@@ -102,11 +115,20 @@ final vehicleDailyHistoryProvider =
   if (stopStart != null && stopEnd != null) {
     final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
     if (diff.inMinutes >= 5) {
+      TrackPoint bestPt = stopStart;
+      if (currentStopPoints.isNotEmpty) {
+        final zeroPts = currentStopPoints.where((tp) => tp.speed == 0).toList();
+        if (zeroPts.isNotEmpty) {
+          bestPt = zeroPts[zeroPts.length ~/ 2];
+        } else {
+          bestPt = currentStopPoints.reduce((a, b) => a.speed <= b.speed ? a : b);
+        }
+      }
       stoppages.add(ReportRow(
         cells: const {},
         raw: {
-          'start_lat': stopStart.latitude,
-          'start_lng': stopStart.longitude,
+          'start_lat': bestPt.latitude,
+          'start_lng': bestPt.longitude,
           'end_lat': stopEnd.latitude,
           'end_lng': stopEnd.longitude,
           'start_time': stopStart.timestamp,

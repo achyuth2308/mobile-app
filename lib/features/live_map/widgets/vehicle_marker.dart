@@ -71,6 +71,8 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
         return const Color(0xFF64748B); // Gray (Parking)
       case VehicleStatus.offline:
         return const Color(0xFFEF4444); // Red (Offline)
+      case VehicleStatus.noData:
+        return const Color(0xFF94A3B8); // Slate Gray (No Data)
     }
   }
 
@@ -78,9 +80,8 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
   Widget build(BuildContext context) {
     final Color pinColor = statusColor(widget.vehicle.status);
 
-    // Teardrop Marker dimensions — 24px width, 32px height
-    const double pinWidth = 24.0;
-    const double pinHeight = 32.0;
+    const double pinWidth = 28.0;
+    const double pinHeight = 36.0;
 
     final Widget pinWidget = SizedBox(
       width: pinWidth,
@@ -132,7 +133,7 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               child: Icon(
                 VehicleIcons.forType(widget.vehicle.type),
                 color: Colors.white,
-                size: 14,
+                size: 15,
               ),
             ),
           ),
