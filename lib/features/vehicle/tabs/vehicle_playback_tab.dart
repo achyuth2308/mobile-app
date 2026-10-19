@@ -351,14 +351,19 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       
       final List<bool> gaps = List<bool>.filled(cachedLatLng.length, false);
       for (int i = 1; i < cachedLatLng.length; i++) {
-        if (distanceCalc(cachedLatLng[i - 1], cachedLatLng[i]) > 1000) {
+        final double dist = distanceCalc(cachedLatLng[i - 1], cachedLatLng[i]);
+        final Duration timeDiff = cleanPoints[i].timestamp.difference(cleanPoints[i - 1].timestamp).abs();
+        // Missing data gap: distance jump > 1000m, or time gap >= 5 minutes with movement > 250m
+        if (dist > 1000 || (timeDiff.inMinutes >= 5 && dist > 250)) {
           gaps[i] = true;
         }
       }
 
-      final List<Polyline<Object>> ghostSegs = _splitPlaybackPolyline(
+      final List<Polyline<Object>> ghostSegs = _buildGhostSegments(
         points: cachedLatLng,
-        color: const Color(0xFF4B5563),
+        gaps: gaps,
+        normalColor: const Color(0xFF4B5563),
+        gapColor: const Color(0xFFEF4444),
         strokeWidth: 3.5,
       );
 
@@ -373,6 +378,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         _points = cleanPoints;
         _allLatLng = cachedLatLng;
         _cachedGhostSegments = ghostSegs;
+        _ghostPolylineLayer = null;
         _pointGaps = gaps;
         _cumulativeDistances = dists;
         _stoppages = computedStops;
@@ -495,8 +501,21 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       }
     }
 
-    // Smooth constant progression step per VSYNC frame (60/120Hz)
-    final double step = deltaSec * 1.2 * _effectiveSpeedMultiplier;
+    // Progression step per VSYNC frame:
+    // If transitioning across a missing telemetry gap, glide slowly and smoothly across the red line.
+    final int currentIdx = _playbackProgress.floor().clamp(0, _points.length - 1);
+    double step;
+    if (currentIdx < _points.length - 1 &&
+        currentIdx + 1 < _pointGaps.length &&
+        _pointGaps[currentIdx + 1]) {
+      final double gapDist = (_cumulativeDistances.length > currentIdx + 1)
+          ? (_cumulativeDistances[currentIdx + 1] - _cumulativeDistances[currentIdx])
+          : 1000.0;
+      final double gapDurationSec = (gapDist / 400.0).clamp(4.0, 7.0);
+      step = (deltaSec / gapDurationSec) * _effectiveSpeedMultiplier;
+    } else {
+      step = deltaSec * 1.2 * _effectiveSpeedMultiplier;
+    }
 
     _playbackProgress += step;
     if (_playbackProgress >= _points.length - 1) {
@@ -1098,39 +1117,66 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   }
 
   /// Full route dimmed underneath, travelled portion highlighted on top with status colors.
+  /// Gaps with no GPS data are drawn in red (both underneath and when travelled).
   List<Widget> _routeLayers(ThemeData theme) {
     if (_allLatLng.isEmpty) return const <Widget>[];
 
     final int idx = _playbackProgress.floor().clamp(0, _allLatLng.length - 1);
     final List<Polyline<Object>> travelledSegments = <Polyline<Object>>[];
-    
-    int startIndex = 0;
+
+    int normalStart = 0;
     for (int i = 1; i <= idx; i++) {
-      if (_pointGaps[i]) {
-        if (i - startIndex >= 2) {
+      if (i < _pointGaps.length && _pointGaps[i]) {
+        // Normal connected segment before the gap
+        if (i - 1 > normalStart) {
           travelledSegments.add(Polyline<Object>(
-            points: _allLatLng.sublist(startIndex, i),
+            points: _allLatLng.sublist(normalStart, i),
             color: const Color(0xFF00E5FF),
             strokeWidth: 5,
           ));
         }
-        startIndex = i;
+        // Completed red gap segment (No Data)
+        travelledSegments.add(Polyline<Object>(
+          points: <LatLng>[_allLatLng[i - 1], _allLatLng[i]],
+          color: const Color(0xFFEF4444),
+          strokeWidth: 5,
+        ));
+        normalStart = i;
       }
     }
 
-    List<LatLng> finalSegment = _allLatLng.sublist(startIndex, idx + 1);
-    if (_playbackProgress > idx && idx < _allLatLng.length - 1) {
-      if (!_pointGaps[idx + 1]) {
-        finalSegment = List<LatLng>.of(finalSegment)..add(_currentPoint.latLng);
-      }
-    }
+    // Active segment where vehicle is currently progressing
+    final bool hasFraction = _playbackProgress > idx && idx < _allLatLng.length - 1;
+    final bool nextIsGap = (idx + 1 < _pointGaps.length) && _pointGaps[idx + 1];
 
-    if (finalSegment.length >= 2) {
+    if (hasFraction && nextIsGap) {
+      // Flush preceding normal segment up to idx
+      if (idx > normalStart) {
+        travelledSegments.add(Polyline<Object>(
+          points: _allLatLng.sublist(normalStart, idx + 1),
+          color: const Color(0xFF00E5FF),
+          strokeWidth: 5,
+        ));
+      }
+      // Vehicle is moving through the missing data gap: draw active red segment up to vehicle marker
       travelledSegments.add(Polyline<Object>(
-        points: finalSegment,
-        color: const Color(0xFF00E5FF),
+        points: <LatLng>[_allLatLng[idx], _currentPoint.latLng],
+        color: const Color(0xFFEF4444),
         strokeWidth: 5,
       ));
+    } else {
+      // Normal segment continuing up to idx, plus fractional progress to currentPoint
+      List<LatLng> currentNormal = _allLatLng.sublist(normalStart, idx + 1);
+      if (hasFraction) {
+        currentNormal = List<LatLng>.of(currentNormal)..add(_currentPoint.latLng);
+      }
+      if (currentNormal.length >= 2) {
+        travelledSegments.add(Polyline<Object>(
+          points: currentNormal,
+          color: const Color(0xFF00E5FF),
+          strokeWidth: 5,
+        ));
+      }
     }
 
     _ghostPolylineLayer ??= PolylineLayer<Object>(polylines: _cachedGhostSegments);
@@ -1141,40 +1187,47 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     ];
   }
 
-  /// Splits GPS points into multiple polyline segments at gaps > [gapMeters].
-  /// Prevents the long straight "drift" lines when the tracker loses signal.
-  static List<Polyline<Object>> _splitPlaybackPolyline({
+  /// Builds ghost route segments: normal telemetry segments in [normalColor],
+  /// and missing data gaps in [gapColor] (Red).
+  static List<Polyline<Object>> _buildGhostSegments({
     required List<LatLng> points,
-    required Color color,
-    double strokeWidth = 4.0,
-    double gapMeters = 1000,
+    required List<bool> gaps,
+    required Color normalColor,
+    required Color gapColor,
+    double strokeWidth = 3.5,
   }) {
     if (points.length < 2) return const <Polyline<Object>>[];
 
-    const Distance distanceCalc = Distance();
     final List<Polyline<Object>> segments = <Polyline<Object>>[];
-    List<LatLng> current = <LatLng>[points.first];
+    List<LatLng> currentNormal = <LatLng>[points.first];
 
     for (int i = 1; i < points.length; i++) {
-      final double d = distanceCalc(points[i - 1], points[i]);
-      if (d > gapMeters) {
-        if (current.length >= 2) {
+      final bool isGap = i < gaps.length && gaps[i];
+      if (isGap) {
+        if (currentNormal.length >= 2) {
           segments.add(Polyline<Object>(
-            points: List<LatLng>.of(current),
-            color: color,
+            points: List<LatLng>.of(currentNormal),
+            color: normalColor,
             strokeWidth: strokeWidth,
           ));
         }
-        current = <LatLng>[points[i]];
+        currentNormal = <LatLng>[points[i]];
+
+        // Missing data gap segment in RED
+        segments.add(Polyline<Object>(
+          points: <LatLng>[points[i - 1], points[i]],
+          color: gapColor,
+          strokeWidth: strokeWidth,
+        ));
       } else {
-        current.add(points[i]);
+        currentNormal.add(points[i]);
       }
     }
 
-    if (current.length >= 2) {
+    if (currentNormal.length >= 2) {
       segments.add(Polyline<Object>(
-        points: current,
-        color: color,
+        points: currentNormal,
+        color: normalColor,
         strokeWidth: strokeWidth,
       ));
     }
@@ -2533,22 +2586,23 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
   }
 
   void _checkAddress({bool forceImmediate = false}) {
-    // 1. If the point already carries an address string, show it immediately
+    // 1. Show backend address as TEMPORARY placeholder (don't return — always geocode!)
     if (widget.point.address != null && widget.point.address!.trim().isNotEmpty) {
       final String clean = widget.point.address!.replaceAll('...', '').replaceAll('…', '').trim();
-      if (clean.isNotEmpty && _address != clean) {
+      if (clean.isNotEmpty && _address == null) {
         setState(() => _address = clean);
       }
-      return;
     }
 
-    // 2. Instant proximity cache check (0ms latency, updates while moving!)
+    // 2. Instant proximity cache check (0ms latency, updates while scrubbing!)
     final String? cached = Geocoder.getCachedAddress(widget.point.latitude, widget.point.longitude);
     if (cached != null && cached != _address) {
       setState(() => _address = cached);
     }
 
-    // 3. Network fetch with throttle (avoids resetting debounces at 60fps)
+    // 3. Network fetch — aggressively update during scrubbing
+    //    50m threshold + 400ms throttle ensures address changes frequently
+    //    along the route instead of sticking for 10+ km.
     final DateTime now = DateTime.now();
     const Distance calc = Distance();
     final double distMoved = calc(
@@ -2556,8 +2610,8 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
       LatLng(widget.point.latitude, widget.point.longitude),
     );
 
-    final bool timeElapsed = _lastFetchTime == null || now.difference(_lastFetchTime!).inMilliseconds > 1200;
-    final bool movedFarEnough = distMoved > 250.0;
+    final bool timeElapsed = _lastFetchTime == null || now.difference(_lastFetchTime!).inMilliseconds > 400;
+    final bool movedFarEnough = distMoved > 50.0;
 
     if (forceImmediate || (timeElapsed && movedFarEnough)) {
       _lastFetchTime = now;
@@ -2565,7 +2619,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
       _lastFetchedLng = widget.point.longitude;
       _fetchNetworkAddress();
     } else if (_debounce == null || !_debounce!.isActive) {
-      _debounce = Timer(const Duration(milliseconds: 300), () {
+      _debounce = Timer(const Duration(milliseconds: 200), () {
         if (mounted) _fetchNetworkAddress();
       });
     }

@@ -1,24 +1,16 @@
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/report_models.dart';
+import 'download_helper/download_helper.dart';
 
 class ReportExportService {
   const ReportExportService._();
 
-  static Future<void> exportCsv({
-    required ReportType type,
-    required List<ReportRow> rows,
-  }) async {
-    if (rows.isEmpty) return;
-
-    final List<List<dynamic>> csvData = <List<dynamic>>[];
+  static List<List<dynamic>> _buildRowsForType(ReportType type, List<ReportRow> rows) {
+    final List<List<dynamic>> tableData = <List<dynamic>>[];
 
     switch (type) {
       case ReportType.trip:
-        csvData.add(<dynamic>[
+        tableData.add(<dynamic>[
           'Start Time',
           'Start Lat',
           'Start Lng',
@@ -33,7 +25,7 @@ class ReportExportService {
           'Vehicle',
         ]);
         for (final ReportRow r in rows) {
-          csvData.add(<dynamic>[
+          tableData.add(<dynamic>[
             Fmt.dateTimeWeb(r.startTime),
             r.startLat ?? '',
             r.startLng ?? '',
@@ -51,7 +43,7 @@ class ReportExportService {
         break;
 
       case ReportType.distance:
-        csvData.add(<dynamic>[
+        tableData.add(<dynamic>[
           'Vehicle Name',
           'Plate',
           'Org',
@@ -62,7 +54,7 @@ class ReportExportService {
           'Points Logged',
         ]);
         for (final ReportRow r in rows) {
-          csvData.add(<dynamic>[
+          tableData.add(<dynamic>[
             r.vehicleName ?? '',
             r.plate ?? '-',
             r.orgName ?? 'FuelTracks',
@@ -76,7 +68,7 @@ class ReportExportService {
         break;
 
       case ReportType.overspeeding:
-        csvData.add(<dynamic>[
+        tableData.add(<dynamic>[
           'Vehicle Name',
           'Date & Time',
           'OverSpeed (km/h)',
@@ -88,7 +80,7 @@ class ReportExportService {
           'Distance Covered (KM)',
         ]);
         for (final ReportRow r in rows) {
-          csvData.add(<dynamic>[
+          tableData.add(<dynamic>[
             r.vehicleName ?? '',
             Fmt.dateTimeWeb(r.startTime),
             r.maxSpeedVal?.toStringAsFixed(0) ?? '',
@@ -104,7 +96,7 @@ class ReportExportService {
 
       case ReportType.stoppages:
       case ReportType.idle:
-        csvData.add(<dynamic>[
+        tableData.add(<dynamic>[
           'Vehicle Name',
           'Status',
           'Start Time',
@@ -114,7 +106,7 @@ class ReportExportService {
           'Longitude',
         ]);
         for (final ReportRow r in rows) {
-          csvData.add(<dynamic>[
+          tableData.add(<dynamic>[
             r.vehicleName ?? '',
             r.status ?? (type == ReportType.idle ? 'Idle' : 'Parked'),
             Fmt.dateTimeWeb(r.startTime),
@@ -127,7 +119,7 @@ class ReportExportService {
         break;
 
       case ReportType.individual:
-        csvData.add(<dynamic>[
+        tableData.add(<dynamic>[
           'Vehicle Name',
           'Plate',
           'Total Distance (km)',
@@ -138,7 +130,7 @@ class ReportExportService {
           'Overspeeding',
         ]);
         for (final ReportRow r in rows) {
-          csvData.add(<dynamic>[
+          tableData.add(<dynamic>[
             r.vehicleName ?? '-',
             r.plate ?? '-',
             '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
@@ -152,7 +144,7 @@ class ReportExportService {
         break;
 
       case ReportType.consolidated:
-        csvData.add(<dynamic>[
+        tableData.add(<dynamic>[
           'Vehicle Name',
           'Plate',
           'Distance Travelled (km)',
@@ -171,7 +163,7 @@ class ReportExportService {
           'To Location',
         ]);
         for (final ReportRow r in rows) {
-          csvData.add(<dynamic>[
+          tableData.add(<dynamic>[
             r.vehicleName ?? '-',
             r.plate ?? '-',
             r.distanceTravelled?.toStringAsFixed(1) ?? '0',
@@ -193,19 +185,22 @@ class ReportExportService {
         break;
 
       default:
-        // Generic CSV dump
         if (rows.isNotEmpty) {
           final List<String> headers = rows.first.cells.keys.toList();
-          csvData.add(headers);
+          tableData.add(headers);
           for (final ReportRow r in rows) {
-            csvData.add(headers.map((String h) => r.cells[h] ?? '').toList());
+            tableData.add(headers.map((String h) => r.cells[h] ?? '').toList());
           }
         }
         break;
     }
 
+    return tableData;
+  }
+
+  static String _buildCsvString(List<List<dynamic>> tableData) {
     final StringBuffer sb = StringBuffer();
-    for (final List<dynamic> row in csvData) {
+    for (final List<dynamic> row in tableData) {
       sb.writeln(row.map((dynamic e) {
         final String s = e.toString();
         if (s.contains(',') || s.contains('"') || s.contains('\n')) {
@@ -214,16 +209,23 @@ class ReportExportService {
         return s;
       }).join(','));
     }
-    final String csv = sb.toString();
-    final Directory dir = await getTemporaryDirectory();
-    final String fileName = '${type.name}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
-    final File file = File('${dir.path}/$fileName');
-    await file.writeAsString(csv);
+    return sb.toString();
+  }
 
-    await Share.shareXFiles(
-      <XFile>[XFile(file.path)],
-      subject: '${type.label} Export',
-      text: 'Exported ${type.label} with ${rows.length} records.',
+  static Future<void> exportCsv({
+    required ReportType type,
+    required List<ReportRow> rows,
+  }) async {
+    if (rows.isEmpty) return;
+
+    final List<List<dynamic>> tableData = _buildRowsForType(type, rows);
+    final String csv = _buildCsvString(tableData);
+    final String fileName = '${type.name}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
+
+    await downloadFileUniversal(
+      content: csv,
+      fileName: fileName,
+      mimeType: 'text/csv;charset=utf-8',
     );
   }
 
@@ -231,15 +233,79 @@ class ReportExportService {
     required ReportType type,
     required List<ReportRow> rows,
   }) async {
-    // Excel-compatible CSV export with .csv file shared
-    return exportCsv(type: type, rows: rows);
+    if (rows.isEmpty) return;
+
+    final List<List<dynamic>> tableData = _buildRowsForType(type, rows);
+    final String csv = _buildCsvString(tableData);
+    final String fileName = '${type.name}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
+
+    await downloadFileUniversal(
+      content: csv,
+      fileName: fileName,
+      mimeType: 'application/vnd.ms-excel;charset=utf-8',
+    );
   }
 
   static Future<void> exportPdf({
     required ReportType type,
     required List<ReportRow> rows,
   }) async {
-    // Shares structured text / CSV representation for reporting
-    return exportCsv(type: type, rows: rows);
+    if (rows.isEmpty) return;
+
+    final List<List<dynamic>> tableData = _buildRowsForType(type, rows);
+    if (tableData.isEmpty) return;
+
+    final List<dynamic> headers = tableData.first;
+    final List<List<dynamic>> dataRows = tableData.sublist(1);
+
+    final StringBuffer html = StringBuffer();
+    html.writeln('<!DOCTYPE html>');
+    html.writeln('<html><head><meta charset="utf-8">');
+    html.writeln('<title>${type.label} - FuelTracks Report</title>');
+    html.writeln('<style>');
+    html.writeln('@media print { @page { size: landscape; margin: 12mm; } }');
+    html.writeln('body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 24px; color: #0F172A; }');
+    html.writeln('.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2563EB; padding-bottom: 12px; margin-bottom: 16px; }');
+    html.writeln('.title { font-size: 20px; font-weight: 700; color: #1E293B; margin: 0; }');
+    html.writeln('.meta { font-size: 12px; color: #64748B; margin-top: 4px; }');
+    html.writeln('.badge { background: #EFF6FF; color: #2563EB; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 6px; }');
+    html.writeln('table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px; }');
+    html.writeln('th { background: #F8FAFC; color: #475569; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #E2E8F0; white-space: nowrap; }');
+    html.writeln('td { padding: 7px 10px; border-bottom: 1px solid #F1F5F9; color: #334155; }');
+    html.writeln('tr:nth-child(even) td { background: #FAFAFA; }');
+    html.writeln('.footer { margin-top: 24px; text-align: right; font-size: 10px; color: #94A3B8; }');
+    html.writeln('</style>');
+    html.writeln('</head><body>');
+    html.writeln('<div class="header">');
+    html.writeln('  <div>');
+    html.writeln('    <h1 class="title">${type.label}</h1>');
+    html.writeln('    <div class="meta">Generated: ${DateTime.now().toLocal().toString().split(".")[0]} · Total Records: ${dataRows.length}</div>');
+    html.writeln('  </div>');
+    html.writeln('  <div class="badge">FuelTracks Fleet Management</div>');
+    html.writeln('</div>');
+    html.writeln('<table>');
+    html.writeln('  <thead><tr>');
+    for (final dynamic h in headers) {
+      html.writeln('    <th>$h</th>');
+    }
+    html.writeln('  </tr></thead>');
+    html.writeln('  <tbody>');
+    for (final List<dynamic> row in dataRows) {
+      html.writeln('    <tr>');
+      for (final dynamic cell in row) {
+        html.writeln('      <td>$cell</td>');
+      }
+      html.writeln('    </tr>');
+    }
+    html.writeln('  </tbody>');
+    html.writeln('</table>');
+    html.writeln('<div class="footer">Confidential · FuelTracks Fleet Operations</div>');
+    html.writeln('</body></html>');
+
+    final String fileName = '${type.name}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    await openPrintablePdfUniversal(
+      htmlContent: html.toString(),
+      fileName: fileName,
+    );
   }
 }

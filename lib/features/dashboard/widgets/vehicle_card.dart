@@ -330,7 +330,9 @@ class VehicleCard extends ConsumerWidget {
             ],
           ),
           if (!minimal) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            _LiveStatusStrip(vehicle: vehicle),
+            const SizedBox(height: 10),
             Divider(
                 height: 1,
                 color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
@@ -497,15 +499,15 @@ class VehicleCard extends ConsumerWidget {
   }
 }
 
-class _LiveStatusDuration extends StatefulWidget {
-  const _LiveStatusDuration({required this.timestamp});
-  final DateTime? timestamp;
+class _LiveStatusStrip extends StatefulWidget {
+  const _LiveStatusStrip({required this.vehicle});
+  final Vehicle vehicle;
 
   @override
-  State<_LiveStatusDuration> createState() => _LiveStatusDurationState();
+  State<_LiveStatusStrip> createState() => _LiveStatusStripState();
 }
 
-class _LiveStatusDurationState extends State<_LiveStatusDuration> {
+class _LiveStatusStripState extends State<_LiveStatusStrip> {
   Timer? _timer;
 
   @override
@@ -515,20 +517,22 @@ class _LiveStatusDurationState extends State<_LiveStatusDuration> {
   }
 
   @override
-  void didUpdateWidget(covariant _LiveStatusDuration oldWidget) {
+  void didUpdateWidget(covariant _LiveStatusStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.timestamp != widget.timestamp) {
+    if (oldWidget.vehicle.status != widget.vehicle.status ||
+        oldWidget.vehicle.statusChangedAt != widget.vehicle.statusChangedAt ||
+        oldWidget.vehicle.lastPacketAt != widget.vehicle.lastPacketAt) {
       _timer?.cancel();
       _startTimer();
     }
   }
 
   void _startTimer() {
-    if (widget.timestamp == null) return;
+    final DateTime? ts =
+        widget.vehicle.statusChangedAt ?? widget.vehicle.lastPacketAt;
+    if (ts == null) return;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
     });
   }
 
@@ -540,16 +544,133 @@ class _LiveStatusDurationState extends State<_LiveStatusDuration> {
 
   @override
   Widget build(BuildContext context) {
+    final Vehicle v = widget.vehicle;
+    final DateTime? since = v.statusChangedAt ?? v.lastPacketAt;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    return Text(
-      Fmt.statusDuration(widget.timestamp),
-      style: TextStyle(
-        color: isDark ? Colors.grey.shade200 : const Color(0xFF2E3355),
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
+
+    Color color;
+    Color bg;
+    Color border;
+    IconData icon;
+    String statusTitle;
+    String actionWord;
+
+    switch (v.status) {
+      case VehicleStatus.moving:
+        color = const Color(0xFF16A34A);
+        bg = isDark
+            ? const Color(0xFF052E16).withValues(alpha: 0.6)
+            : const Color(0xFFF0FDF4);
+        border = isDark ? const Color(0xFF166534) : const Color(0xFFBBF7D0);
+        icon = Icons.navigation_rounded;
+        statusTitle = 'Moving Since';
+        actionWord = 'Running for';
+      case VehicleStatus.idle:
+        color = const Color(0xFFD97706);
+        bg = isDark
+            ? const Color(0xFF451A03).withValues(alpha: 0.6)
+            : const Color(0xFFFFFBEB);
+        border = isDark ? const Color(0xFF92400E) : const Color(0xFFFDE68A);
+        icon = Icons.key_rounded;
+        statusTitle = 'Idling Since';
+        actionWord = 'Idling for';
+      case VehicleStatus.stopped:
+        color = const Color(0xFF475569);
+        bg = isDark
+            ? const Color(0xFF1E293B).withValues(alpha: 0.6)
+            : const Color(0xFFF8FAFC);
+        border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+        icon = Icons.local_parking_rounded;
+        statusTitle = 'Parking Since';
+        actionWord = 'Parked for';
+      case VehicleStatus.offline:
+        color = const Color(0xFFDC2626);
+        bg = isDark
+            ? const Color(0xFF450A0A).withValues(alpha: 0.6)
+            : const Color(0xFFFEF2F2);
+        border = isDark ? const Color(0xFF991B1B) : const Color(0xFFFECACA);
+        icon = Icons.cloud_off_rounded;
+        statusTitle = 'Offline Since';
+        actionWord = 'Inactive for';
+      case VehicleStatus.noData:
+        color = const Color(0xFF64748B);
+        bg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
+        border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+        icon = Icons.sensors_off_rounded;
+        statusTitle = 'No Data Available';
+        actionWord = '';
+    }
+
+    if (v.status == VehicleStatus.noData || since == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              statusTitle,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String timeStr = Fmt.time12Sec(since);
+    final String durStr = Fmt.statusDuration(since);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: border),
       ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: RichText(
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.grey.shade300 : const Color(0xFF334155),
+                ),
+                children: [
+                  TextSpan(
+                    text: '$statusTitle $timeStr',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  const TextSpan(text: '  •  '),
+                  TextSpan(
+                    text: '$actionWord $durStr',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : const Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

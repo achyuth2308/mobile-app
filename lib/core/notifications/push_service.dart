@@ -168,6 +168,22 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
       payload: jsonEncode(data),
     );
 
+    final String alertId = data['alertId']?.toString() ??
+        data['id']?.toString() ??
+        'push_${DateTime.now().millisecondsSinceEpoch}_${message.hashCode}';
+    await PushService.saveLocalAlert(<String, dynamic>{
+      'id': alertId,
+      'type': type,
+      'title': content.title,
+      'message': content.body,
+      'vehicleId': data['vehicleId'] ?? data['vehicle_id'],
+      'vehicleName': data['vehicleName'] ?? data['vehicle_name'] ?? data['plate'],
+      'createdAt': data['deviceTime'] ?? data['serverTime'] ?? DateTime.now().toIso8601String(),
+      'latitude': double.tryParse(data['lat']?.toString() ?? ''),
+      'longitude': double.tryParse(data['lng']?.toString() ?? ''),
+      'address': data['address'] ?? data['location'] ?? data['place'],
+      'isRead': false,
+    });
   }
 }
 
@@ -335,15 +351,21 @@ class PushService {
     _tokenSub = _fcm.onTokenRefresh.listen(_onTokenRefresh);
 
     // Request battery optimization exemption on Android so Doze mode
-    // does not throttle FCM delivery after the screen is off for >10 minutes.
+    // does not throttle FCM delivery. Prompt once on first launch only to avoid
+    // annoying OEM dialogs on every app startup.
     if (Platform.isAndroid) {
       try {
-        const MethodChannel _batteryChannel =
-            MethodChannel('com.fueltracks.app/battery');
-        final bool isIgnoring = await _batteryChannel
-            .invokeMethod<bool>('isIgnoringBatteryOptimizations') ?? false;
-        if (!isIgnoring) {
-          await _batteryChannel.invokeMethod('requestIgnoreBatteryOptimizations');
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final bool hasPrompted = prefs.getBool('has_prompted_battery_optimization') ?? false;
+        if (!hasPrompted) {
+          const MethodChannel batteryChannel =
+              MethodChannel('com.fueltracks.app/battery');
+          final bool isIgnoring = await batteryChannel
+              .invokeMethod<bool>('isIgnoringBatteryOptimizations') ?? false;
+          await prefs.setBool('has_prompted_battery_optimization', true);
+          if (!isIgnoring) {
+            await batteryChannel.invokeMethod('requestIgnoreBatteryOptimizations');
+          }
         }
       } catch (_) {
         // Non-fatal — FCM high-priority will still deliver most notifications
@@ -496,6 +518,96 @@ class PushService {
       ),
       payload: jsonEncode(data),
     );
+
+    final String alertId = data['alertId']?.toString() ??
+        data['id']?.toString() ??
+        'push_${DateTime.now().millisecondsSinceEpoch}_${message.hashCode}';
+    PushService.saveLocalAlert(<String, dynamic>{
+      'id': alertId,
+      'type': type,
+      'title': content.title,
+      'message': content.body,
+      'vehicleId': data['vehicleId'] ?? data['vehicle_id'],
+      'vehicleName': data['vehicleName'] ?? data['vehicle_name'] ?? data['plate'],
+      'createdAt': data['deviceTime'] ?? data['serverTime'] ?? DateTime.now().toIso8601String(),
+      'latitude': double.tryParse(data['lat']?.toString() ?? ''),
+      'longitude': double.tryParse(data['lng']?.toString() ?? ''),
+      'address': data['address'] ?? data['location'] ?? data['place'],
+      'isRead': false,
+    });
+  }
+
+  static const String _localAlertsKey = 'local_push_alerts_v1';
+
+  static Future<void> saveLocalAlert(Map<String, dynamic> alertMap) async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> list = prefs.getStringList(_localAlertsKey) ?? <String>[];
+      final String alertId = alertMap['id']?.toString() ??
+          'push_${DateTime.now().millisecondsSinceEpoch}_${alertMap.hashCode}';
+      final Map<String, dynamic> clean = <String, dynamic>{
+        ...alertMap,
+        'id': alertId,
+      };
+      final String encoded = jsonEncode(clean);
+      list.removeWhere((String item) {
+        try {
+          final dynamic decoded = jsonDecode(item);
+          return decoded is Map && decoded['id']?.toString() == alertId;
+        } catch (_) {
+          return false;
+        }
+      });
+      list.insert(0, encoded);
+      if (list.length > 200) {
+        list.removeRange(200, list.length);
+      }
+      await prefs.setStringList(_localAlertsKey, list);
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> getLocalAlerts() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> list = prefs.getStringList(_localAlertsKey) ?? <String>[];
+      final List<Map<String, dynamic>> res = <Map<String, dynamic>>[];
+      for (final String s in list) {
+        try {
+          final dynamic decoded = jsonDecode(s);
+          if (decoded is Map<String, dynamic>) {
+            res.add(decoded);
+          } else if (decoded is Map) {
+            res.add(Map<String, dynamic>.from(decoded));
+          }
+        } catch (_) {}
+      }
+      return res;
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  static Future<void> deleteLocalAlert(String alertId) async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> list = prefs.getStringList(_localAlertsKey) ?? <String>[];
+      list.removeWhere((String item) {
+        try {
+          final dynamic decoded = jsonDecode(item);
+          return decoded is Map && decoded['id']?.toString() == alertId;
+        } catch (_) {
+          return false;
+        }
+      });
+      await prefs.setStringList(_localAlertsKey, list);
+    } catch (_) {}
+  }
+
+  static Future<void> clearLocalAlerts() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_localAlertsKey);
+    } catch (_) {}
   }
 
   Map<String, dynamic> _dataOf(RemoteMessage m) => <String, dynamic>{

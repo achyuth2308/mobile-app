@@ -141,7 +141,7 @@ class LegalDocumentSheet extends StatelessWidget {
         content:
             'Your fleet data is utilized solely for operational tracking and analytics:\n\n'
             '• Displaying real-time vehicle locations and live tracking on maps.\n'
-            '• Generating trip history, stoppage, daily distance, overspeeding, and idling reports.\n'
+            '• Generating trip history, stoppage, day-wise distance, overspeeding, and idling reports.\n'
             '• Delivering instant safety notifications (Geofence entry/exit, SOS, overspeed, vibration, battery disconnect).\n'
             '• Managing subscription validity and renewals.',
       ),

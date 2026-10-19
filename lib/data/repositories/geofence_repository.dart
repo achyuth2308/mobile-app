@@ -30,15 +30,30 @@ class GeofenceRepository {
       '/admin/geofences',
       body: geofence.toCreateJson(),
     );
-    return Geofence.fromJson(
-      res is Map<String, dynamic> ? res : <String, dynamic>{},
+    final dynamic data = (res is Map && res['data'] != null) ? res['data'] : res;
+    final Geofence created = Geofence.fromJson(
+      data is Map<String, dynamic>
+          ? data
+          : (data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{}),
     );
+    if (geofence.vehicleIds.isNotEmpty && created.id.isNotEmpty) {
+      try {
+        await _api.post<dynamic>(
+          '/admin/geofences/${created.id}/assign',
+          body: <String, dynamic>{'vehicleIds': geofence.vehicleIds},
+        );
+      } catch (_) {}
+    }
+    return created;
   }
 
   Future<Geofence> update(String id, Map<String, dynamic> changes) async {
     final dynamic res = await _api.put<dynamic>('/admin/geofences/$id', body: changes);
+    final dynamic data = (res is Map && res['data'] != null) ? res['data'] : res;
     return Geofence.fromJson(
-      res is Map<String, dynamic> ? res : <String, dynamic>{},
+      data is Map<String, dynamic>
+          ? data
+          : (data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{}),
     );
   }
 

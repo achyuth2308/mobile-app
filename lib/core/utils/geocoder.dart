@@ -18,25 +18,25 @@ class Geocoder {
 
   static final Dio _dio = Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 6),
-      receiveTimeout: const Duration(seconds: 6),
+      connectTimeout: const Duration(seconds: 3),
+      receiveTimeout: const Duration(seconds: 3),
       validateStatus: (int? status) => true,
     ),
   );
 
-  /// Synchronously returns a cached address for the coordinates or nearby coordinates (~200m).
+  /// Synchronously returns a cached address for the coordinates or nearby coordinates (~11m).
   static String? getCachedAddress(double lat, double lon) {
     if (lat == 0 && lon == 0) return null;
-    final String key = '${lat.toStringAsFixed(3)},${lon.toStringAsFixed(3)}';
+    final String key = '${lat.toStringAsFixed(4)},${lon.toStringAsFixed(4)}';
     if (_cache.containsKey(key)) {
       final String val = _cache[key]!;
       if (val.isNotEmpty && val != 'Location unavailable') return val;
     }
 
-    // Proximity search within adjacent 110m-200m grid tiles
-    for (final double dLat in const <double>[-0.001, 0.001, -0.002, 0.002]) {
-      for (final double dLon in const <double>[-0.001, 0.001, -0.002, 0.002]) {
-        final String nearbyKey = '${(lat + dLat).toStringAsFixed(3)},${(lon + dLon).toStringAsFixed(3)}';
+    // Proximity search within adjacent ~11m grid tiles
+    for (final double dLat in const <double>[-0.0001, 0.0001, -0.0002, 0.0002]) {
+      for (final double dLon in const <double>[-0.0001, 0.0001, -0.0002, 0.0002]) {
+        final String nearbyKey = '${(lat + dLat).toStringAsFixed(4)},${(lon + dLon).toStringAsFixed(4)}';
         if (_cache.containsKey(nearbyKey)) {
           final String val = _cache[nearbyKey]!;
           if (val.isNotEmpty && val != 'Location unavailable') return val;
@@ -52,8 +52,8 @@ class Geocoder {
   static Future<String> getAddress(double lat, double lon) {
     if (lat == 0 && lon == 0) return Future<String>.value('Location unavailable');
 
-    // 3 decimal places is ~110m resolution (matches web app caching)
-    final String key = '${lat.toStringAsFixed(3)},${lon.toStringAsFixed(3)}';
+    // 4 decimal places is ~11m resolution (street/shop level accuracy)
+    final String key = '${lat.toStringAsFixed(4)},${lon.toStringAsFixed(4)}';
 
     // 1. Return from cache immediately if available
     if (_cache.containsKey(key)) {
@@ -63,6 +63,16 @@ class Geocoder {
     // 2. Return existing in-flight future if another row already requested the same spot
     if (_inFlight.containsKey(key)) {
       return _inFlight[key]!.future;
+    }
+
+    // Cap pending queue to avoid memory/network buildup when offline or panning rapidly
+    while (_queue.length >= 25) {
+      final _GeocodeTask stale = _queue.removeFirst();
+      _inFlight.remove(stale.key);
+      if (!stale.completer.isCompleted) {
+        stale.completer.complete(
+            '${stale.lat.toStringAsFixed(4)}, ${stale.lon.toStringAsFixed(4)}');
+      }
     }
 
     final Completer<String> completer = Completer<String>();
@@ -150,14 +160,38 @@ class Geocoder {
                   }
                 }
 
-                // 2. Find the primary road/street address
-                final dynamic bestResult = results.firstWhere(
+                // 2. Find the primary road/street/route address
+                final dynamic routeResult = results.firstWhere(
                   (dynamic r) {
-                    final List<dynamic>? types = (r as Map<String, dynamic>)['types'] as List<dynamic>?;
-                    return types != null && !types.contains('plus_code');
+                    final List<dynamic>? types =
+                        (r as Map<String, dynamic>)['types'] as List<dynamic>?;
+                    return types != null && types.contains('route');
                   },
-                  orElse: () => results.first,
+                  orElse: () => null,
                 );
+
+                final dynamic premiseResult = results.firstWhere(
+                  (dynamic r) {
+                    final List<dynamic>? types =
+                        (r as Map<String, dynamic>)['types'] as List<dynamic>?;
+                    return types != null &&
+                        (types.contains('street_address') ||
+                            types.contains('premise'));
+                  },
+                  orElse: () => null,
+                );
+
+                final dynamic bestResult = routeResult ??
+                    premiseResult ??
+                    results.firstWhere(
+                      (dynamic r) {
+                        final List<dynamic>? types =
+                            (r as Map<String, dynamic>)['types']
+                                as List<dynamic>?;
+                        return types != null && !types.contains('plus_code');
+                      },
+                      orElse: () => results.first,
+                    );
                 
                 label = (bestResult as Map<String, dynamic>)['formatted_address']?.toString();
                 
@@ -181,6 +215,53 @@ class Geocoder {
                     label = '$landmark, $label';
                   }
 
+                  // 4. Extract district (administrative_area_level_3 or level_2) and inject if missing
+                  String? district;
+                  for (final dynamic item in results) {
+                    if (item is! Map<String, dynamic>) continue;
+                    final dynamic comps = item['address_components'];
+                    if (comps is List) {
+                      for (final dynamic c in comps) {
+                        if (c is Map<String, dynamic>) {
+                          final List<dynamic>? types =
+                              c['types'] as List<dynamic>?;
+                          if (types != null &&
+                              (types.contains('administrative_area_level_3') ||
+                                  types.contains('administrative_area_level_2'))) {
+                            final String? name = c['long_name']?.toString();
+                            if (name != null && name.isNotEmpty) {
+                              district = name;
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
+                    if (district != null) break;
+                  }
+
+                  if (district != null &&
+                      district.isNotEmpty &&
+                      !label.toLowerCase().contains(district.toLowerCase())) {
+                    final List<String> parts =
+                        label.split(',').map((s) => s.trim()).toList();
+                    final int stateIdx = parts.indexWhere((p) {
+                      final l = p.toLowerCase();
+                      return l.contains('telangana') ||
+                          l.contains('andhra') ||
+                          l.contains('karnataka') ||
+                          l.contains('tamil nadu') ||
+                          l.contains('maharashtra') ||
+                          l.contains('odisha');
+                    });
+                    if (stateIdx > 0) {
+                      parts.insert(stateIdx, '$district Dist');
+                      label = parts.join(', ');
+                    } else {
+                      label = '$label, $district Dist';
+                    }
+                  }
+
                   if (label.isEmpty) {
                     label = null; // Let it fallback to coordinates if it's completely empty
                   }
@@ -190,7 +271,7 @@ class Geocoder {
           }
 
           if (label != null && label.isNotEmpty) {
-            result = label;
+            result = formatToNearestAddress(label);
           }
         } catch (_) {
           // Graceful fallback on network/timeout error — result stays as coordinates
@@ -212,6 +293,34 @@ class Geocoder {
       }
       _isProcessing = false;
     });
+  }
+
+  /// Formats any raw or geocoded address into a clean, complete human-readable address.
+  /// Preserves street/road, landmarks, locality, district, state, country, and postal code.
+  /// Safely strips Plus Codes (e.g. 47XR+PJQ) and "Unnamed Road".
+  static String formatToNearestAddress(String raw, {int maxWords = 50}) {
+    if (raw.isEmpty) return 'Location unavailable';
+    if (raw == 'Location unavailable' || raw == '...') return raw;
+    if (RegExp(r'^-?\d+\.\d+,\s*-?\d+\.\d+$').hasMatch(raw.trim())) {
+      return raw.trim();
+    }
+
+    // 1. Clean out plus codes, unnamed road, and special prefixes
+    String cleaned = raw
+        .replaceAll(RegExp(r'^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}[,\s]*'), '')
+        .replaceAll(RegExp(r'\b[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}\b[,\s]*'), '')
+        .replaceAll(RegExp(r'Unnamed Road,\s*', caseSensitive: false), '')
+        .replaceAll(RegExp(r'Unnamed Road', caseSensitive: false), '')
+        .trim();
+
+    // 2. Clean up any double commas and leading/trailing punctuation
+    cleaned = cleaned.replaceAll(RegExp(r',\s*,'), ',');
+    if (cleaned.startsWith(',')) cleaned = cleaned.substring(1).trim();
+    if (cleaned.endsWith(',')) {
+      cleaned = cleaned.substring(0, cleaned.length - 1).trim();
+    }
+
+    return cleaned.isNotEmpty ? cleaned : raw.trim();
   }
 
   /// Extracts a clean, concise town or locality name from a formatted address.

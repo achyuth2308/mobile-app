@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_colors.dart';
@@ -355,7 +355,27 @@ class _GeofenceCard extends ConsumerWidget {
       );
 
   static double _zoomFor(Geofence f) {
-    if (f.shape == GeofenceShape.polygon) return 13;
+    if (f.shape == GeofenceShape.polygon) {
+      if (f.points.isEmpty) return 14;
+      double minLat = f.points.first.latitude;
+      double maxLat = f.points.first.latitude;
+      double minLng = f.points.first.longitude;
+      double maxLng = f.points.first.longitude;
+      for (final LatLng p in f.points) {
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+      }
+      final double latDiff = maxLat - minLat;
+      final double lngDiff = maxLng - minLng;
+      final double maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+      if (maxDiff > 0.1) return 11.5;
+      if (maxDiff > 0.04) return 13.0;
+      if (maxDiff > 0.015) return 14.0;
+      if (maxDiff > 0.005) return 15.0;
+      return 16.0;
+    }
     final double r = f.radiusMeters;
     if (r <= 200) return 15.5;
     if (r <= 500) return 14.5;

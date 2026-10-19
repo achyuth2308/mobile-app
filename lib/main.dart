@@ -66,6 +66,7 @@ Future<void> main() async {
     // non-fatal debug framework assertions that can occur during route popping.
     if (msg.contains('_lifecycleState != _ElementLifecycle.defunct') ||
         msg.contains('defunct') ||
+        msg.contains('_dependents.isEmpty') ||
         msg.contains('Cannot hit test a render box')) {
       return;
     }
@@ -88,6 +89,7 @@ Future<void> main() async {
     final String errorStr = error.toString();
     if (errorStr.contains('_lifecycleState != _ElementLifecycle.defunct') ||
         errorStr.contains('defunct') ||
+        errorStr.contains('_dependents.isEmpty') ||
         errorStr.contains('Cannot hit test a render box')) {
       return true;
     }

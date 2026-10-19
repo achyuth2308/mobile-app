@@ -1,6 +1,7 @@
 import '../../core/config/backend_capabilities.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/notifications/push_service.dart';
 import '../../core/storage/secure_store.dart';
 import '../models/alert.dart';
 import '../models/json_utils.dart';
@@ -25,7 +26,26 @@ class AlertRepository {
     if (!BackendCapabilities.alertsHistory) return const <FleetAlert>[];
 
     final Set<String> deletedIds = _store.getDeletedAlertIds();
+    final DateTime? lastReadTime = _store.getLastAlertsReadTime();
+    final Set<String> readIds = _store.getReadAlertIds();
 
+    // 1. Read notifications stored on-device from push delivery
+    final List<Map<String, dynamic>> localRaw = await PushService.getLocalAlerts();
+    final List<FleetAlert> localAlerts = localRaw
+        .map(FleetAlert.fromJson)
+        .where((FleetAlert a) => a.id.isNotEmpty && !deletedIds.contains(a.id))
+        .map((FleetAlert a) {
+          final bool isLocallyRead = a.isRead ||
+              readIds.contains(a.id) ||
+              (lastReadTime != null &&
+                  a.createdAt != null &&
+                  !a.createdAt!.isAfter(lastReadTime));
+          return isLocallyRead ? a.copyWith(isRead: true) : a;
+        })
+        .toList();
+
+    // 2. Fetch server alerts
+    List<FleetAlert> apiAlerts = const <FleetAlert>[];
     final String url = vehicleId != null ? '/vehicles/$vehicleId/alerts' : '/alerts';
     try {
       final dynamic res = await _api.get<dynamic>(
@@ -40,15 +60,9 @@ class AlertRepository {
         },
       );
 
-      final DateTime? lastReadTime = _store.getLastAlertsReadTime();
-      final Set<String> readIds = _store.getReadAlertIds();
-
-      final List<FleetAlert> alerts = asMapList(res)
+      apiAlerts = asMapList(res)
           .map(FleetAlert.fromJson)
-          .where((FleetAlert a) =>
-              a.id.isNotEmpty &&
-              !deletedIds.contains(a.id) &&
-              a.type.toLowerCase().trim() != 'stoppage')
+          .where((FleetAlert a) => a.id.isNotEmpty && !deletedIds.contains(a.id))
           .map((FleetAlert a) {
             final bool isLocallyRead = a.isRead ||
                 readIds.contains(a.id) ||
@@ -58,15 +72,34 @@ class AlertRepository {
             return isLocallyRead ? a.copyWith(isRead: true) : a;
           })
           .toList(growable: false);
-
-      if (alerts.isNotEmpty || vehicleId != null) {
-        return alerts;
-      }
     } catch (_) {}
 
+    // 3. Merge server alerts and local push notifications (deduplicated by ID)
+    final Map<String, FleetAlert> byId = <String, FleetAlert>{};
+    for (final FleetAlert a in localAlerts) {
+      if (vehicleId == null || a.vehicleId == vehicleId) {
+        byId[a.id] = a;
+      }
+    }
+    for (final FleetAlert a in apiAlerts) {
+      byId[a.id] = a;
+    }
+
+    final List<FleetAlert> merged = byId.values.toList();
+    merged.sort((FleetAlert a, FleetAlert b) {
+      final DateTime tA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime tB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return tB.compareTo(tA);
+    });
+
+    if (merged.isNotEmpty || vehicleId != null) {
+      return merged;
+    }
+
     // Fallback: If /alerts returned empty and vehicleId is null (Fleet mode),
-    // aggregate alerts from the fleet vehicles directly so all notifications are guaranteed to display!
-    if (vehicleId == null && vehicleIds != null && vehicleIds.isNotEmpty) {
+    // aggregate alerts from fleet vehicles ONLY if fleet is small (<= 10) to prevent
+    // spawning hundreds of concurrent HTTP connections on large fleets.
+    if (vehicleId == null && vehicleIds != null && vehicleIds.isNotEmpty && vehicleIds.length <= 10) {
       try {
         final List<List<FleetAlert>> perVehicle = await Future.wait(
           vehicleIds.map(
@@ -160,6 +193,7 @@ class AlertRepository {
 
   Future<void> deleteAlert(String alertId) async {
     await _store.addDeletedAlertId(alertId);
+    await PushService.deleteLocalAlert(alertId);
     try {
       await _api.delete<dynamic>('/alerts/$alertId');
     } on ApiException {/* non-critical */}
@@ -168,6 +202,7 @@ class AlertRepository {
   Future<void> deleteAlerts(Iterable<String> alertIds) async {
     await _store.addDeletedAlertIds(alertIds);
     for (final String id in alertIds) {
+      await PushService.deleteLocalAlert(id);
       try {
         await _api.delete<dynamic>('/alerts/$id');
       } catch (_) {}
@@ -175,12 +210,20 @@ class AlertRepository {
   }
 
   Future<void> clearVehicleAlerts(String vehicleId) async {
+    final List<Map<String, dynamic>> local = await PushService.getLocalAlerts();
+    for (final Map<String, dynamic> item in local) {
+      if (item['vehicleId']?.toString() == vehicleId || item['vehicle_id']?.toString() == vehicleId) {
+        final String? id = item['id']?.toString();
+        if (id != null) await PushService.deleteLocalAlert(id);
+      }
+    }
     try {
       await _api.delete<dynamic>('/vehicles/$vehicleId/alerts');
     } on ApiException {/* non-critical */}
   }
 
   Future<void> clearAllAlerts() async {
+    await PushService.clearLocalAlerts();
     try {
       await _api.delete<dynamic>('/alerts');
     } on ApiException {/* non-critical */}

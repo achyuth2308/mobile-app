@@ -156,10 +156,23 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       } else {
         await ReportExportService.exportPdf(type: _currentType, rows: res.rows);
       }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${format.toUpperCase()} export downloaded successfully.'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -308,31 +321,68 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                             ],
                           ),
 
-                          // Export Action Buttons
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              _exportButton(
-                                label: 'PDF',
-                                icon: Icons.picture_as_pdf_rounded,
-                                color: const Color(0xFFDC2626),
-                                onTap: recordCount > 0 ? () => _handleExport('pdf') : null,
+                          // Download Action Button (opens floating card popup)
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: recordCount > 0 ? () => _showDownloadModal(context) : null,
+                              borderRadius: BorderRadius.circular(8),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: recordCount > 0
+                                      ? const Color(0xFF2563EB)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: recordCount > 0
+                                      ? <BoxShadow>[
+                                          BoxShadow(
+                                            color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                  border: Border.all(
+                                    color: recordCount > 0
+                                        ? const Color(0xFF2563EB)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Icon(
+                                      Icons.download_rounded,
+                                      size: 15,
+                                      color: recordCount > 0
+                                          ? Colors.white
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'Download',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: recordCount > 0
+                                            ? Colors.white
+                                            : const Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      size: 16,
+                                      color: recordCount > 0
+                                          ? Colors.white
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 6),
-                              _exportButton(
-                                label: 'Excel',
-                                icon: Icons.table_view_rounded,
-                                color: const Color(0xFF10B981),
-                                onTap: recordCount > 0 ? () => _handleExport('excel') : null,
-                              ),
-                              const SizedBox(width: 6),
-                              _exportButton(
-                                label: 'CSV',
-                                icon: Icons.download_rounded,
-                                color: const Color(0xFF0284C7),
-                                onTap: recordCount > 0 ? () => _handleExport('csv') : null,
-                              ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
@@ -524,43 +574,261 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     }
   }
 
-  Widget _exportButton({
-    required String label,
+  void _showDownloadModal(BuildContext context) {
+    final int count = _result?.rows.length ?? 0;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.file_download_outlined,
+                              size: 20,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                const Text(
+                                  'Download Report',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_currentType.label} · $count records',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            splashRadius: 18,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Options List
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          _downloadOptionCard(
+                            title: 'Excel Spreadsheet',
+                            extension: 'XLSX',
+                            subtitle: 'Formatted columns, data rows & summary metrics',
+                            icon: Icons.table_view_rounded,
+                            accentColor: const Color(0xFF10B981),
+                            onTap: () {
+                              Navigator.of(dialogContext).pop();
+                              _handleExport('excel');
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          _downloadOptionCard(
+                            title: 'PDF Document',
+                            extension: 'PDF',
+                            subtitle: 'Print-ready formal report with tables & headers',
+                            icon: Icons.picture_as_pdf_rounded,
+                            accentColor: const Color(0xFFEF4444),
+                            onTap: () {
+                              Navigator.of(dialogContext).pop();
+                              _handleExport('pdf');
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          _downloadOptionCard(
+                            title: 'CSV Data File',
+                            extension: 'CSV',
+                            subtitle: 'Raw tabular comma-separated values',
+                            icon: Icons.insert_drive_file_rounded,
+                            accentColor: const Color(0xFF0284C7),
+                            onTap: () {
+                              Navigator.of(dialogContext).pop();
+                              _handleExport('csv');
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Footer hint
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(Icons.shield_outlined, size: 14, color: Color(0xFF94A3B8)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Generated locally from active report view',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _downloadOptionCard({
+    required String title,
+    required String extension,
+    required String subtitle,
     required IconData icon,
-    required Color color,
-    required VoidCallback? onTap,
+    required Color accentColor,
+    required VoidCallback onTap,
   }) {
-    final bool isEnabled = onTap != null;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: isEnabled ? color.withOpacity(0.08) : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isEnabled ? color.withOpacity(0.3) : const Color(0xFFE2E8F0),
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(
-                icon,
-                size: 14,
-                color: isEnabled ? color : const Color(0xFF94A3B8),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isEnabled ? color : const Color(0xFF94A3B8),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            extension,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: accentColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: Color(0xFFCBD5E1),
               ),
             ],
           ),

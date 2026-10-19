@@ -73,7 +73,6 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
 
   bool _matchesFilter(FleetAlert alert, String? filter) {
     final String type = alert.type.toLowerCase().trim();
-    if (type == 'stoppage' || alert.title.toLowerCase().contains('stoppage')) return false;
     if (filter == null || filter.isEmpty) return true;
 
     final String title = alert.title.toLowerCase();
@@ -117,13 +116,19 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
             type == 'trip_start' ||
             type == 'stopped' ||
             type == 'idle' ||
+            type == 'stoppage' ||
+            type == 'excessive_idle' ||
             title.contains('ignition') ||
+            title.contains('engine') ||
             title.contains('trip') ||
             title.contains('moving') ||
             title.contains('stopped') ||
             title.contains('idle') ||
+            title.contains('stoppage') ||
             message.contains('trip') ||
-            message.contains('started'),
+            message.contains('started') ||
+            message.contains('stopped') ||
+            message.contains('engine'),
       'power' || 'power_cut' || 'battery' =>
         type == 'power_cut' ||
             type == 'power_disconnected' ||

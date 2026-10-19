@@ -164,10 +164,13 @@ class AuthRepository {
   // ── Profile ──────────────────────────────────────────────────────
 
   Future<AppUser> getProfile() async {
-    final dynamic res = await _api.get<dynamic>('/profile');
-    final AppUser u = AppUser.fromJson(_asMap(res));
-    await _store.writeUser(u.toJson());
-    return u;
+    try {
+      return await me();
+    } catch (_) {
+      final AppUser? cached = await cachedUser();
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
   Future<AppUser> updateProfile({
@@ -175,17 +178,44 @@ class AuthRepository {
     String? phone,
     String? timezone,
   }) async {
-    final dynamic res = await _api.put<dynamic>(
+    final AppUser? current = await cachedUser();
+
+    await _api.put<dynamic>(
       '/profile',
       body: <String, dynamic>{
         if (name != null) 'name': name,
+        if (name != null) 'contact_person': name,
         if (phone != null) 'phone': phone,
+        if (phone != null) 'mobile': phone,
         if (timezone != null) 'timezone': timezone,
       },
     );
-    final AppUser u = AppUser.fromJson(_asMap(res));
-    await _store.writeUser(u.toJson());
-    return u;
+
+    // Refresh canonical user state from server or merge with cached profile
+    // to prevent blanking out email, orgName, or defaulting to "Customer".
+    AppUser updated;
+    try {
+      updated = await me();
+    } catch (_) {
+      updated = (current ?? const AppUser(id: '', name: 'Customer', email: '')).copyWith(
+        name: name,
+        phone: phone,
+        timezone: timezone,
+      );
+    }
+
+    if (name != null && name.isNotEmpty && updated.name != name) {
+      updated = updated.copyWith(name: name);
+    }
+    if (phone != null && updated.phone != phone) {
+      updated = updated.copyWith(phone: phone);
+    }
+    if (timezone != null && updated.timezone != timezone) {
+      updated = updated.copyWith(timezone: timezone);
+    }
+
+    await _store.writeUser(updated.toJson());
+    return updated;
   }
 
   /// App Store Guideline 5.1.1(v) — in-app account deletion.

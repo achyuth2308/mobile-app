@@ -4,7 +4,6 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../data/models/report_models.dart';
 import '../../../data/models/trip.dart';
-import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 
 final activeFollowingVehicleIdProvider = StateProvider<String?>((ref) => null);
@@ -44,11 +43,17 @@ final vehicleDailyHistoryProvider =
   final DateTime startQuery = startIstUtc.subtract(const Duration(hours: 5, minutes: 30));
   final DateTime endQuery = endIstUtc.subtract(const Duration(hours: 5, minutes: 30));
 
-  final List<TrackPoint> rawPts = await vehicleRepo.getHistory(
-    vehicleId: vehicleId,
-    start: startQuery,
-    end: endQuery,
-  );
+  List<TrackPoint> rawPts = const <TrackPoint>[];
+  try {
+    rawPts = await vehicleRepo.getHistory(
+      vehicleId: vehicleId,
+      start: startQuery,
+      end: endQuery,
+    );
+  } catch (e) {
+    debugPrint('[vehicleDailyHistoryProvider] Error fetching history for $vehicleId: $e');
+    return const VehicleDailyData(route: <TrackPoint>[], stoppages: <ReportRow>[]);
+  }
   
   final List<TrackPoint> pts = List<TrackPoint>.from(rawPts);
 

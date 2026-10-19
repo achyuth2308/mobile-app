@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
@@ -85,6 +86,15 @@ class Geofence extends Equatable {
         json['area'] ??
         (json['geometry'] is Map ? (json['geometry'] as Map)['coordinates'] : null);
 
+    // If coordinates came as a JSON string from Postgres TEXT column, decode it
+    if (rawPoints is String && rawPoints.trim().isNotEmpty) {
+      try {
+        rawPoints = jsonDecode(rawPoints);
+      } catch (_) {
+        // Leave rawPoints as is if not JSON-encoded
+      }
+    }
+
     // GeoJSON polygons nest one level deeper: [[[lng,lat], ...]]
     if (rawPoints is List && rawPoints.isNotEmpty && rawPoints.first is List) {
       final List<dynamic> first = rawPoints.first as List<dynamic>;
@@ -99,17 +109,34 @@ class Geofence extends Equatable {
           final double? a = (p[0] as num?)?.toDouble();
           final double? b = (p[1] as num?)?.toDouble();
           if (a == null || b == null) continue;
-          // Heuristic: |value| > 90 can only be a longitude.
-          if (a.abs() > 90) {
+
+          // Intelligent lat/lng resolution:
+          // Check 1: India bounds (longitude 60..100, latitude 5..40)
+          if (a >= 60 && a <= 100 && b >= 5 && b <= 40) {
+            pts.add(LatLng(b, a)); // a is lng, b is lat
+          } else if (b >= 60 && b <= 100 && a >= 5 && a <= 40) {
+            pts.add(LatLng(a, b)); // a is lat, b is lng
+          } else if (a.abs() > 90) {
+            // Longitude cannot be latitude if |value| > 90
             pts.add(LatLng(b, a));
-          } else {
+          } else if (b.abs() > 90) {
             pts.add(LatLng(a, b));
+          } else {
+            // Default GeoJSON standard order: [longitude, latitude]
+            pts.add(LatLng(b, a));
           }
         } else if (p is Map) {
           final Map<String, dynamic> m = Map<String, dynamic>.from(p);
-          final double? lat = asDoubleOrNull(m, <String>['lat', 'latitude']);
-          final double? lng = asDoubleOrNull(m, <String>['lng', 'lon', 'longitude']);
-          if (lat != null && lng != null) pts.add(LatLng(lat, lng));
+          final double? lat = asDoubleOrNull(m, <String>['lat', 'latitude', 'Lat', 'Latitude']);
+          final double? lng = asDoubleOrNull(m, <String>['lng', 'lon', 'longitude', 'Lng', 'Lon', 'Longitude']);
+          if (lat != null && lng != null) {
+            if (lat >= 60 && lat <= 100 && lng >= 5 && lng <= 40) {
+              // Reversed lat/lng in map
+              pts.add(LatLng(lng, lat));
+            } else {
+              pts.add(LatLng(lat, lng));
+            }
+          }
         }
       }
     }
@@ -123,15 +150,24 @@ class Geofence extends Equatable {
 
     final Map<String, dynamic> centerMap = asMap(json, <String>['center', 'centre']);
 
+    double? cLat = asDoubleOrNull(centerMap, <String>['lat', 'latitude']) ??
+        asDoubleOrNull(json, <String>['centerLat', 'latitude', 'lat', 'center_lat']);
+    double? cLng = asDoubleOrNull(centerMap, <String>['lng', 'longitude', 'lon']) ??
+        asDoubleOrNull(json, <String>['centerLng', 'longitude', 'lng', 'center_lng']);
+
+    // Fallback: If center coordinates are null for polygon, compute centroid
+    if ((cLat == null || cLng == null) && pts.isNotEmpty) {
+      cLat = pts.map((LatLng p) => p.latitude).reduce((double a, double b) => a + b) / pts.length;
+      cLng = pts.map((LatLng p) => p.longitude).reduce((double a, double b) => a + b) / pts.length;
+    }
+
     return Geofence(
       id: asString(json, <String>['_id', 'id', 'geofenceId']),
       name: asString(json, <String>['name', 'title', 'label'], fallback: 'Geofence'),
       shape: shape,
       description: asStringOrNull(json, <String>['description', 'notes', 'remarks']),
-      centerLat: asDoubleOrNull(centerMap, <String>['lat', 'latitude']) ??
-          asDoubleOrNull(json, <String>['centerLat', 'latitude', 'lat']),
-      centerLng: asDoubleOrNull(centerMap, <String>['lng', 'longitude', 'lon']) ??
-          asDoubleOrNull(json, <String>['centerLng', 'longitude', 'lng']),
+      centerLat: cLat,
+      centerLng: cLng,
       radiusMeters:
           asDouble(json, <String>['radius', 'radiusMeters', 'radiusInMeters'],
               fallback: 200),
@@ -159,18 +195,27 @@ class Geofence extends Equatable {
         if (shape == GeofenceShape.circle) ...<String, dynamic>{
           'centerLat': centerLat,
           'centerLng': centerLng,
+          'center_lat': centerLat,
+          'center_lng': centerLng,
           'latitude': centerLat,
           'longitude': centerLng,
           'coordinates': <double>[centerLng ?? 0.0, centerLat ?? 0.0],
           'radius': radiusMeters,
         },
-        if (shape == GeofenceShape.polygon)
+        if (shape == GeofenceShape.polygon) ...<String, dynamic>{
+          'coordinates': points
+              .map((LatLng p) => <String, double>{
+                    'lat': p.latitude,
+                    'lng': p.longitude,
+                  })
+              .toList(),
           'points': points
               .map((LatLng p) => <String, double>{
                     'lat': p.latitude,
                     'lng': p.longitude,
                   })
               .toList(),
+        },
         'color': colorHex,
         'alertOnEnter': alertOnEnter,
         'alertOnExit': alertOnExit,

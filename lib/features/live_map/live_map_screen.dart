@@ -62,6 +62,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   bool _userInteracting = false;
   bool _isHistoryMode = false;
   bool _isShowingOverallTrip = false;
+  bool _showTodayHistoryRoute = false;
   final ValueNotifier<double> _sheetExtentNotifier = ValueNotifier(0.32);
 
   /// India-centred default until the first fix arrives.
@@ -163,9 +164,6 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   @override
   void dispose() {
-    try {
-      ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
-    } catch (_) {}
     _sheetExtentNotifier.dispose();
     super.dispose();
   }
@@ -236,6 +234,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _setFollowingId(null);
 
     if (located.length == 1) {
+      _setFollowingId(located.first.id);
       _move(
         LatLng(located.first.latitude!, located.first.longitude!),
         zoom: 14.0,
@@ -261,10 +260,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     if (vehicleId == null || !_mapReady) return;
     final asyncData = ref.read(vehicleDailyHistoryProvider(vehicleId));
     asyncData.whenData((data) {
-      final List<LatLng> points = data.route
-          .where((p) => p.isValid)
-          .map((p) => p.latLng)
-          .toList();
+      final List<LatLng> points =
+          data.route.where((p) => p.isValid).map((p) => p.latLng).toList();
       if (points.isNotEmpty) {
         if (_useGoogleMap) {
           _googleMap.fitBounds(points);
@@ -440,10 +437,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       }
 
       if (_followingId == null || _userInteracting || !_mapReady) return;
-      for (final Vehicle v in next.vehicles) {
-        if (v.id == _followingId && v.hasLocation) {
-          _move(LatLng(v.latitude!, v.longitude!));
-          break;
+      // When using UniversalLiveMap, smooth in-flight camera following is handled
+      // by UniversalLiveMap._onVisualPosUpdate to avoid camera stutter / jerking.
+      if (_useGoogleMap) {
+        for (final Vehicle v in next.vehicles) {
+          if (v.id == _followingId && v.hasLocation) {
+            _move(LatLng(v.latitude!, v.longitude!));
+            break;
+          }
         }
       }
     });
@@ -468,6 +469,24 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             ? vehicles.where((v) => v.id == widget.focusVehicleId).toList()
             : vehicles;
 
+    final Vehicle? targetVehicle =
+        (widget.focusVehicleId != null && widget.focusVehicleId!.isNotEmpty)
+            ? vehicles.cast<Vehicle?>().firstWhere(
+                  (v) => v?.id == widget.focusVehicleId,
+                  orElse: () => null,
+                )
+            : (_followingId != null
+                ? vehicles.cast<Vehicle?>().firstWhere(
+                      (v) => v?.id == _followingId,
+                      orElse: () => null,
+                    )
+                : (vehicles.isNotEmpty ? vehicles.first : null));
+
+    final LatLng effectiveFallbackCenter =
+        (targetVehicle != null && targetVehicle.hasLocation)
+            ? LatLng(targetVehicle.latitude!, targetVehicle.longitude!)
+            : _fallbackCenter;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -478,23 +497,13 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         extendBodyBehindAppBar: true,
         body: Stack(
           children: <Widget>[
-            ValueListenableBuilder<double>(
-              valueListenable: _sheetExtentNotifier,
-              builder: (context, extent, child) {
-                return Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: _followingId != null ? (extent * MediaQuery.sizeOf(context).height) - 40 : 0,
-                  child: child!,
-                );
-              },
+            Positioned.fill(
               child: _useGoogleMap
                   ? GoogleLiveMap(
                       controller: _googleMap,
                       vehicles: visibleVehicles,
                       style: _style,
-                      fallbackCenter: _fallbackCenter,
+                      fallbackCenter: effectiveFallbackCenter,
                       selectedId: _selectedId,
                       followingId: _followingId,
                       pendingFocusId: _pendingFocusId,
@@ -514,7 +523,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
                         final WidgetsBinding binding = WidgetsBinding.instance;
                         if (binding.buildOwner?.debugBuilding == true) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) => initMap());
+                          WidgetsBinding.instance
+                              .addPostFrameCallback((_) => initMap());
                         } else {
                           initMap();
                         }
@@ -526,12 +536,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                         }
                       },
                       onTapMap: () {
-                        if (_selectedId != null) setState(() => _selectedId = null);
+                        if (_selectedId != null) {
+                          setState(() => _selectedId = null);
+                        }
                       },
                       onSelectVehicle: _selectVehicle,
                       route: dailyDataAsync.valueOrNull?.route ?? [],
                       stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
-                      showTrail: true,
+                      showTrail: _showTodayHistoryRoute,
                       onTapStoppage: _showStoppageCard,
                     )
                   : UniversalLiveMap(
@@ -539,7 +551,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                       vehicles: visibleVehicles,
                       style: _style,
                       apiKey: apiKey,
-                      fallbackCenter: _fallbackCenter,
+                      fallbackCenter: effectiveFallbackCenter,
                       selectedId: _selectedId,
                       followingId: _followingId,
                       pendingFocusId: _pendingFocusId,
@@ -559,7 +571,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
                         final WidgetsBinding binding = WidgetsBinding.instance;
                         if (binding.buildOwner?.debugBuilding == true) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) => initMap());
+                          WidgetsBinding.instance
+                              .addPostFrameCallback((_) => initMap());
                         } else {
                           initMap();
                         }
@@ -571,13 +584,15 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                         }
                       },
                       onTapMap: () {
-                        if (_selectedId != null) setState(() => _selectedId = null);
+                        if (_selectedId != null) {
+                          setState(() => _selectedId = null);
+                        }
                       },
                       onSelectVehicle: _selectVehicle,
                       route: dailyDataAsync.valueOrNull?.route ?? [],
                       stoppages: dailyDataAsync.valueOrNull?.stoppages ?? [],
                       showTrail: true,
-                      showFullTrail: true,
+                      showFullTrail: _showTodayHistoryRoute,
                       onTapStoppage: _showStoppageCard,
                     ),
             ),
@@ -595,176 +610,202 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
               ),
             ),
 
-          if (following != null)
-            NotificationListener<DraggableScrollableNotification>(
-              onNotification: (notification) {
-                _sheetExtentNotifier.value = notification.extent;
-                if (notification.extent > 0.5 && !_isShowingOverallTrip) {
-                  _isShowingOverallTrip = true;
-                  _fitRoute(_followingId);
-                } else if (notification.extent <= 0.5 && _isShowingOverallTrip) {
-                  _isShowingOverallTrip = false;
-                  _focusVehicle(_followingId);
-                }
-                return false;
-              },
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context).copyWith(
-                  dragDevices: {
-                    PointerDeviceKind.touch,
-                    PointerDeviceKind.mouse,
-                    PointerDeviceKind.trackpad,
-                  },
-                ),
-                child: DraggableScrollableSheet(
-                  initialChildSize: 0.32,
-                  minChildSize: 0.12,
-                  maxChildSize: 0.85,
-                  builder: (ctx, scrollController) {
-                    return VehiclePeekSheet(
-                      vehicleId: following.id,
-                      isFollowing: _followingId == following.id,
-                      onToggleFollow: () {
-                        _setFollowingId(
-                            _followingId == following.id ? null : following.id);
-                      },
-                      onOpenDetails: () {
-                        context.push('/vehicle/${following.id}?tab=history');
-                      },
-                      scrollController: scrollController,
-                    );
-                  },
+            if (following != null)
+              NotificationListener<DraggableScrollableNotification>(
+                onNotification: (notification) {
+                  _sheetExtentNotifier.value = notification.extent;
+                  if (notification.extent > 0.5 && !_isShowingOverallTrip) {
+                    _isShowingOverallTrip = true;
+                    _fitRoute(_followingId);
+                  } else if (notification.extent <= 0.5 &&
+                      _isShowingOverallTrip) {
+                    _isShowingOverallTrip = false;
+                    _focusVehicle(_followingId);
+                  }
+                  return false;
+                },
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                    },
+                  ),
+                  child: DraggableScrollableSheet(
+                    initialChildSize: 0.32,
+                    minChildSize: 0.12,
+                    maxChildSize: 0.85,
+                    builder: (ctx, scrollController) {
+                      return VehiclePeekSheet(
+                        vehicleId: following.id,
+                        isFollowing: _followingId == following.id,
+                        onToggleFollow: () {
+                          _setFollowingId(_followingId == following.id
+                              ? null
+                              : following.id);
+                        },
+                        onOpenDetails: () {
+                          context.push('/vehicle/${following.id}?tab=history');
+                        },
+                        scrollController: scrollController,
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
 
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 10,
-            right: Gap.lg,
-            child: PointerInterceptor(
-              child: Column(
-                children: <Widget>[
-                  if (following != null) ...[
-                    // WhatsApp Share Location Button (Green)
-                    Material(
-                      elevation: 4,
-                      shape: const CircleBorder(),
-                      color: const Color(0xFF25D366),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: () => ShareHelper.shareVehicleLocation(following),
-                        child: const SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Icon(Icons.share_rounded,
-                              color: Colors.white, size: 22),
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 10,
+              right: Gap.lg,
+              child: PointerInterceptor(
+                child: Column(
+                  children: <Widget>[
+                    if (following != null) ...[
+                      // WhatsApp Share Location Button (Green)
+                      Material(
+                        elevation: 4,
+                        shape: const CircleBorder(),
+                        color: const Color(0xFF25D366),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () =>
+                              ShareHelper.shareVehicleLocation(following),
+                          child: const SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Icon(Icons.share_rounded,
+                                color: Colors.white, size: 22),
+                          ),
                         ),
                       ),
+                      const SizedBox(height: Gap.sm),
+                    ],
+                    _MapButton(
+                      icon: Icons.layers_rounded,
+                      tooltip: 'Change map style',
+                      onTap: _showMapStylePicker,
                     ),
                     const SizedBox(height: Gap.sm),
+                    _MapButton(
+                      icon: Icons.fit_screen_rounded,
+                      tooltip: 'Fit all vehicles',
+                      onTap: () => _fitAll(vehicles),
+                    ),
+                    const SizedBox(height: Gap.sm),
+                    _MapButton(
+                      icon: Icons.add_rounded,
+                      tooltip: 'Zoom in',
+                      onTap: () {
+                        if (_useGoogleMap) {
+                          _googleMap.zoomIn();
+                        } else {
+                          _map.move(
+                            _map.camera.center,
+                            (_map.camera.zoom + 1).clamp(2, _style.maxZoom),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 2),
+                    _MapButton(
+                      icon: Icons.remove_rounded,
+                      tooltip: 'Zoom out',
+                      onTap: () {
+                        if (_useGoogleMap) {
+                          _googleMap.zoomOut();
+                        } else {
+                          _map.move(
+                            _map.camera.center,
+                            (_map.camera.zoom - 1).clamp(2, _style.maxZoom),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: Gap.sm),
+                    // Toggle button: shows today's route & numbered stops; tap again to return to live map
+                    _MapButton(
+                      icon: _showTodayHistoryRoute
+                          ? Icons.alt_route_rounded
+                          : Icons.route_rounded,
+                      tooltip: _showTodayHistoryRoute
+                          ? 'Return to Live Map'
+                          : "Show today's route & stops",
+                      isActive: _showTodayHistoryRoute,
+                      onTap: () {
+                        setState(() {
+                          _showTodayHistoryRoute = !_showTodayHistoryRoute;
+                        });
+                        if (_showTodayHistoryRoute) {
+                          final String activeId =
+                              _selectedId ?? _followingId ?? '';
+                          if (activeId.isNotEmpty) {
+                            _fitRoute(activeId);
+                          }
+                        }
+                      },
+                    ),
                   ],
-                  _MapButton(
-                    icon: Icons.layers_rounded,
-                    tooltip: 'Change map style',
-                    onTap: _showMapStylePicker,
-                  ),
-                  const SizedBox(height: Gap.sm),
-                  _MapButton(
-                    icon: Icons.fit_screen_rounded,
-                    tooltip: 'Fit all vehicles',
-                    onTap: () => _fitAll(vehicles),
-                  ),
-                  const SizedBox(height: Gap.sm),
-                  _MapButton(
-                    icon: Icons.add_rounded,
-                    tooltip: 'Zoom in',
-                    onTap: () {
-                      if (_useGoogleMap) {
-                        _googleMap.zoomIn();
-                      } else {
-                        _map.move(
-                          _map.camera.center,
-                          (_map.camera.zoom + 1).clamp(2, _style.maxZoom),
-                        );
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 2),
-                  _MapButton(
-                    icon: Icons.remove_rounded,
-                    tooltip: 'Zoom out',
-                    onTap: () {
-                      if (_useGoogleMap) {
-                        _googleMap.zoomOut();
-                      } else {
-                        _map.move(
-                          _map.camera.center,
-                          (_map.camera.zoom - 1).clamp(2, _style.maxZoom),
-                        );
-                      }
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
 
-          // Header positioned on top of sheets and other controls
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + Gap.sm,
-            left: Gap.lg,
-            right: 80,
-            child: PointerInterceptor(
-              child: _MapHeader(
-                locatedCount: located,
-                totalCount: vehicles.length,
-                followingName: following?.displayName,
-                isHistoryMode: _isHistoryMode,
-                onStopFollowing: _handleBack,
-                onBack: _handleBack,
-                onToggleHistoryMode: _toggleHistoryMode,
-                onRecenter: following != null && following.hasLocation
-                    ? () => _move(
-                          LatLng(following.latitude!, following.longitude!),
-                          zoom: 14.5,
-                        )
-                    : null,
-                onRefresh: () {
-                  ref.invalidate(fleetProvider);
-                  if (activeId.isNotEmpty) {
-                    ref.invalidate(vehicleDailyHistoryProvider(activeId));
-                  }
-                },
-              ),
-            ),
-          ),
-
-          if (!_useGoogleMap)
+            // Header positioned on top of sheets and other controls
             Positioned(
-              right: 0,
-              bottom: 0,
-              child: SafeArea(child: OsmAttribution(style: _style)),
+              top: MediaQuery.paddingOf(context).top + Gap.sm,
+              left: Gap.lg,
+              right: 80,
+              child: PointerInterceptor(
+                child: _MapHeader(
+                  locatedCount: located,
+                  totalCount: vehicles.length,
+                  followingName: following?.displayName,
+                  isHistoryMode: _isHistoryMode,
+                  onStopFollowing: _handleBack,
+                  onBack: _handleBack,
+                  onToggleHistoryMode: _toggleHistoryMode,
+                  onRecenter: following != null && following.hasLocation
+                      ? () => _move(
+                            LatLng(following.latitude!, following.longitude!),
+                            zoom: 14.5,
+                          )
+                      : null,
+                  onRefresh: () {
+                    ref.invalidate(fleetProvider);
+                    if (activeId.isNotEmpty) {
+                      ref.invalidate(vehicleDailyHistoryProvider(activeId));
+                    }
+                  },
+                ),
+              ),
             ),
 
-          if (fleet.isLoading)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Color(0xAA070B16),
-                child: Center(child: CircularProgressIndicator()),
+            if (!_useGoogleMap)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: SafeArea(child: OsmAttribution(style: _style)),
               ),
-            )
-          else if (located == 0 && vehicles.isNotEmpty)
-            const Align(
-              alignment: Alignment.center,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: Gap.lg),
-                child: _NoLocationCard(),
+
+            if (fleet.isLoading)
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Color(0xAA070B16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              )
+            else if (located == 0 && vehicles.isNotEmpty)
+              const Align(
+                alignment: Alignment.center,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: Gap.lg),
+                  child: _NoLocationCard(),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 }
 
@@ -810,7 +851,8 @@ class _MapHeader extends StatelessWidget {
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: () {
-                  debugPrint('[LiveMapScreen] Back button tapped in _MapHeader!');
+                  debugPrint(
+                      '[LiveMapScreen] Back button tapped in _MapHeader!');
                   (onBack ?? onStopFollowing)();
                 },
                 child: SizedBox(
@@ -910,11 +952,13 @@ class _MapButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.isActive = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
@@ -931,7 +975,25 @@ class _MapButton extends StatelessWidget {
           opacity: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.65,
           blur: 16,
           onTap: onTap,
-          child: Icon(icon, size: 20, color: scheme.onSurface),
+          child: Container(
+            decoration: isActive
+                ? BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF10B981).withValues(alpha: 0.22),
+                    border: Border.all(
+                      color: const Color(0xFF10B981),
+                      width: 1.5,
+                    ),
+                  )
+                : null,
+            child: Center(
+              child: Icon(
+                icon,
+                size: 20,
+                color: isActive ? const Color(0xFF10B981) : scheme.onSurface,
+              ),
+            ),
+          ),
         ),
       ),
     );

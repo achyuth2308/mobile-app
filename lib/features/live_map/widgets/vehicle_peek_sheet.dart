@@ -11,6 +11,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../providers/live_map_providers.dart';
 import '../../geofences/geofence_editor_sheet.dart';
+import '../../../shared/widgets/live_address.dart';
 
 abstract class TripSegment {
   final DateTime startTime;
@@ -149,6 +150,7 @@ class _CoordinateAddressState extends State<CoordinateAddress> {
   @override
   void initState() {
     super.initState();
+    _address = Geocoder.getCachedAddress(widget.lat, widget.lng);
     _resolve();
   }
 
@@ -156,6 +158,7 @@ class _CoordinateAddressState extends State<CoordinateAddress> {
   void didUpdateWidget(covariant CoordinateAddress oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lat != widget.lat || oldWidget.lng != widget.lng) {
+      _address = Geocoder.getCachedAddress(widget.lat, widget.lng);
       _resolve();
     }
   }
@@ -170,8 +173,11 @@ class _CoordinateAddressState extends State<CoordinateAddress> {
 
   @override
   Widget build(BuildContext context) {
+    final String display = _address != null
+        ? Fmt.address(_address)
+        : (Geocoder.getCachedAddress(widget.lat, widget.lng) ?? '');
     return Text(
-      _address != null ? Fmt.address(_address) : 'Locating address...',
+      display.isNotEmpty ? display : '...',
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
@@ -289,6 +295,10 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
             ),
             const SizedBox(height: 16),
 
+            // Live Vehicle Status (Always visible, instantaneous)
+            _VehicleStatusCard(vehicle: vehicle),
+            const SizedBox(height: 16),
+
             // Timeline Segments
             asyncData.when(
                     data: (data) {
@@ -310,8 +320,6 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _VehicleStatusCard(vehicle: vehicle),
-                          const SizedBox(height: 16),
                           _TripSummaryCard(
                             travelledDistance: vehicle.todayDistanceKm ?? 0.0,
                             travelledDuration: totalDrivingDuration,
@@ -633,14 +641,70 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                     ],
                   );
                 },
-                loading: () => const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
+                loading: () => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _TripSummaryCard(
+                      travelledDistance: vehicle.todayDistanceKm ?? 0.0,
+                      travelledDuration: Duration.zero,
+                      stopCount: 0,
+                      stopDuration: Duration.zero,
+                      lowNetworkCount: 0,
                     ),
-                    error: (err, stack) => const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: Text('Failed to load trip details', style: TextStyle(color: Colors.red))),
+                    const SizedBox(height: 24),
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      ),
                     ),
+                  ],
+                ),
+                error: (err, stack) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _TripSummaryCard(
+                      travelledDistance: vehicle.todayDistanceKm ?? 0.0,
+                      travelledDuration: Duration.zero,
+                      stopCount: 0,
+                      stopDuration: Duration.zero,
+                      lowNetworkCount: 0,
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.info_outline_rounded,
+                                size: 24,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Trip details temporarily unavailable',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextButton.icon(
+                              onPressed: () => ref.invalidate(vehicleDailyHistoryProvider(widget.vehicleId)),
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text('Retry', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                   ),
 
                   const SizedBox(height: 16),
@@ -662,12 +726,52 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
   }
 }
 
-class _VehicleStatusCard extends StatelessWidget {
+class _VehicleStatusCard extends ConsumerStatefulWidget {
   const _VehicleStatusCard({required this.vehicle});
   final Vehicle vehicle;
 
   @override
+  ConsumerState<_VehicleStatusCard> createState() => _VehicleStatusCardState();
+}
+
+class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRefresh() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    _animController.forward(from: 0.0);
+
+    try {
+      ref.invalidate(fleetProvider);
+      ref.invalidate(vehicleDailyHistoryProvider(widget.vehicle.id));
+    } finally {
+      Future<void>.delayed(const Duration(milliseconds: 700), () {
+        if (mounted) setState(() => _isRefreshing = false);
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final Vehicle vehicle = widget.vehicle;
     final DateTime? sinceTime = vehicle.statusChangedAt ?? vehicle.lastPacketAt;
     final String durationStr = Fmt.statusDuration(sinceTime);
     final String timeStr = Fmt.time12Sec(sinceTime);
@@ -738,16 +842,27 @@ class _VehicleStatusCard extends StatelessWidget {
                   color: isDark ? Colors.white : const Color(0xFF1E293B),
                 ),
               ),
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade200,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: Icon(Icons.add_rounded, size: 20, color: isDark ? Colors.white70 : Colors.black87),
-                  onPressed: () {},
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              Material(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: Tooltip(
+                  message: 'Refresh vehicle data',
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _handleRefresh,
+                    child: Padding(
+                      padding: const EdgeInsets.all(7.0),
+                      child: RotationTransition(
+                        turns: _animController,
+                        child: Icon(
+                          Icons.refresh_rounded,
+                          size: 19,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -813,9 +928,15 @@ class _VehicleStatusCard extends StatelessWidget {
                           Icon(Icons.location_on_rounded, size: 14, color: textCol),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: CoordinateAddress(
-                              lat: vehicle.latitude ?? 0,
-                              lng: vehicle.longitude ?? 0,
+                            child: LiveAddress(
+                              vehicle: vehicle,
+                              max: 3,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: textCol,
+                                height: 1.3,
+                              ),
                             ),
                           ),
                         ],

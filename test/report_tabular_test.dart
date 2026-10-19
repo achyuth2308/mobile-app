@@ -78,15 +78,15 @@ void main() {
         ),
       );
 
-      expect(find.text('Trip Report'), findsOneWidget);
-      expect(find.text('Daily Distance'), findsOneWidget);
+      expect(find.text('Trips'), findsOneWidget);
+      expect(find.text('Day Wise Distance Report'), findsOneWidget);
       expect(find.text('Overspeeding'), findsOneWidget);
       expect(find.text('Stoppage'), findsOneWidget);
       expect(find.text('Idle'), findsOneWidget);
       expect(find.text('Consolidated'), findsOneWidget);
       expect(find.text('Individual'), findsOneWidget);
 
-      await tester.tap(find.text('Daily Distance'));
+      await tester.tap(find.text('Day Wise Distance Report'));
       expect(selected, ReportType.distance);
     });
 

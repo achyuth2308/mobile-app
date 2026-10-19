@@ -65,19 +65,20 @@ extension MapStyleX on MapStyle {
         MapStyle.standard || MapStyle.google => Icons.map_rounded,
       };
 
-  String urlTemplate(String? apiKey) {
-    final String key = (apiKey != null && apiKey.isNotEmpty)
+  String urlTemplate(String? apiKey, {bool highDpi = false}) {
+    final String effectiveKey = (apiKey != null && apiKey.isNotEmpty)
         ? apiKey
         : AppConfig.googleMapsApiKey;
-    final String keyParam = key.isNotEmpty ? '&key=$key' : '';
+    final String keyParam = effectiveKey.isNotEmpty ? '&key=$effectiveKey' : '';
 
     return switch (this) {
       MapStyle.satellite =>
-        'https://mt{s}.google.com/vt/lyrs=y&scale=2&x={x}&y={y}&z={z}$keyParam', // 512px HD Google Hybrid
+        'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}$keyParam', // Google Hybrid (Satellite + Labels)
       MapStyle.terrain =>
-        'https://mt{s}.google.com/vt/lyrs=p&scale=2&x={x}&y={y}&z={z}$keyParam', // 512px HD Google Terrain
-      MapStyle.standard || MapStyle.google =>
-        'https://mt{s}.google.com/vt/lyrs=m&scale=2&x={x}&y={y}&z={z}$keyParam', // 512px HD Google Roadmap
+        'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}$keyParam', // Google Terrain
+      MapStyle.standard ||
+      MapStyle.google =>
+        'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}$keyParam', // Google Maps Roadmap
     };
   }
 
@@ -99,7 +100,7 @@ extension MapStyleX on MapStyle {
       };
 }
 
-/// Builds the ultra-fast tile layer for a given style in pristine high-definition light quality.
+/// Builds the ultra-fast tile layer for a given style with clear, readable labels.
 Widget buildTileLayer(
   MapStyle style, {
   bool retina = false,
@@ -108,21 +109,24 @@ Widget buildTileLayer(
 }) {
   return TileLayer(
     key: ValueKey<String>('tile_layer_${style.name}'),
-    urlTemplate: style.urlTemplate(apiKey),
+    urlTemplate: style.urlTemplate(apiKey, highDpi: false),
     subdomains: style.subdomains,
     maxNativeZoom: style.maxZoom.toInt(),
     maxZoom: 22.0,
     userAgentPackageName: AppConfig.tileUserAgent,
-    tileProvider: kIsWeb
-        ? CancellableNetworkTileProvider()
-        : FastCachedTileProvider(),
+    tileProvider:
+        kIsWeb ? NetworkTileProvider() : CancellableNetworkTileProvider(),
     retinaMode: false,
     panBuffer: 1,
     keepBuffer: 3,
     tileDisplay: const TileDisplay.fadeIn(
       duration: Duration(milliseconds: 150),
     ),
-    errorTileCallback: (TileImage tile, Object error, StackTrace? _) {},
+    errorTileCallback: (TileImage tile, Object error, StackTrace? _) {
+      if (kDebugMode) {
+        debugPrint('Tile load error for ${tile.coordinates}: $error');
+      }
+    },
   );
 }
 
@@ -147,7 +151,7 @@ class OsmAttribution extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface.withOpacity(0.72),
+          color: theme.colorScheme.surface.withValues(alpha: 0.72),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(6),
           ),

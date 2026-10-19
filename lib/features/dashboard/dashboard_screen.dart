@@ -275,8 +275,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   itemBuilder: (BuildContext context, int index) {
                     final Vehicle v = vehicles[index];
                     return VehicleCard(
-                      key: ValueKey<String>(
-                          v.id.isNotEmpty ? '${v.id}_$index' : 'veh_$index'),
+                      key: ValueKey<String>(v.id.isNotEmpty ? v.id : 'veh_$index'),
                       vehicle: v,
                       onTap: () => context.push('/vehicle/${v.id}'),
                       onTrack: () {

@@ -34,7 +34,7 @@ extension ReportTypeX on ReportType {
 
   String get label => switch (this) {
         ReportType.trip => 'Automated Trips',
-        ReportType.distance => 'Distance Report',
+        ReportType.distance => 'Day Wise Distance Report',
         ReportType.activity => 'Activity Report',
         ReportType.routeHistory => 'Route History',
         ReportType.ignition => 'Ignition Report',

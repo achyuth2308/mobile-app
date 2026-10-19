@@ -28,7 +28,7 @@ const List<ReportTabMeta> kReportTabs = <ReportTabMeta>[
   ),
   ReportTabMeta(
     type: ReportType.distance,
-    title: 'Daily Distance',
+    title: 'Day Wise Distance Report',
     icon: Icons.trending_up_rounded,
     color: Color(0xFF0284C7),
     bg: Color(0xFFE0F2FE),

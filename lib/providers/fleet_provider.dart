@@ -131,6 +131,21 @@ class FleetController extends Notifier<FleetState> {
   bool _mounted = true;
 
   final Map<String, Vehicle> _pending = <String, Vehicle>{};
+  final Map<String, Vehicle> _vehiclesById = <String, Vehicle>{};
+  final Map<String, String> _identifierToVehicleId = <String, String>{};
+
+  void _rebuildIndexes(List<Vehicle> list) {
+    _vehiclesById.clear();
+    _identifierToVehicleId.clear();
+    for (final Vehicle v in list) {
+      if (v.id.isNotEmpty) {
+        _vehiclesById[v.id] = v;
+        _identifierToVehicleId[v.id] = v.id;
+      }
+      if (v.deviceId.isNotEmpty) _identifierToVehicleId[v.deviceId] = v.id;
+      if (v.imei.isNotEmpty) _identifierToVehicleId[v.imei] = v.id;
+    }
+  }
 
   @override
   FleetState build() {
@@ -189,12 +204,24 @@ class FleetController extends Notifier<FleetState> {
 
         final DateTime? a = existing.lastPacketAt;
         final DateTime? b = incoming.lastPacketAt;
-        // Never let REST polling rewind an active vehicle to an older packet
-        if (a != null && b != null && !b.isAfter(a)) return existing;
+        // Never let REST polling rewind an active vehicle to an older packet.
+        // If the vehicle is currently moving, give live socket telemetry precedence over REST snapshots
+        // unless REST is significantly newer (>15s), preventing snapshot position rollbacks.
+        if (a != null && b != null) {
+          if (!b.isAfter(a)) return existing;
+          if (existing.status == VehicleStatus.moving &&
+              b.difference(a).inSeconds < 15) {
+            // Retain fresher socket location if REST coordinates are identical or older
+            if (existing.hasLocation && incoming.hasLocation) {
+              return existing;
+            }
+          }
+        }
         return incoming;
       }).toList();
 
       _sort(merged);
+      _rebuildIndexes(merged);
 
       if (!_mounted) return;
       _safeSetState(state.copyWith(
@@ -205,9 +232,25 @@ class FleetController extends Notifier<FleetState> {
         clearError: true,
       ));
 
-      final SocketService socket = ref.read(socketServiceProvider);
-      for (final Vehicle v in merged) {
-        socket.joinVehicle(v.id);
+      // For small fleets (<= 25), joining individual vehicle rooms is fine.
+      // For large fleets (e.g. 568+), the org/user room already streams all telemetry
+      // without flooding the WebSocket with hundreds of frame emissions.
+      if (merged.length <= 25) {
+        final SocketService socket = ref.read(socketServiceProvider);
+        for (final Vehicle v in merged) {
+          socket.joinVehicle(v.id);
+        }
+      }
+
+      // Dynamically tune throttle based on fleet size to keep UI at 60 FPS
+      if (_socketSub != null) {
+        _flushTimer?.cancel();
+        final Duration throttle = merged.length > 100
+            ? const Duration(milliseconds: 1500)
+            : (merged.length > 30
+                ? const Duration(milliseconds: 800)
+                : AppConfig.mapThrottle);
+        _flushTimer = Timer.periodic(throttle, (_) => _flush());
       }
 
       _startStaleTimer();
@@ -250,7 +293,12 @@ class FleetController extends Notifier<FleetState> {
     }
 
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(AppConfig.mapThrottle, (_) => _flush());
+    final Duration throttle = state.vehicles.length > 100
+        ? const Duration(milliseconds: 1500)
+        : (state.vehicles.length > 30
+            ? const Duration(milliseconds: 800)
+            : AppConfig.mapThrottle);
+    _flushTimer = Timer.periodic(throttle, (_) => _flush());
   }
 
   void detachSocket() {
@@ -294,7 +342,16 @@ class FleetController extends Notifier<FleetState> {
 
   void _bufferOne(Map<String, dynamic> frame) {
     // Attempt to extract any known identifier from the socket payload
-    final String rawId = <String>['vehicleId', '_id', 'id', 'vehicle', 'deviceId', 'device_id', 'imei', 'IMEI']
+    final String rawId = <String>[
+          'vehicleId',
+          '_id',
+          'id',
+          'vehicle',
+          'deviceId',
+          'device_id',
+          'imei',
+          'IMEI'
+        ]
             .map((String k) => frame[k])
             .firstWhere(
               (Object? v) => v != null && v.toString().isNotEmpty,
@@ -306,8 +363,10 @@ class FleetController extends Notifier<FleetState> {
     if (rawId.isEmpty) {
       // Also check nested device object (common in Traccar)
       if (frame['device'] is Map) {
-        final Map<String, dynamic> dev = frame['device'] as Map<String, dynamic>;
-        final String devId = dev['id']?.toString() ?? dev['imei']?.toString() ?? '';
+        final Map<String, dynamic> dev =
+            frame['device'] as Map<String, dynamic>;
+        final String devId =
+            dev['id']?.toString() ?? dev['imei']?.toString() ?? '';
         if (devId.isNotEmpty) {
           _bufferOne({...frame, 'deviceId': devId});
         }
@@ -315,20 +374,29 @@ class FleetController extends Notifier<FleetState> {
       return;
     }
 
-    final Vehicle? existing = _pending[rawId] ??
-        state.vehicles.cast<Vehicle?>().firstWhere(
-              (Vehicle? v) => v?.id == rawId || v?.deviceId == rawId || v?.imei == rawId,
-              orElse: () => null,
-            );
+    final String? resolvedId = _identifierToVehicleId[rawId] ??
+        (_vehiclesById.containsKey(rawId) ? rawId : null);
+    final Vehicle? existing = _pending[resolvedId ?? rawId] ??
+        (resolvedId != null ? _vehiclesById[resolvedId] : null);
 
     if (existing == null) {
       // Unknown vehicle — likely added server-side while we were connected.
       final Vehicle fresh = Vehicle.fromJson(frame);
-      if (fresh.id.isNotEmpty) _pending[fresh.id] = fresh;
+      if (fresh.id.isNotEmpty) {
+        _pending[fresh.id] = fresh;
+        _vehiclesById[fresh.id] = fresh;
+        _identifierToVehicleId[fresh.id] = fresh.id;
+        if (fresh.deviceId.isNotEmpty)
+          _identifierToVehicleId[fresh.deviceId] = fresh.id;
+        if (fresh.imei.isNotEmpty)
+          _identifierToVehicleId[fresh.imei] = fresh.id;
+      }
       return;
     }
 
-    _pending[existing.id] = existing.mergeLive(frame);
+    final Vehicle updated = existing.mergeLive(frame);
+    _pending[existing.id] = updated;
+    _vehiclesById[existing.id] = updated;
   }
 
   /// Updates provider state safely so state mutations never collide
@@ -367,6 +435,7 @@ class FleetController extends Notifier<FleetState> {
     };
     final List<Vehicle> list = next.values.toList();
     _sort(list);
+    _rebuildIndexes(list);
     _safeSetState(state.copyWith(vehicles: list));
   }
 
@@ -376,7 +445,8 @@ class FleetController extends Notifier<FleetState> {
     _staleTimer?.cancel();
     _staleTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!_mounted || state.vehicles.isEmpty) return;
-      _safeSetState(state.copyWith(vehicles: List<Vehicle>.from(state.vehicles)));
+      _safeSetState(
+          state.copyWith(vehicles: List<Vehicle>.from(state.vehicles)));
     });
   }
 
@@ -398,20 +468,23 @@ class FleetController extends Notifier<FleetState> {
     });
   }
 
-  Future<void> updateSettings(String vehicleId, {
+  Future<void> updateSettings(
+    String vehicleId, {
     double? overSpeedLimit,
     double? overspeedDurationAlert,
-    double? idleDurationAlert, double? stoppageThreshold, Map<String, bool>? alertConfig,
+    double? idleDurationAlert,
+    double? stoppageThreshold,
+    Map<String, bool>? alertConfig,
   }) async {
     try {
       await ref.read(vehicleRepositoryProvider).updateSettings(
-        vehicleId,
-        overSpeedLimit: overSpeedLimit,
-        overspeedDurationAlert: overspeedDurationAlert,
-        idleDurationAlert: idleDurationAlert,
-        stoppageThreshold: stoppageThreshold,
-        alertConfig: alertConfig,
-      );
+            vehicleId,
+            overSpeedLimit: overSpeedLimit,
+            overspeedDurationAlert: overspeedDurationAlert,
+            idleDurationAlert: idleDurationAlert,
+            stoppageThreshold: stoppageThreshold,
+            alertConfig: alertConfig,
+          );
       // Reload fleet so changes reflect instantly in UI
       await load(silent: true);
     } catch (e) {
@@ -423,6 +496,8 @@ class FleetController extends Notifier<FleetState> {
   void clear() {
     detachSocket();
     _staleTimer?.cancel();
+    _vehiclesById.clear();
+    _identifierToVehicleId.clear();
     state = const FleetState();
   }
 }

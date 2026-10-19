@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/network/api_exception.dart';
@@ -8,7 +7,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/models/geofence.dart';
 import '../../data/models/vehicle.dart';
-import '../../providers/core_providers.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -56,7 +54,12 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
   String _color = '#4F6BFF';
 
   static const List<String> _palette = <String>[
-    '#4F6BFF', '#22D3EE', '#22C55E', '#F59E0B', '#FF4D6D', '#A78BFA',
+    '#4F6BFF',
+    '#22D3EE',
+    '#22C55E',
+    '#F59E0B',
+    '#FF4D6D',
+    '#A78BFA',
   ];
 
   @override
@@ -118,13 +121,13 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
     _center = newCenter;
     final String latStr = newCenter.latitude.toStringAsFixed(6);
     final String lngStr = newCenter.longitude.toStringAsFixed(6);
-    
+
     _latController.removeListener(_onCoordinateInputChanged);
     _lngController.removeListener(_onCoordinateInputChanged);
-    
+
     _latController.text = latStr;
     _lngController.text = lngStr;
-    
+
     _latController.addListener(_onCoordinateInputChanged);
     _lngController.addListener(_onCoordinateInputChanged);
 
@@ -143,7 +146,7 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
         break;
       }
     }
-    
+
     if (bestLoc != null) {
       _updateCenter(bestLoc, moveMap: true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +174,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
     }
     if (_shape == GeofenceShape.polygon && _polygonPoints.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A polygon geofence must have at least 3 points.')),
+        const SnackBar(
+            content: Text('A polygon geofence must have at least 3 points.')),
       );
       return;
     }
@@ -184,10 +188,14 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
               id: '',
               name: _name.text.trim(),
               shape: _shape,
-              centerLat: _shape == GeofenceShape.circle ? _center.latitude : null,
-              centerLng: _shape == GeofenceShape.circle ? _center.longitude : null,
+              centerLat:
+                  _shape == GeofenceShape.circle ? _center.latitude : null,
+              centerLng:
+                  _shape == GeofenceShape.circle ? _center.longitude : null,
               radiusMeters: _shape == GeofenceShape.circle ? _radius : 200,
-              points: _shape == GeofenceShape.polygon ? _polygonPoints : const <LatLng>[],
+              points: _shape == GeofenceShape.polygon
+                  ? _polygonPoints
+                  : const <LatLng>[],
               colorHex: _color,
               alertOnEnter: _onEnter,
               alertOnExit: _onExit,
@@ -240,7 +248,6 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
               ],
             ),
           ),
-
           Expanded(
             child: ListView(
               controller: scroll,
@@ -263,7 +270,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                                 : theme.colorScheme.outline,
                           ),
                         ),
-                        onPressed: () => setState(() => _shape = GeofenceShape.circle),
+                        onPressed: () =>
+                            setState(() => _shape = GeofenceShape.circle),
                         icon: const Icon(Icons.circle_outlined),
                         label: const Text('Circle'),
                       ),
@@ -281,7 +289,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                                 : theme.colorScheme.outline,
                           ),
                         ),
-                        onPressed: () => setState(() => _shape = GeofenceShape.polygon),
+                        onPressed: () =>
+                            setState(() => _shape = GeofenceShape.polygon),
                         icon: const Icon(Icons.hexagon_outlined),
                         label: const Text('Polygon'),
                       ),
@@ -300,11 +309,14 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                       alignment: Alignment.center,
                       children: <Widget>[
                         AppMap(
-                          mapType: MapStyleX.fromKey(ref.read(secureStoreProvider).mapType).name,
+                          mapType: MapStyleX.fromKey(
+                                  ref.read(secureStoreProvider).mapType)
+                              .name,
                           apiKey: ref.read(authProvider).user?.apiKey,
                           initialCenter: _center,
                           initialZoom: 14.5,
-                          onMapCreated: (controller) => _map.setInner(controller),
+                          onMapCreated: (controller) =>
+                              _map.setInner(controller),
                           onTap: (LatLng point) {
                             if (_shape == GeofenceShape.circle) {
                               _updateCenter(point, moveMap: true);
@@ -320,17 +332,20 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                                 id: 'edit_circle',
                                 center: _center,
                                 radiusMeters: _radius,
-                                fillColor: _parseColor(_color).withOpacity(0.15),
+                                fillColor:
+                                    _parseColor(_color).withOpacity(0.15),
                                 strokeColor: _parseColor(_color),
                                 strokeWidth: 2,
                               ),
                           ],
                           polygons: [
-                            if (_shape == GeofenceShape.polygon && _polygonPoints.isNotEmpty)
+                            if (_shape == GeofenceShape.polygon &&
+                                _polygonPoints.isNotEmpty)
                               AppPolygon(
                                 id: 'edit_polygon',
                                 points: _polygonPoints,
-                                fillColor: _parseColor(_color).withOpacity(0.15),
+                                fillColor:
+                                    _parseColor(_color).withOpacity(0.15),
                                 strokeColor: _parseColor(_color),
                                 strokeWidth: 2,
                               ),
@@ -367,7 +382,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                                       decoration: BoxDecoration(
                                         color: _parseColor(_color),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 2),
+                                        border: Border.all(
+                                            color: Colors.white, width: 2),
                                       ),
                                       child: Center(
                                         child: Text(
@@ -473,10 +489,12 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                     Expanded(
                       child: TextField(
                         controller: _latController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: const InputDecoration(
                           labelText: 'Latitude',
-                          contentPadding: EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: Gap.md, vertical: Gap.sm),
                         ),
                       ),
                     ),
@@ -484,10 +502,12 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                     Expanded(
                       child: TextField(
                         controller: _lngController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: const InputDecoration(
                           labelText: 'Longitude',
-                          contentPadding: EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: Gap.md, vertical: Gap.sm),
                         ),
                       ),
                     ),
@@ -566,10 +586,12 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: vehicles.length,
-                    separatorBuilder: (BuildContext context, int index) => const Divider(height: 1),
+                    separatorBuilder: (BuildContext context, int index) =>
+                        const Divider(height: 1),
                     itemBuilder: (BuildContext context, int index) {
                       final Vehicle vehicle = vehicles[index];
-                      final bool isSelected = _selectedVehicleIds.contains(vehicle.id);
+                      final bool isSelected =
+                          _selectedVehicleIds.contains(vehicle.id);
                       return CheckboxListTile(
                         value: isSelected,
                         onChanged: (bool? checked) {
@@ -588,7 +610,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                               : 'No plate number',
                         ),
                         secondary: const Icon(Icons.directions_car_rounded),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: Gap.md),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: Gap.md),
                       );
                     },
                   ),
@@ -597,7 +620,8 @@ class _GeofenceEditorSheetState extends ConsumerState<GeofenceEditorSheet> {
                 const SizedBox(height: Gap.xl),
 
                 FilledButton(
-                  onPressed: (!_saving && _name.text.trim().isNotEmpty) ? _save : null,
+                  onPressed:
+                      (!_saving && _name.text.trim().isNotEmpty) ? _save : null,
                   child: _saving
                       ? const SizedBox(
                           width: 20,
