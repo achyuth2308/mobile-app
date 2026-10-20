@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/report_models.dart';
 import '../../../data/models/vehicle.dart';
-import '../../../providers/fleet_provider.dart';
 
 /// Async cell that fetches and displays the reverse-geocoded address.
 class AddressCell extends StatefulWidget {
@@ -834,7 +832,7 @@ class OverspeedingReportTable extends StatelessWidget {
                   runSpacing: 6,
                   children: <Widget>[
                     Text(
-                      'Vehicle Name : $vehicleName',
+                      'Vehicle : $vehicleName',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -1051,7 +1049,7 @@ class StoppageReportTable extends StatelessWidget {
                   runSpacing: 6,
                   children: <Widget>[
                     Text(
-                      'Vehicle Name : $vehicleName',
+                      'Vehicle : $vehicleName',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -1270,7 +1268,7 @@ class IdleReportTable extends StatelessWidget {
                   runSpacing: 6,
                   children: <Widget>[
                     Text(
-                      'Vehicle Name : $vehicleName',
+                      'Vehicle : $vehicleName',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -1436,24 +1434,26 @@ class IndividualReportTable extends StatelessWidget {
       child: Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         columnWidths: const <int, TableColumnWidth>{
-          0: FixedColumnWidth(150), // Vehicle Name
-          1: FixedColumnWidth(120), // Plate
-          2: FixedColumnWidth(140), // Total Distance
-          3: FixedColumnWidth(140), // Running Time
-          4: FixedColumnWidth(140), // Idle Time
-          5: FixedColumnWidth(120), // Trip Count
-          6: FixedColumnWidth(120), // Stoppages
-          7: FixedColumnWidth(130), // Overspeeding
+          0: FixedColumnWidth(140), // Plate
+          1: FixedColumnWidth(140), // Total Distance
+          2: FixedColumnWidth(140), // Running Time
+          3: FixedColumnWidth(140), // Idle Time
+          4: FixedColumnWidth(140), // Stoppage Time
+          5: FixedColumnWidth(140), // Total Time
+          6: FixedColumnWidth(120), // Trip Count
+          7: FixedColumnWidth(120), // Stoppages
+          8: FixedColumnWidth(130), // Overspeeding
         },
         children: <TableRow>[
           const TableRow(
             decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
             children: <Widget>[
-              TableHeaderCell('Vehicle Name'),
               TableHeaderCell('Plate'),
               TableHeaderCell('Total Distance'),
               TableHeaderCell('Running Time'),
               TableHeaderCell('Idle Time'),
+              TableHeaderCell('Stoppage Time'),
+              TableHeaderCell('Total Time'),
               TableHeaderCell('Trip Count'),
               TableHeaderCell('Stoppages'),
               TableHeaderCell('Overspeeding'),
@@ -1468,19 +1468,11 @@ class IndividualReportTable extends StatelessWidget {
               decoration: BoxDecoration(color: rowColor),
               children: <Widget>[
                 TableDataCell(
-                  text: r.vehicleName ?? fallbackVehicleName ?? '-',
+                  text: r.plate?.isNotEmpty == true ? r.plate! : (r.vehicleName ?? fallbackPlate ?? fallbackVehicleName ?? '-'),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF111827),
-                  ),
-                ),
-                TableDataCell(
-                  text: r.plate ?? fallbackPlate ?? '-',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF475569),
                   ),
                 ),
                 TableDataCell(
@@ -1492,7 +1484,7 @@ class IndividualReportTable extends StatelessWidget {
                   ),
                 ),
                 TableDataCell(
-                  text: '${r.runningMins} mins',
+                  text: Fmt.secsToHms(r.runningSeconds),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1500,11 +1492,27 @@ class IndividualReportTable extends StatelessWidget {
                   ),
                 ),
                 TableDataCell(
-                  text: '${r.idleMins} mins',
+                  text: Fmt.secsToHms(r.idleSeconds),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFFF59E0B),
+                  ),
+                ),
+                TableDataCell(
+                  text: Fmt.secsToHms(r.stoppedSeconds),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFEA580C),
+                  ),
+                ),
+                TableDataCell(
+                  text: Fmt.secsToHms(r.totalSeconds),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2563EB),
                   ),
                 ),
                 TableDataCell(
@@ -1674,16 +1682,16 @@ class ConsolidatedReportTable extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     _buildStat('DISTANCE', '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km'),
-                    _buildStat('RUNNING TIME', '${r.runningMins}m'),
-                    _buildStat('STOPPING TIME', '${r.stoppedMins}m'),
+                    _buildStat('RUNNING TIME', Fmt.secsToHms(r.runningSeconds)),
+                    _buildStat('STOPPING TIME', Fmt.secsToHms(r.stoppedSeconds)),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    _buildStat('IDLE TIME', '${r.idleMins}m'),
-                    _buildStat('ENGINE ON', '${r.engineOnHours.toStringAsFixed(1)} h'),
+                    _buildStat('IDLE TIME', Fmt.secsToHms(r.idleSeconds)),
+                    _buildStat('ENGINE ON', Fmt.secsToHms((r.runningSeconds ?? 0) + (r.idleSeconds ?? 0))),
                     const SizedBox(width: 100), // spacer alignment
                   ],
                 ),
@@ -1691,9 +1699,9 @@ class ConsolidatedReportTable extends StatelessWidget {
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 12),
 
-                // 2. Fuel Details
+                // 2. Activity & Driving Summary
                 const Text(
-                  'FUEL & EFFICIENCY',
+                  'ACTIVITY & EVENTS',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
@@ -1705,29 +1713,22 @@ class ConsolidatedReportTable extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    _buildStat('START FUEL', r.startFuel != null ? '${r.startFuel!.toStringAsFixed(1)} L' : '-'),
-                    _buildStat('END FUEL', r.endFuel != null ? '${r.endFuel!.toStringAsFixed(1)} L' : '-'),
-                    _buildStat('CONSUMPTION', r.consumption != null ? '${r.consumption!.toStringAsFixed(1)} L' : '-'),
+                    _buildStat('TOTAL TRIPS', '${r.tripCount}'),
+                    _buildStat('STOPPAGES', '${r.stoppageCount}'),
+                    _buildStat('OVERSPEEDS', '${r.overspeedingCount}'),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    _buildStat('FILLING', r.filling != null ? '${r.filling!.toStringAsFixed(1)} L' : '-'),
-                    _buildStat('THEFT / DRAIN', r.theft != null ? '${r.theft!.toStringAsFixed(1)} L' : '-'),
-                    _buildStat('KMPL', r.kmpl != null ? '${r.kmpl!.toStringAsFixed(1)} km/l' : '-'),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    _buildStat('LPH', r.lph != null ? '${r.lph!.toStringAsFixed(1)} L/h' : '-'),
-                    const SizedBox(width: 100), // spacer alignment
-                    const SizedBox(width: 100), // spacer alignment
-                  ],
-                ),
+                if (r.maxSpeedVal != null || r.avgSpeedVal != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      _buildStat('MAX SPEED', r.maxSpeedVal != null ? '${r.maxSpeedVal!.toStringAsFixed(0)} km/h' : '-'),
+                      _buildStat('AVG SPEED', r.avgSpeedVal != null ? '${r.avgSpeedVal!.toStringAsFixed(0)} km/h' : '-'),
+                      const SizedBox(width: 100),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 14),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 12),
@@ -1816,7 +1817,331 @@ class ConsolidatedReportTable extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// 8. GENERIC REPORT TABLE (Fallback)
+// 8. FUEL CONSOLIDATED REPORT TABLE
+// ═════════════════════════════════════════════════════════════════
+class FuelConsolidatedReportTable extends StatelessWidget {
+  const FuelConsolidatedReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No fuel records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    final String dateText = '${Fmt.dateTimeFilter(startDate)}  →  ${Fmt.dateTimeFilter(endDate)}';
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: rows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = rows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFFED7AA)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Header (Vehicle Name & Fuel Consolidated Tag)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            vName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Plate: $vPlate',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFFEDD5)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.local_gas_station_rounded,
+                            size: 13,
+                            color: Color(0xFFEA580C),
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Fuel Consolidated',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFEA580C),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Period: $dateText',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                const SizedBox(height: 12),
+
+                // 1. Fuel Inventory & Usage
+                const Text(
+                  'FUEL INVENTORY & USAGE',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFEA580C),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat(
+                      'START FUEL',
+                      r.startFuel != null ? '${r.startFuel!.toStringAsFixed(1)} L' : '-',
+                    ),
+                    _buildStat(
+                      'END FUEL',
+                      r.endFuel != null ? '${r.endFuel!.toStringAsFixed(1)} L' : '-',
+                    ),
+                    _buildStat(
+                      'CONSUMPTION',
+                      r.consumption != null ? '${r.consumption!.toStringAsFixed(1)} L' : '-',
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                const SizedBox(height: 12),
+
+                // 2. Refuels & Drain Alerts
+                const Text(
+                  'REFUELS & THEFT / DRAIN ALERTS',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFEA580C),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat(
+                      'FUEL FILLED',
+                      r.filling != null && r.filling! > 0
+                          ? '+${r.filling!.toStringAsFixed(1)} L'
+                          : (r.filling != null ? '${r.filling!.toStringAsFixed(1)} L' : '-'),
+                      color: r.filling != null && r.filling! > 0
+                          ? const Color(0xFF16A34A)
+                          : null,
+                    ),
+                    _buildStat(
+                      'THEFT / DRAIN',
+                      r.theft != null && r.theft! > 0
+                          ? '${r.theft!.toStringAsFixed(1)} L'
+                          : (r.theft != null ? '${r.theft!.toStringAsFixed(1)} L' : '-'),
+                      color: r.theft != null && r.theft! > 0
+                          ? const Color(0xFFDC2626)
+                          : null,
+                    ),
+                    _buildStat(
+                      'ENGINE RUN',
+                      Fmt.secsToHms((r.runningSeconds ?? 0) + (r.idleSeconds ?? 0)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                const SizedBox(height: 12),
+
+                // 3. Efficiency & Metrics
+                const Text(
+                  'EFFICIENCY & PERFORMANCE',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFEA580C),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    _buildStat(
+                      'MILEAGE',
+                      r.kmpl != null ? '${r.kmpl!.toStringAsFixed(1)} km/l' : '-',
+                      color: const Color(0xFF0284C7),
+                    ),
+                    _buildStat(
+                      'HOURLY (LPH)',
+                      r.lph != null ? '${r.lph!.toStringAsFixed(1)} L/h' : '-',
+                    ),
+                    _buildStat(
+                      'DISTANCE',
+                      '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
+                    ),
+                  ],
+                ),
+                if (r.fromLocation != null || r.toLocation != null || r.startLat != null) ...<Widget>[
+                  const SizedBox(height: 14),
+                  const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'LOCATION BOUNDS',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFEA580C),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (r.fromLocation != null || r.startLat != null)
+                    _buildLocationRow(context, 'Start Location', r.fromLocation, r.startLat, r.startLng),
+                  if (r.toLocation != null || r.endLat != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    _buildLocationRow(context, 'End Location', r.toLocation, r.endLat, r.endLng),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStat(String label, String value, {Color? color}) {
+    return SizedBox(
+      width: 100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color ?? const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationRow(
+    BuildContext context,
+    String label,
+    String? address,
+    double? lat,
+    double? lng,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        Expanded(
+          child: AddressCell(
+            lat: lat,
+            lng: lng,
+            fallback: address,
+            maxWidth: double.infinity,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 9. GENERIC REPORT TABLE (Fallback)
 // ═════════════════════════════════════════════════════════════════
 class GenericReportTable extends StatelessWidget {
   const GenericReportTable({required this.result, super.key});

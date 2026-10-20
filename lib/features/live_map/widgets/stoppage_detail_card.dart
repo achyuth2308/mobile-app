@@ -16,15 +16,7 @@ class StoppageDetailCard extends StatelessWidget {
   final ReportRow stoppage;
   final int stopNumber;
 
-  String _formatDuration(int seconds) {
-    final d = Duration(seconds: seconds);
-    final hours = d.inHours;
-    final minutes = d.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
-  }
+  String _formatDuration(int seconds) => Fmt.secsToHms(seconds);
 
   void _openGoogleMaps() async {
     final lat = stoppage.startLat ?? stoppage.endLat;

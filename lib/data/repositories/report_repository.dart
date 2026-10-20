@@ -29,6 +29,7 @@ class ReportRepository {
     // Per-vehicle parallel calls would only return 1 row each, causing missing vehicles.
     final bool isFleetWideParallel = vehicleId == null &&
         type != ReportType.consolidated &&
+        type != ReportType.fuelConsolidated &&
         type != ReportType.individual &&
         type != ReportType.routeHistory;
 
@@ -52,9 +53,9 @@ class ReportRepository {
                 cancelToken: cancelToken,
               );
 
-              // Filter row matching this vehicle (only for Consolidated)
+              // Filter row matching this vehicle (only for Consolidated & Fuel Consolidated)
               ReportResult filteredRes = res;
-              if (type == ReportType.consolidated) {
+              if (type == ReportType.consolidated || type == ReportType.fuelConsolidated) {
                 final List<ReportRow> matchingRows = res.rows.where((ReportRow row) =>
                   row.vehicleId == id ||
                   row.vehicleName == vehicle?.displayName ||
@@ -112,7 +113,7 @@ class ReportRepository {
     );
 
     // Fallback: only for non-consolidated report types
-    if (type != ReportType.consolidated && type != ReportType.individual &&
+    if (type != ReportType.consolidated && type != ReportType.fuelConsolidated && type != ReportType.individual &&
         vehicleId == null && singleRes.rows.isEmpty && vehicles.isNotEmpty) {
       final List<ReportResult> results = (await Future.wait(
         vehicles.map((Vehicle v) async {
@@ -175,9 +176,9 @@ class ReportRepository {
   }) async {
     ReportResult processedRes = res;
 
-    // 1. CONSOLIDATED — backend already returns start_lat/end_lat/start_lng/end_lng.
+    // 1. CONSOLIDATED & FUEL CONSOLIDATED — backend already returns coordinates/fuel.
     // Just pass through. No extra trip fetch needed.
-    if (type == ReportType.consolidated) {
+    if (type == ReportType.consolidated || type == ReportType.fuelConsolidated) {
       // Nothing to do — coordinates are already in the rows from the backend.
       // The AddressCell widget will reverse-geocode them automatically.
     }
@@ -331,11 +332,11 @@ class ReportRepository {
     );
 
     dynamic filteredRes = res;
-    if (vehicleId != null && type != ReportType.consolidated) {
+    if (vehicleId != null && type != ReportType.consolidated && type != ReportType.fuelConsolidated) {
       filteredRes = _filterPayloadByVehicle(res, vehicleId);
     }
 
-    if (vehicle != null && type != ReportType.consolidated) {
+    if (vehicle != null && type != ReportType.consolidated && type != ReportType.fuelConsolidated) {
       _injectVehicleDetails(filteredRes, vehicle);
     }
 

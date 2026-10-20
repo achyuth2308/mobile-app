@@ -355,7 +355,7 @@ class _TripCard extends StatelessWidget {
                     const SizedBox(width: Gap.md),
                     _Stat(
                       icon: Icons.calendar_today_rounded,
-                      value: DateFormat('d MMM, HH:mm').format(trip.startTime!),
+                      value: DateFormat('d MMM, HH:mm:ss').format(trip.startTime!),
                     ),
                   ],
                   const Spacer(),

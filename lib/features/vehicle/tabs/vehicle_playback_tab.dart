@@ -47,26 +47,9 @@ class StoppageEvent {
   final String? address;
   final bool isOngoing;
 
-  String get durationString {
-    final int hours = duration.inHours;
-    final int mins = duration.inMinutes.remainder(60);
-    final int secs = duration.inSeconds.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${mins}m ${secs}s';
-    }
-    if (mins > 0) {
-      return '${mins}m ${secs}s';
-    }
-    return '${secs}s';
-  }
+  String get durationString => Fmt.durationHms(duration);
 
-  String get compactDuration {
-    final int hours = duration.inHours;
-    final int mins = duration.inMinutes.remainder(60);
-    if (hours > 0) return '${hours}h ${mins}m';
-    if (mins > 0) return '${mins}m';
-    return '${duration.inSeconds}s';
-  }
+  String get compactDuration => Fmt.durationHms(duration);
 }
 
 /// Convert any local or UTC DateTime to IST and represent as a UTC DateTime
@@ -661,7 +644,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (newStart.isAfter(_range.end)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Start date must be before end time')),
+          const SnackBar(content: Text('From date must be before end time')),
         );
       }
       return;
@@ -702,7 +685,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (newEnd.isBefore(_range.start)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('End date must be after start time')),
+          const SnackBar(content: Text('To date must be after start time')),
         );
       }
       return;
@@ -1351,13 +1334,13 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               ),
               const SizedBox(height: 36),
               
-              // Start and End Date row
+              // From Date and Start Time row
               Row(
                 children: <Widget>[
                   Expanded(
                     child: _buildSelectionButton(
                       icon: Icons.calendar_today_rounded,
-                      label: 'Start Date',
+                      label: 'From Date',
                       value: _formatDateShort(_range.start),
                       onTap: _pickStartDate,
                       theme: theme,
@@ -1371,13 +1354,13 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSelectionButton(
-                      icon: Icons.event_rounded,
-                      label: 'End Date',
-                      value: _formatDateShort(_range.end),
-                      onTap: _pickEndDate,
+                      icon: Icons.access_time_rounded,
+                      label: 'Start Time',
+                      value: _formatTime(_range.start),
+                      onTap: _pickStartTime,
                       theme: theme,
                       gradient: LinearGradient(
-                        colors: [Colors.purple.shade400, Colors.purple.shade800],
+                        colors: [Colors.orange.shade400, Colors.orange.shade800],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -1387,18 +1370,18 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               ),
               const SizedBox(height: 16),
               
-              // Time pickers row
+              // To Date and End Time row
               Row(
                 children: <Widget>[
                   Expanded(
                     child: _buildSelectionButton(
-                      icon: Icons.access_time_rounded,
-                      label: 'Start Time',
-                      value: _formatTime(_range.start),
-                      onTap: _pickStartTime,
+                      icon: Icons.event_rounded,
+                      label: 'To Date',
+                      value: _formatDateShort(_range.end),
+                      onTap: _pickEndDate,
                       theme: theme,
                       gradient: LinearGradient(
-                        colors: [Colors.orange.shade400, Colors.orange.shade800],
+                        colors: [Colors.purple.shade400, Colors.purple.shade800],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -2907,18 +2890,7 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
   Widget build(BuildContext context) {
     final StoppageEvent? stop = widget.stoppage;
     final Duration dur = stop?.duration ?? Duration.zero;
-    
-    String formattedDur = '0s';
-    if (dur > Duration.zero) {
-      final int hours = dur.inHours;
-      final int mins = dur.inMinutes.remainder(60);
-      final int secs = dur.inSeconds.remainder(60);
-      if (hours > 0) {
-        formattedDur = '${hours.toString().padLeft(2, '0')}h ${mins.toString().padLeft(2, '0')}m';
-      } else {
-        formattedDur = '${mins.toString().padLeft(2, '0')}m ${secs.toString().padLeft(2, '0')}s';
-      }
-    }
+    final String formattedDur = Fmt.durationHms(dur);
 
     final String stoppedAt = stop != null ? _toIstString(stop.startTime, Fmt.time) : '—';
 

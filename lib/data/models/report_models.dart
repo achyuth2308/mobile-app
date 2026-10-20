@@ -13,6 +13,7 @@ enum ReportType {
   stoppages,
   idle,
   consolidated,
+  fuelConsolidated,
   individual,
   manualTrip,
 }
@@ -28,6 +29,7 @@ extension ReportTypeX on ReportType {
         ReportType.stoppages => '/reports/stoppages',
         ReportType.idle => '/reports/stoppages',
         ReportType.consolidated => '/reports/consolidated',
+        ReportType.fuelConsolidated => '/reports/consolidated',
         ReportType.individual => '/reports/individual',
         ReportType.manualTrip => '/trips',
       };
@@ -42,6 +44,7 @@ extension ReportTypeX on ReportType {
         ReportType.stoppages => 'Stoppage Report',
         ReportType.idle => 'Idle Report',
         ReportType.consolidated => 'Consolidated',
+        ReportType.fuelConsolidated => 'Fuel Consolidated',
         ReportType.individual => 'Individual Summary',
         ReportType.manualTrip => 'Manual Trips',
       };
@@ -55,7 +58,8 @@ extension ReportTypeX on ReportType {
         ReportType.overspeeding => 'Every breach of the configured speed limit',
         ReportType.stoppages => 'Where and how long vehicles stayed parked',
         ReportType.idle => 'Engine running while stationary — wasted fuel',
-        ReportType.consolidated => 'Whole-fleet totals in a single sheet',
+        ReportType.consolidated => 'Whole-fleet operational totals in a single sheet',
+        ReportType.fuelConsolidated => 'Whole-fleet fuel consumption, refuels, thefts and mileage',
         ReportType.individual => 'Deep-dive summary for one vehicle',
         ReportType.manualTrip => 'Pre-planned and manually tracked trips',
       };
@@ -156,8 +160,67 @@ class ReportRow extends Equatable {
     }
     return null;
   }
-  int? get idleSeconds => asDoubleOrNull(raw, <String>['idle_seconds', 'idleSeconds', 'idleTime'])?.round();
-  int? get stoppedSeconds => asDoubleOrNull(raw, <String>['stopped_seconds', 'stoppedSeconds', 'stoppedTime'])?.round();
+  int? get idleSeconds => asDoubleOrNull(raw, <String>[
+        'idle_seconds',
+        'idleSeconds',
+        'idleTime',
+        'idle_time',
+      ])?.round();
+
+  int? get stoppedSeconds {
+    final int? s = asDoubleOrNull(raw, <String>[
+      'stopped_seconds',
+      'stoppedSeconds',
+      'stoppedTime',
+      'stopped_time',
+      'stopping_time',
+      'stoppingTime',
+      'stopping_seconds',
+      'stoppingSeconds',
+      'stoppage_time',
+      'stoppageTime',
+      'stoppage_duration',
+      'stoppageDuration',
+      'stoppages_duration',
+      'parking_time',
+      'parkingTime',
+    ])?.round();
+    if (s != null && s > 0) return s;
+    final int? dur = asDoubleOrNull(raw, <String>[
+      'duration_seconds',
+      'durationSeconds',
+      'duration',
+      'total_duration',
+      'totalDuration',
+      'total_time',
+      'totalTime',
+    ])?.round();
+    if (dur != null && dur > 0) {
+      final int rem = dur - (runningSeconds ?? 0) - (idleSeconds ?? 0);
+      if (rem > 0) return rem;
+    }
+    return s;
+  }
+
+  int? get totalSeconds {
+    final int? dur = asDoubleOrNull(raw, <String>[
+      'total_time',
+      'totalTime',
+      'total_seconds',
+      'totalSeconds',
+      'total_duration',
+      'totalDuration',
+      'duration_seconds',
+      'durationSeconds',
+      'duration',
+    ])?.round();
+    if (dur != null && dur > 0) return dur;
+    final int run = runningSeconds ?? 0;
+    final int idle = idleSeconds ?? 0;
+    final int stop = stoppedSeconds ?? 0;
+    final int sum = run + idle + stop;
+    return sum > 0 ? sum : null;
+  }
 
   int get runningMins => runningSeconds != null ? (runningSeconds! / 60).floor() : 0;
   int get idleMins => idleSeconds != null ? (idleSeconds! / 60).floor() : 0;

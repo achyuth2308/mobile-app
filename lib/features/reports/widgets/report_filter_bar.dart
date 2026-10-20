@@ -72,6 +72,12 @@ class ReportFilterBar extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
+      case ReportType.fuelConsolidated:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFFFB923C), Color(0xFFEA580C)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
       case ReportType.individual:
       default:
         return const LinearGradient(
@@ -96,6 +102,8 @@ class ReportFilterBar extends ConsumerWidget {
         return const Color(0xFFD97706);
       case ReportType.consolidated:
         return const Color(0xFF16A34A);
+      case ReportType.fuelConsolidated:
+        return const Color(0xFFEA580C);
       case ReportType.individual:
       default:
         return const Color(0xFF2563EB);
@@ -347,7 +355,7 @@ class ReportFilterBar extends ConsumerWidget {
           ],
 
           // Inline Vehicle Picker
-          if (type != ReportType.consolidated) ...<Widget>[
+          if (type != ReportType.consolidated && type != ReportType.fuelConsolidated) ...<Widget>[
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -508,26 +516,6 @@ class ReportFilterBar extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickVehicle(BuildContext context, List<Vehicle> vehicles) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (BuildContext ctx) => _VehiclePickerSheet(
-        vehicles: vehicles,
-        selectedId: vehicleId,
-        allowAll: !requiresVehicle,
-        onSelect: (String? id) {
-          Navigator.of(ctx, rootNavigator: true).pop();
-          onVehicleChanged(id);
-        },
-      ),
-    );
-  }
 
   Future<void> _pickDateOrTime(BuildContext context) async {
     if (type == ReportType.trip) {

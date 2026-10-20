@@ -206,20 +206,7 @@ class VehiclePeekSheet extends ConsumerStatefulWidget {
   final VoidCallback onOpenDetails;
   final ScrollController? scrollController;
 
-  static String _formatDurationShort(Duration d) {
-    final hours = d.inHours;
-    final mins = d.inMinutes.remainder(60);
-    final secs = d.inSeconds.remainder(60);
-    if (hours > 0) {
-      return secs > 0
-          ? '${hours}h ${mins}m ${secs}s'
-          : (mins > 0 ? '${hours}h ${mins}m' : '${hours}h');
-    } else if (mins > 0) {
-      return secs > 0 ? '${mins}m ${secs}s' : '${mins}m';
-    } else {
-      return '${secs}s';
-    }
-  }
+  static String _formatDurationShort(Duration d) => Fmt.durationHms(d);
 
   static String _formatTimeRange(DateTime start, DateTime end) {
     return 'Today ${_formatTime(start)} - ${_formatTime(end)}';

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../core/utils/formatters.dart';
 import 'json_utils.dart';
 
 /// A user-defined trip created and managed through the Trips screen.
@@ -52,10 +53,7 @@ class UserTrip extends Equatable {
 
   String get durationLabel {
     final s = durationSecs ?? 0;
-    if (s == 0) return '–';
-    final h = s ~/ 3600;
-    final m = (s % 3600) ~/ 60;
-    return h > 0 ? '${h}h ${m}m' : '${m}m';
+    return Fmt.secsToHms(s);
   }
 
   String get distanceLabel => '${distanceKm.toStringAsFixed(1)} km';
@@ -66,8 +64,9 @@ class UserTrip extends Equatable {
     final String day = '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}';
     final String hour = (t.hour % 12 == 0 ? 12 : t.hour % 12).toString().padLeft(2, '0');
     final String min = t.minute.toString().padLeft(2, '0');
+    final String sec = t.second.toString().padLeft(2, '0');
     final String ampm = t.hour >= 12 ? 'PM' : 'AM';
-    return '$day $hour:$min $ampm';
+    return '$day $hour:$min:$sec $ampm';
   }
 
   String get formattedEndTime {
@@ -76,8 +75,9 @@ class UserTrip extends Equatable {
     final String day = '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}';
     final String hour = (t.hour % 12 == 0 ? 12 : t.hour % 12).toString().padLeft(2, '0');
     final String min = t.minute.toString().padLeft(2, '0');
+    final String sec = t.second.toString().padLeft(2, '0');
     final String ampm = t.hour >= 12 ? 'PM' : 'AM';
-    return '$day $hour:$min $ampm';
+    return '$day $hour:$min:$sec $ampm';
   }
 
   String get formattedTimeRange {

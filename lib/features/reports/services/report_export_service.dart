@@ -44,7 +44,7 @@ class ReportExportService {
 
       case ReportType.distance:
         tableData.add(<dynamic>[
-          'Vehicle Name',
+          'Vehicle',
           'Plate',
           'Org',
           'Date',
@@ -69,7 +69,7 @@ class ReportExportService {
 
       case ReportType.overspeeding:
         tableData.add(<dynamic>[
-          'Vehicle Name',
+          'Vehicle',
           'Date & Time',
           'OverSpeed (km/h)',
           'OverSpeed Duration',
@@ -97,7 +97,7 @@ class ReportExportService {
       case ReportType.stoppages:
       case ReportType.idle:
         tableData.add(<dynamic>[
-          'Vehicle Name',
+          'Vehicle',
           'Status',
           'Start Time',
           'End Time',
@@ -120,22 +120,24 @@ class ReportExportService {
 
       case ReportType.individual:
         tableData.add(<dynamic>[
-          'Vehicle Name',
           'Plate',
           'Total Distance (km)',
-          'Running Time',
-          'Idle Time',
+          'Running Time (HH:MM:SS)',
+          'Idle Time (HH:MM:SS)',
+          'Stoppage Time (HH:MM:SS)',
+          'Total Time (HH:MM:SS)',
           'Trip Count',
           'Stoppages',
           'Overspeeding',
         ]);
         for (final ReportRow r in rows) {
           tableData.add(<dynamic>[
-            r.vehicleName ?? '-',
-            r.plate ?? '-',
+            r.plate?.isNotEmpty == true ? r.plate! : (r.vehicleName ?? '-'),
             '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
-            '${r.runningMins} mins',
-            '${r.idleMins} mins',
+            Fmt.secsToHms(r.runningSeconds ?? r.runningMins * 60),
+            Fmt.secsToHms(r.idleSeconds ?? r.idleMins * 60),
+            Fmt.secsToHms(r.stoppedSeconds ?? r.stoppedMins * 60),
+            Fmt.secsToHms(r.totalSeconds),
             r.tripCount,
             r.stoppageCount,
             r.overspeedingCount,
@@ -145,20 +147,16 @@ class ReportExportService {
 
       case ReportType.consolidated:
         tableData.add(<dynamic>[
-          'Vehicle Name',
+          'Vehicle',
           'Plate',
           'Distance Travelled (km)',
-          'Running Time (mins)',
-          'Stopping Time (mins)',
-          'Idle Time (mins)',
-          'Engine On Hours',
-          'Starting Fuel (L)',
-          'Ending Fuel (L)',
-          'Consumption (L)',
-          'Filling (L)',
-          'Theft (L)',
-          'KMPL',
-          'LPH (L/h)',
+          'Running Time (HH:MM:SS)',
+          'Stopping Time (HH:MM:SS)',
+          'Idle Time (HH:MM:SS)',
+          'Engine On Time (HH:MM:SS)',
+          'Trip Count',
+          'Stoppage Count',
+          'Overspeeding Count',
           'From Location',
           'To Location',
         ]);
@@ -167,10 +165,37 @@ class ReportExportService {
             r.vehicleName ?? '-',
             r.plate ?? '-',
             r.distanceTravelled?.toStringAsFixed(1) ?? '0',
-            r.runningMins,
-            r.stoppedMins,
-            r.idleMins,
-            r.engineOnHours.toStringAsFixed(2),
+            Fmt.secsToHms(r.runningSeconds ?? r.runningMins * 60),
+            Fmt.secsToHms(r.stoppedSeconds ?? r.stoppedMins * 60),
+            Fmt.secsToHms(r.idleSeconds ?? r.idleMins * 60),
+            Fmt.secsToHms((r.engineOnHours * 3600).round()),
+            r.tripCount,
+            r.stoppageCount,
+            r.overspeedingCount,
+            r.fromLocation ?? '',
+            r.toLocation ?? '',
+          ]);
+        }
+        break;
+
+      case ReportType.fuelConsolidated:
+        tableData.add(<dynamic>[
+          'Vehicle',
+          'Plate',
+          'Starting Fuel (L)',
+          'Ending Fuel (L)',
+          'Consumption (L)',
+          'Filling (L)',
+          'Theft / Drain (L)',
+          'Mileage (km/L)',
+          'Hourly Consumption (L/h)',
+          'Distance Travelled (km)',
+          'Engine Run Time (HH:MM:SS)',
+        ]);
+        for (final ReportRow r in rows) {
+          tableData.add(<dynamic>[
+            r.vehicleName ?? '-',
+            r.plate ?? '-',
             r.startFuel?.toStringAsFixed(1) ?? '',
             r.endFuel?.toStringAsFixed(1) ?? '',
             r.consumption?.toStringAsFixed(1) ?? '',
@@ -178,8 +203,8 @@ class ReportExportService {
             r.theft?.toStringAsFixed(1) ?? '',
             r.kmpl?.toStringAsFixed(1) ?? '',
             r.lph?.toStringAsFixed(1) ?? '',
-            r.fromLocation ?? '',
-            r.toLocation ?? '',
+            r.distanceTravelled?.toStringAsFixed(1) ?? '0',
+            Fmt.secsToHms((r.engineOnHours * 3600).round()),
           ]);
         }
         break;

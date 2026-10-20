@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as ll;
 
+import '../../../core/utils/formatters.dart';
 import '../../../data/models/report_models.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/vehicle.dart';
@@ -173,10 +174,7 @@ class _GoogleLiveMapState extends State<GoogleLiveMap> {
       final lng = stop.startLng ?? stop.endLng;
       if (lat == null || lng == null) continue;
 
-      final int durationMins = ((stop.durationSecVal ?? 0) / 60).round();
-      final String durationSnippet = durationMins >= 60
-          ? '${durationMins ~/ 60}h ${durationMins % 60}m'
-          : '$durationMins mins';
+      final String durationSnippet = Fmt.secsToHms(stop.durationSecVal);
 
       markers.add(
         gm.Marker(

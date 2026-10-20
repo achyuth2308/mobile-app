@@ -62,6 +62,13 @@ const List<ReportTabMeta> kReportTabs = <ReportTabMeta>[
     bg: Color(0xFFF0FDF4),
   ),
   ReportTabMeta(
+    type: ReportType.fuelConsolidated,
+    title: 'Fuel Consolidated',
+    icon: Icons.local_gas_station_rounded,
+    color: Color(0xFFEA580C),
+    bg: Color(0xFFFFF7ED),
+  ),
+  ReportTabMeta(
     type: ReportType.individual,
     title: 'Individual',
     icon: Icons.person_rounded,

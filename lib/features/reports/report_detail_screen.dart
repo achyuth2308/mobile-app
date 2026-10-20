@@ -83,7 +83,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     if (_currentType == newType) return;
     setState(() {
       _currentType = newType;
-      if (newType == ReportType.consolidated) {
+      if (newType == ReportType.consolidated || newType == ReportType.fuelConsolidated) {
         _vehicleId = null;
       } else if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
         final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
@@ -564,6 +564,13 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         );
       case ReportType.consolidated:
         return ConsolidatedReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.fuelConsolidated:
+        return FuelConsolidatedReportTable(
           rows: res.rows,
           startDate: _startDate,
           endDate: _endDate,

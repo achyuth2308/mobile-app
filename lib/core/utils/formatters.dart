@@ -5,13 +5,13 @@ import 'package:intl/intl.dart';
 class Fmt {
   const Fmt._();
 
-  static final DateFormat _time = DateFormat('HH:mm');
+  static final DateFormat _time = DateFormat('HH:mm:ss');
   static final DateFormat _timeSec = DateFormat('HH:mm:ss');
   static final DateFormat _time12Sec = DateFormat('hh:mm:ss a');
   static final DateFormat _date = DateFormat('dd MMM yyyy');
   static final DateFormat _dateShort = DateFormat('dd MMM');
-  static final DateFormat _dateTime = DateFormat('dd MMM, HH:mm');
-  static final DateFormat _full = DateFormat('EEE, dd MMM yyyy • HH:mm');
+  static final DateFormat _dateTime = DateFormat('dd MMM, HH:mm:ss');
+  static final DateFormat _full = DateFormat('EEE, dd MMM yyyy • HH:mm:ss');
   static final DateFormat _iso = DateFormat('yyyy-MM-dd');
   static final DateFormat _webDate = DateFormat('dd-MM-yyyy');
   static final DateFormat _webDateTime = DateFormat('dd-MM-yyyy HH:mm:ss');
@@ -30,38 +30,36 @@ class Fmt {
   static String dateTimeFilter(DateTime? d) => d == null ? '—' : _webDateTimeFilter.format(d);
 
   /// Clock duration format "HH:mm:ss" matching web app (e.g. 00:07:38).
-  static String durationWeb(int? seconds) {
-    if (seconds == null || seconds < 0) return '00:00:00';
-    final int h = seconds ~/ 3600;
-    final int m = (seconds % 3600) ~/ 60;
-    final int s = seconds % 60;
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
+  static String durationWeb(int? seconds) => secsToHms(seconds);
 
-  /// Format duration for vehicle status since metrics: "24s", "4m 12s", "2h 15m", "3d 4h"
+  /// Format duration for vehicle status since metrics.
+  /// When >= 1 day: displays days-wise (e.g. "1d 2h 19m" or "3d").
+  /// When < 1 day: displays "hh:mm:ss" (e.g. "00:06:04").
   static String statusDuration(DateTime? d) {
     if (d == null) return '-';
     final Duration diff = DateTime.now().difference(d);
-    if (diff.isNegative) return '0s';
-
-    final int seconds = diff.inSeconds;
-    if (seconds < 60) return '${seconds}s';
-
-    final int minutes = diff.inMinutes;
-    if (minutes < 60) {
-      final int remSec = seconds % 60;
-      return remSec > 0 ? '${minutes}m ${remSec}s' : '${minutes}m';
-    }
-
-    final int hours = diff.inHours;
-    if (hours < 24) {
-      final int remMin = minutes % 60;
-      return remMin > 0 ? '${hours}h ${remMin}m' : '${hours}h';
-    }
+    if (diff.isNegative) return '00:00:00';
 
     final int days = diff.inDays;
-    final int remHours = hours % 24;
-    return remHours > 0 ? '${days}d ${remHours}h' : '${days}d';
+    final int hours = diff.inHours % 24;
+    final int minutes = diff.inMinutes % 60;
+    final int seconds = diff.inSeconds % 60;
+
+    if (days > 0) {
+      if (hours > 0 && minutes > 0) {
+        return '${days}d ${hours}h ${minutes}m';
+      } else if (hours > 0) {
+        return '${days}d ${hours}h';
+      } else if (minutes > 0) {
+        return '${days}d ${minutes}m';
+      }
+      return '${days}d';
+    }
+
+    final String hStr = hours.toString().padLeft(2, '0');
+    final String mStr = minutes.toString().padLeft(2, '0');
+    final String sStr = seconds.toString().padLeft(2, '0');
+    return '$hStr:$mStr:$sStr';
   }
 
   /// "just now", "4m ago", "2h ago", "3d ago" — the primary freshness signal
@@ -80,21 +78,28 @@ class Fmt {
     return '${(diff.inDays / 365).floor()}y ago';
   }
 
-  /// "2h 14m" — compact duration.
-  static String duration(Duration d) {
-    if (d.inSeconds <= 0) return '0m';
-    final int days = d.inDays;
-    final int hours = d.inHours % 24;
-    final int minutes = d.inMinutes % 60;
+  /// "hh:mm:ss" format for all durations.
+  static String duration(Duration d) => durationHms(d);
 
-    if (days > 0) return '${days}d ${hours}h';
-    if (hours > 0) return '${hours}h ${minutes}m';
-    if (minutes > 0) return '${minutes}m';
-    return '${d.inSeconds}s';
+  /// Converts raw seconds → "hh:mm:ss" (e.g. 3661 → "01:01:01").
+  /// Returns "00:00:00" for null/negative input.
+  static String secsToHms(int? seconds) {
+    if (seconds == null || seconds < 0) return '00:00:00';
+    final int h = seconds ~/ 3600;
+    final int m = (seconds % 3600) ~/ 60;
+    final int s = seconds % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Duration from a [Duration] object in "hh:mm:ss" format.
+  static String durationHms(Duration d) {
+    final int totalSeconds = d.inSeconds.abs();
+    return secsToHms(totalSeconds);
   }
 
   static String durationFromSeconds(int? seconds) =>
-      seconds == null ? '—' : duration(Duration(seconds: seconds));
+      secsToHms(seconds);
+
 
   /// Distance with adaptive precision: metres under 1 km.
   static String distance(double? km, {bool imperial = false}) {
