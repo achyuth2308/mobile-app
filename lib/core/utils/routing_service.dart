@@ -156,7 +156,7 @@ class RoutingService {
         .join(';');
 
     final String url =
-        'https://router.project-osrm.org/route/v1/driving/$coordString?overview=full&geometries=polyline';
+        'https://router.project-osrm.org/route/v1/driving/$coordString?overview=full&geometries=geojson';
 
     final Response<dynamic> res = await _dio.get(url);
     if (res.statusCode != 200 || res.data is! Map<String, dynamic>) return null;
@@ -168,14 +168,28 @@ class RoutingService {
     if (routes.isEmpty) return null;
 
     final Map<String, dynamic> route = routes.first as Map<String, dynamic>;
-    final String? geometry = route['geometry']?.toString();
-    if (geometry == null || geometry.isEmpty) return null;
+    final dynamic geometry = route['geometry'];
+    List<LatLng> points = <LatLng>[];
 
-    List<LatLng> points = decodePolyline(geometry);
+    if (geometry is Map<String, dynamic> && geometry['coordinates'] is List) {
+      final List<dynamic> rawCoords = geometry['coordinates'] as List<dynamic>;
+      for (final dynamic coord in rawCoords) {
+        if (coord is List && coord.length >= 2) {
+          final double lon = (coord[0] as num).toDouble();
+          final double lat = (coord[1] as num).toDouble();
+          if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+            points.add(LatLng(lat, lon));
+          }
+        }
+      }
+    } else if (geometry is String && geometry.isNotEmpty) {
+      points = decodePolyline(geometry);
+    }
+
     if (points.isEmpty) return null;
 
     if (points.length > 500) {
-      points = _simplify(points, epsilonMeters: 6.0);
+      points = _simplify(points, epsilonMeters: 8.0);
     }
 
     final num distMeters = (route['distance'] as num?) ?? 0;
@@ -227,12 +241,16 @@ class RoutingService {
       final int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
       lng += dlng;
 
-      poly.add(LatLng(lat / 1e5, lng / 1e5));
+      final double latitude = lat / 1e5;
+      final double longitude = lng / 1e5;
+      if (latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) {
+        poly.add(LatLng(latitude, longitude));
+      }
     }
     return poly;
   }
 
-  static List<LatLng> _simplify(List<LatLng> pts, {double epsilonMeters = 6.0}) {
+  static List<LatLng> _simplify(List<LatLng> pts, {double epsilonMeters = 8.0}) {
     if (pts.length <= 2) return pts;
     final List<List<double>> raw =
         pts.map((LatLng p) => <double>[p.latitude, p.longitude]).toList();
