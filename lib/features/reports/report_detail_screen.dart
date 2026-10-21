@@ -36,6 +36,14 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   ReportResult? _result;
   bool _loading = false;
   String? _error;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -83,9 +91,9 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     if (_currentType == newType) return;
     setState(() {
       _currentType = newType;
-      if (newType == ReportType.consolidated || newType == ReportType.fuelConsolidated) {
-        _vehicleId = null;
-      } else if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
+      _searchController.clear();
+      _searchQuery = '';
+      if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
         final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
         if (vehicles.isNotEmpty) {
           _vehicleId = vehicles.first.id;
@@ -148,13 +156,44 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       return;
     }
 
+    final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+    final String q = _searchQuery.trim().toLowerCase();
+    final List<ReportRow> rowsToExport = q.isEmpty
+        ? res.rows
+        : res.rows.where((ReportRow row) {
+            final String? vId = row.vehicleId;
+            final Vehicle? v = vId != null
+                ? vehicles.where((veh) => veh.id == vId).firstOrNull
+                : null;
+            final String vName = (row.vehicleName ?? v?.displayName ?? '').toLowerCase();
+            final String vPlate = (row.plate ?? v?.registrationNumber ?? '').toLowerCase();
+            final String vRawName = (v?.name ?? '').toLowerCase();
+            final String org = (row.orgName ?? '').toLowerCase();
+            final String driver = (row.driverName ?? '').toLowerCase();
+            final String idStr = (vId ?? '').toLowerCase();
+
+            return vName.contains(q) ||
+                vPlate.contains(q) ||
+                vRawName.contains(q) ||
+                org.contains(q) ||
+                driver.contains(q) ||
+                idStr.contains(q);
+          }).toList();
+
+    if (rowsToExport.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No matching records to export.')),
+      );
+      return;
+    }
+
     try {
       if (format == 'csv') {
-        await ReportExportService.exportCsv(type: _currentType, rows: res.rows);
+        await ReportExportService.exportCsv(type: _currentType, rows: rowsToExport);
       } else if (format == 'excel') {
-        await ReportExportService.exportExcel(type: _currentType, rows: res.rows);
+        await ReportExportService.exportExcel(type: _currentType, rows: rowsToExport);
       } else {
-        await ReportExportService.exportPdf(type: _currentType, rows: res.rows);
+        await ReportExportService.exportPdf(type: _currentType, rows: rowsToExport);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -179,8 +218,34 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
     final ReportResult? res = _result;
-    final int recordCount = res?.rows.length ?? 0;
+    final List<ReportRow> allRows = res?.rows ?? const <ReportRow>[];
+    final String q = _searchQuery.trim().toLowerCase();
+    final List<ReportRow> displayRows = q.isEmpty
+        ? allRows
+        : allRows.where((ReportRow row) {
+            final String? vId = row.vehicleId;
+            final Vehicle? v = vId != null
+                ? vehicles.where((veh) => veh.id == vId).firstOrNull
+                : null;
+            final String vName = (row.vehicleName ?? v?.displayName ?? '').toLowerCase();
+            final String vPlate = (row.plate ?? v?.registrationNumber ?? '').toLowerCase();
+            final String vRawName = (v?.name ?? '').toLowerCase();
+            final String org = (row.orgName ?? '').toLowerCase();
+            final String driver = (row.driverName ?? '').toLowerCase();
+            final String idStr = (vId ?? '').toLowerCase();
+
+            return vName.contains(q) ||
+                vPlate.contains(q) ||
+                vRawName.contains(q) ||
+                org.contains(q) ||
+                driver.contains(q) ||
+                idStr.contains(q);
+          }).toList();
+
+    final int totalCount = allRows.length;
+    final int displayCount = displayRows.length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), // Subtle light background like web
@@ -311,11 +376,15 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                '($recordCount records)',
-                                style: const TextStyle(
+                                _searchQuery.isNotEmpty
+                                    ? '($displayCount of $totalCount records)'
+                                    : '($totalCount records)',
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF64748B),
+                                  color: _searchQuery.isNotEmpty && displayCount == 0
+                                      ? const Color(0xFFDC2626)
+                                      : const Color(0xFF64748B),
                                 ),
                               ),
                             ],
@@ -325,17 +394,17 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: recordCount > 0 ? () => _showDownloadModal(context) : null,
+                              onTap: displayCount > 0 ? () => _showDownloadModal(context, displayCount) : null,
                               borderRadius: BorderRadius.circular(8),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: recordCount > 0
+                                  color: displayCount > 0
                                       ? const Color(0xFF2563EB)
                                       : const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(8),
-                                  boxShadow: recordCount > 0
+                                  boxShadow: displayCount > 0
                                       ? <BoxShadow>[
                                           BoxShadow(
                                             color: const Color(0xFF2563EB).withValues(alpha: 0.25),
@@ -345,7 +414,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                         ]
                                       : null,
                                   border: Border.all(
-                                    color: recordCount > 0
+                                    color: displayCount > 0
                                         ? const Color(0xFF2563EB)
                                         : const Color(0xFFE2E8F0),
                                   ),
@@ -356,7 +425,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                     Icon(
                                       Icons.download_rounded,
                                       size: 15,
-                                      color: recordCount > 0
+                                      color: displayCount > 0
                                           ? Colors.white
                                           : const Color(0xFF94A3B8),
                                     ),
@@ -366,7 +435,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
-                                        color: recordCount > 0
+                                        color: displayCount > 0
                                             ? Colors.white
                                             : const Color(0xFF94A3B8),
                                       ),
@@ -375,7 +444,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                     Icon(
                                       Icons.arrow_drop_down_rounded,
                                       size: 16,
-                                      color: recordCount > 0
+                                      color: displayCount > 0
                                           ? Colors.white
                                           : const Color(0xFF94A3B8),
                                     ),
@@ -388,8 +457,58 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       ),
                     ),
 
+                    // In-card Search Bar
+                    if (totalCount > 0 && !_loading)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search by vehicle name or plate number...',
+                            hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                            prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded, size: 16, color: Color(0xFF64748B)),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                    splashRadius: 16,
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                            ),
+                          ),
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                          onChanged: (String val) {
+                            setState(() {
+                              _searchQuery = val.trim();
+                            });
+                          },
+                        ),
+                      ),
+
                     // Swipe hint banner for wide tables
-                    if (recordCount > 0 && !_loading)
+                    if (displayCount > 0 && !_loading)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         decoration: const BoxDecoration(
@@ -473,7 +592,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           ],
                         ),
                       )
-                    else if (res == null || res.rows.isEmpty)
+                    else if (res == null || allRows.isEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
                         alignment: Alignment.center,
@@ -510,10 +629,69 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           ],
                         ),
                       )
+                    else if (displayRows.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.search_off_rounded, color: Color(0xFF94A3B8), size: 32),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No vehicles found matching "$_searchQuery"',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Check the vehicle name or plate, or clear the search to view all results.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                              icon: const Icon(Icons.clear_rounded, size: 14),
+                              label: const Text('Clear Search'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                                side: const BorderSide(color: Color(0xFF93C5FD)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     else
                       Padding(
                         padding: const EdgeInsets.all(12),
-                        child: _buildTableForType(_currentType, res),
+                        child: _buildTableForType(
+                          _currentType,
+                          ReportResult(
+                            rows: displayRows,
+                            summary: ReportSummary.fromRows(displayRows),
+                            columns: res.columns,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -581,8 +759,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     }
   }
 
-  void _showDownloadModal(BuildContext context) {
-    final int count = _result?.rows.length ?? 0;
+  void _showDownloadModal(BuildContext context, int count) {
     showDialog<void>(
       context: context,
       barrierDismissible: true,

@@ -142,8 +142,24 @@ class FleetController extends Notifier<FleetState> {
         _vehiclesById[v.id] = v;
         _identifierToVehicleId[v.id] = v.id;
       }
-      if (v.deviceId.isNotEmpty) _identifierToVehicleId[v.deviceId] = v.id;
-      if (v.imei.isNotEmpty) _identifierToVehicleId[v.imei] = v.id;
+      if (v.deviceId.isNotEmpty) {
+        _identifierToVehicleId[v.deviceId] = v.id;
+        _identifierToVehicleId[v.deviceId.toLowerCase()] = v.id;
+      }
+      if (v.imei.isNotEmpty) {
+        _identifierToVehicleId[v.imei] = v.id;
+        _identifierToVehicleId[v.imei.toLowerCase()] = v.id;
+      }
+      if (v.registrationNumber.isNotEmpty) {
+        final String cleanReg = v.registrationNumber.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+        _identifierToVehicleId[cleanReg] = v.id;
+        _identifierToVehicleId[v.registrationNumber] = v.id;
+      }
+      if (v.name.isNotEmpty) {
+        final String cleanName = v.name.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+        _identifierToVehicleId[cleanName] = v.id;
+        _identifierToVehicleId[v.name] = v.id;
+      }
     }
   }
 
@@ -220,12 +236,31 @@ class FleetController extends Notifier<FleetState> {
         return incoming;
       }).toList();
 
-      _sort(merged);
-      _rebuildIndexes(merged);
+      // Deduplicate vehicles by registrationNumber & deviceId so ghost duplicates never appear
+      final Map<String, Vehicle> deduplicated = <String, Vehicle>{};
+      for (final Vehicle v in merged) {
+        final String dedupKey = v.registrationNumber.trim().isNotEmpty
+            ? v.registrationNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '')
+            : (v.deviceId.trim().isNotEmpty ? 'dev_${v.deviceId.trim()}' : v.id);
+        final Vehicle? prev = deduplicated[dedupKey];
+        if (prev == null) {
+          deduplicated[dedupKey] = v;
+        } else {
+          final DateTime? tPrev = prev.lastPacketAt;
+          final DateTime? tCurr = v.lastPacketAt;
+          if (tCurr != null && (tPrev == null || tCurr.isAfter(tPrev))) {
+            deduplicated[dedupKey] = v;
+          }
+        }
+      }
+      final List<Vehicle> cleanMerged = deduplicated.values.toList();
+
+      _sort(cleanMerged);
+      _rebuildIndexes(cleanMerged);
 
       if (!_mounted) return;
       _safeSetState(state.copyWith(
-        vehicles: merged,
+        vehicles: cleanMerged,
         isLoading: false,
         isRefreshing: false,
         lastSyncedAt: DateTime.now(),
@@ -341,55 +376,64 @@ class FleetController extends Notifier<FleetState> {
   }
 
   void _bufferOne(Map<String, dynamic> frame) {
-    // Attempt to extract any known identifier from the socket payload
-    final String rawId = <String>[
-          'vehicleId',
-          '_id',
-          'id',
-          'vehicle',
-          'deviceId',
-          'device_id',
-          'imei',
-          'IMEI'
-        ]
-            .map((String k) => frame[k])
-            .firstWhere(
-              (Object? v) => v != null && v.toString().isNotEmpty,
-              orElse: () => null,
-            )
-            ?.toString() ??
-        '';
+    // 1. Check all identifier fields, prioritizing device/vehicle identifiers over packet ID
+    final String? devId = frame['deviceId']?.toString() ??
+        frame['device_id']?.toString() ??
+        (frame['device'] is Map ? (frame['device'] as Map)['id']?.toString() : null);
+    final String? imei = frame['imei']?.toString() ??
+        frame['IMEI']?.toString() ??
+        (frame['device'] is Map ? (frame['device'] as Map)['imei']?.toString() : null);
+    final String? vehicleId = frame['vehicleId']?.toString() ?? frame['_id']?.toString();
+    final String? regNo = frame['registrationNumber']?.toString() ??
+        frame['regNo']?.toString() ??
+        frame['plateNumber']?.toString();
+    final String? name = frame['name']?.toString() ?? frame['vehicleName']?.toString();
+    final String? rawId = frame['vehicle']?.toString() ?? frame['id']?.toString();
 
-    if (rawId.isEmpty) {
-      // Also check nested device object (common in Traccar)
-      if (frame['device'] is Map) {
-        final Map<String, dynamic> dev =
-            frame['device'] as Map<String, dynamic>;
-        final String devId =
-            dev['id']?.toString() ?? dev['imei']?.toString() ?? '';
-        if (devId.isNotEmpty) {
-          _bufferOne({...frame, 'deviceId': devId});
-        }
-      }
-      return;
+    // 2. Resolve matching vehicle from indexes in order of precision
+    String? resolvedId;
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      resolvedId = _identifierToVehicleId[vehicleId] ?? (_vehiclesById.containsKey(vehicleId) ? vehicleId : null);
+    }
+    if (resolvedId == null && devId != null && devId.isNotEmpty) {
+      resolvedId = _identifierToVehicleId[devId] ?? (_vehiclesById.containsKey(devId) ? devId : null);
+    }
+    if (resolvedId == null && imei != null && imei.isNotEmpty) {
+      resolvedId = _identifierToVehicleId[imei] ?? (_vehiclesById.containsKey(imei) ? imei : null);
+    }
+    if (resolvedId == null && regNo != null && regNo.isNotEmpty) {
+      final String cleanReg = regNo.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+      resolvedId = _identifierToVehicleId[cleanReg] ?? _identifierToVehicleId[regNo];
+    }
+    if (resolvedId == null && name != null && name.isNotEmpty) {
+      final String cleanName = name.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+      resolvedId = _identifierToVehicleId[cleanName] ?? _identifierToVehicleId[name];
+    }
+    if (resolvedId == null && rawId != null && rawId.isNotEmpty) {
+      resolvedId = _identifierToVehicleId[rawId] ?? (_vehiclesById.containsKey(rawId) ? rawId : null);
+    }
+    // Single-vehicle fleet fallback: if the fleet only has 1 vehicle, socket frames belong to it
+    if (resolvedId == null && _vehiclesById.length == 1) {
+      resolvedId = _vehiclesById.keys.first;
     }
 
-    final String? resolvedId = _identifierToVehicleId[rawId] ??
-        (_vehiclesById.containsKey(rawId) ? rawId : null);
-    final Vehicle? existing = _pending[resolvedId ?? rawId] ??
-        (resolvedId != null ? _vehiclesById[resolvedId] : null);
+    final Vehicle? existing = resolvedId != null
+        ? (_pending[resolvedId] ?? _vehiclesById[resolvedId])
+        : null;
 
     if (existing == null) {
-      // Unknown vehicle — likely added server-side while we were connected.
+      // If we cannot match an existing vehicle, do NOT inject an unverified ghost record.
+      // Doing so creates a duplicate marker on the map!
+      if (state.vehicles.isNotEmpty) {
+        return;
+      }
       final Vehicle fresh = Vehicle.fromJson(frame);
-      if (fresh.id.isNotEmpty) {
+      if (fresh.id.isNotEmpty && fresh.displayName.isNotEmpty) {
         _pending[fresh.id] = fresh;
         _vehiclesById[fresh.id] = fresh;
         _identifierToVehicleId[fresh.id] = fresh.id;
-        if (fresh.deviceId.isNotEmpty)
-          _identifierToVehicleId[fresh.deviceId] = fresh.id;
-        if (fresh.imei.isNotEmpty)
-          _identifierToVehicleId[fresh.imei] = fresh.id;
+        if (fresh.deviceId.isNotEmpty) _identifierToVehicleId[fresh.deviceId] = fresh.id;
+        if (fresh.imei.isNotEmpty) _identifierToVehicleId[fresh.imei] = fresh.id;
       }
       return;
     }
@@ -434,9 +478,29 @@ class FleetController extends Notifier<FleetState> {
       ...snapshot,
     };
     final List<Vehicle> list = next.values.toList();
-    _sort(list);
-    _rebuildIndexes(list);
-    _safeSetState(state.copyWith(vehicles: list));
+
+    // Deduplicate by registrationNumber and deviceId to eliminate ghost duplicate markers
+    final Map<String, Vehicle> deduplicated = <String, Vehicle>{};
+    for (final Vehicle v in list) {
+      final String dedupKey = v.registrationNumber.trim().isNotEmpty
+          ? v.registrationNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '')
+          : (v.deviceId.trim().isNotEmpty ? 'dev_${v.deviceId.trim()}' : v.id);
+      final Vehicle? prev = deduplicated[dedupKey];
+      if (prev == null) {
+        deduplicated[dedupKey] = v;
+      } else {
+        final DateTime? tPrev = prev.lastPacketAt;
+        final DateTime? tCurr = v.lastPacketAt;
+        if (tCurr != null && (tPrev == null || tCurr.isAfter(tPrev))) {
+          deduplicated[dedupKey] = v;
+        }
+      }
+    }
+    final List<Vehicle> cleanList = deduplicated.values.toList();
+
+    _sort(cleanList);
+    _rebuildIndexes(cleanList);
+    _safeSetState(state.copyWith(vehicles: cleanList));
   }
 
   /// Vehicles go stale silently (no packet = no event), so we re-render

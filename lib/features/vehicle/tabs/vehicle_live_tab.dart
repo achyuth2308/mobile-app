@@ -116,18 +116,19 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                               Marker(
                                 point: LatLng(
                                     vehicle.latitude!, vehicle.longitude!),
-                                // Match the actual pin dimensions (28×36).
-                                // bottomCenter anchors the teardrop TIP
-                                // exactly on the GPS coordinate.
-                                width: 28,
-                                height: 36,
-                                alignment: Alignment.bottomCenter,
+                                // Match the actual VehicleMarkerPin dimensions (44×48).
+                                // Alignment(0.0, -0.89) places the sharp teardrop needle tip
+                                // directly onto the GPS road coordinate.
+                                width: 44,
+                                height: 48,
+                                alignment: const Alignment(0.0, -0.89),
                                 child: GestureDetector(
                                   onTap: () => context.push('/vehicle-map?focus=${vehicle.id}'),
                                   child: VehicleMarkerPin(
                                     vehicle: vehicle,
                                     selected: true,
                                     useSprite: true,
+                                    headingOverride: vehicle.heading,
                                   ),
                                 ),
                               ),

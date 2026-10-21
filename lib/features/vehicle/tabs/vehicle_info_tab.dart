@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/geocoder.dart';
 import '../../../data/models/route.dart';
 import '../../../data/models/user_trip.dart';
 import '../../../data/models/vehicle.dart';
@@ -16,6 +17,7 @@ import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
 import '../../../providers/route_provider.dart';
 import '../../../providers/trip_provider.dart';
+import '../../../shared/widgets/live_address.dart';
 
 import 'package:local_auth/local_auth.dart';
 
@@ -62,15 +64,27 @@ class VehicleInfoTab extends ConsumerWidget {
 
         _Section(
           title: 'DEVICE',
+          vehicle: v,
           rows: <(String, String)>[
             ('IMEI', v.imei.isEmpty ? '—' : v.imei),
             if (v.deviceId.isNotEmpty) ('Device ID', v.deviceId),
             ('Last packet', Fmt.full(v.lastPacketAt)),
-            ('Coordinates', Fmt.coordinates(v.latitude, v.longitude)),
+            ('Address', v.address ?? 'Location unavailable'),
             if (v.satellites != null) ('Satellites', '${v.satellites}'),
             if (v.gsmSignal != null) ('GSM signal', '${v.gsmSignal}${v.gsmSignal! > 5 ? '%' : '/5'}'),
           ],
-          copyable: const <String>{'IMEI', 'Coordinates', 'Device ID'},
+          customWidgets: <String, Widget>{
+            'Address': LiveAddress(
+              vehicle: v,
+              max: 3,
+              textAlign: TextAlign.right,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          },
+          copyable: const <String>{'IMEI', 'Address', 'Device ID'},
         ),
 
         if (v.driverName != null || v.driverPhone != null) ...<Widget>[
@@ -122,12 +136,16 @@ class _Section extends StatelessWidget {
   const _Section({
     required this.title,
     required this.rows,
+    this.customWidgets = const <String, Widget>{},
     this.copyable = const <String>{},
+    this.vehicle,
   });
 
   final String title;
   final List<(String, String)> rows;
+  final Map<String, Widget> customWidgets;
   final Set<String> copyable;
+  final Vehicle? vehicle;
 
   @override
   Widget build(BuildContext context) {
@@ -146,16 +164,18 @@ class _Section extends StatelessWidget {
         Column(
           children: <Widget>[
             for (int i = 0; i < rows.length; i++) ...<Widget>[
-                _InfoRow(
-                  label: rows[i].$1,
-                  value: rows[i].$2,
-                  copyable: copyable.contains(rows[i].$1),
-                ),
-                if (i < rows.length - 1)
-                  Divider(height: 1, color: theme.colorScheme.outlineVariant),
-              ],
+              _InfoRow(
+                label: rows[i].$1,
+                value: rows[i].$2,
+                customWidget: customWidgets[rows[i].$1],
+                copyable: copyable.contains(rows[i].$1),
+                vehicle: vehicle,
+              ),
+              if (i < rows.length - 1)
+                Divider(height: 1, color: theme.colorScheme.outlineVariant),
             ],
-          ),
+          ],
+        ),
       ],
     );
   }
@@ -165,12 +185,16 @@ class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.label,
     required this.value,
+    this.customWidget,
     required this.copyable,
+    this.vehicle,
   });
 
   final String label;
   final String value;
+  final Widget? customWidget;
   final bool copyable;
+  final Vehicle? vehicle;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +203,13 @@ class _InfoRow extends StatelessWidget {
     return InkWell(
       onTap: copyable && value != '—'
           ? () {
-              Clipboard.setData(ClipboardData(text: value));
+              String textToCopy = value;
+              final Vehicle? v = vehicle;
+              if (label == 'Address' && v != null && v.hasLocation) {
+                textToCopy = Geocoder.getCachedAddress(v.latitude!, v.longitude!) ??
+                    (v.address != null && v.address!.isNotEmpty ? v.address! : value);
+              }
+              Clipboard.setData(ClipboardData(text: textToCopy));
               HapticFeedback.selectionClick();
               ScaffoldMessenger.of(context)
                 ..hideCurrentSnackBar()
@@ -190,20 +220,22 @@ class _InfoRow extends StatelessWidget {
         padding:
             const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: Gap.md),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             SizedBox(
               width: 120,
               child: Text(label, style: theme.textTheme.bodySmall),
             ),
             Expanded(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              child: customWidget ??
+                  Text(
+                    value,
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
             ),
             if (copyable && value != '—') ...<Widget>[
               const SizedBox(width: Gap.sm),

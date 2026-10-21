@@ -127,31 +127,44 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
 
       // Pick up smoothly from the current visual position on screen
       final LatLng currentVisual = _currentVisualPoint;
-      _fromPoint = currentVisual;
-      _toPoint = widget.point;
-
-      // Heading: align along the road segment towards the target point
       _fromHeading = _currentVisualHeading;
-      final double strideMeters = _dist(_fromPoint, _toPoint);
+      final double strideMeters = _dist(currentVisual, widget.point);
+
       if (isMoving && strideMeters > 1.5) {
-        _toHeading = (_dist.bearing(_fromPoint, _toPoint) + 360.0) % 360.0;
-      } else if (widget.heading > 0) {
-        _toHeading = widget.heading;
+        final double segmentBearing =
+            (_dist.bearing(currentVisual, widget.point) + 360.0) % 360.0;
+        final double headingDiff = widget.heading > 0
+            ? ((segmentBearing - widget.heading + 180.0) % 360.0 - 180.0).abs()
+            : 0.0;
+
+        if (headingDiff > 90.0) {
+          // Target is behind current visual position — NEVER drive backward!
+          _fromPoint = currentVisual;
+          _toPoint = widget.point;
+          _toHeading = widget.heading > 0 ? widget.heading : _toHeading;
+        } else {
+          _fromPoint = currentVisual;
+          _toPoint = widget.point;
+          _toHeading = segmentBearing;
+        }
+
+        // Pace the glide across the packet interval (+15% padding so it never freezes prematurely)
+        _glideDurationMs = max(3000, (_estimatedIntervalMs * 1.15).round());
+      } else {
+        _fromPoint = currentVisual;
+        _toPoint = widget.point;
+        if (widget.heading > 0) _toHeading = widget.heading;
+        _glideDurationMs = isMoving ? 3000 : 400;
       }
 
       _positionConfirmedFired = false;
       _glideStartTime = DateTime.now();
 
       if (isMoving) {
-        // Continuous pacing: glide to target in durationMs, then keep coasting forward
-        // so the vehicle never freezes dead in place while driving at speed between packets
-        _glideDurationMs =
-            max(3000, min(8000, (_estimatedIntervalMs * 0.95).round()));
         if (!_glideController.isAnimating) {
           _glideController.repeat();
         }
       } else {
-        // Stopped/parked: settle cleanly in 400ms without coasting
         _glideDurationMs = 400;
         if (!_glideController.isAnimating) {
           _glideController.repeat();
@@ -197,9 +210,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     if (!_positionConfirmedFired && elapsedMs >= _glideDurationMs) {
       _positionConfirmedFired = true;
       widget.onPositionConfirmed?.call(_toPoint);
-      if (widget.status != VehicleStatus.moving || widget.speed < 1.5) {
-        _glideController.stop();
-      }
+      _glideController.stop();
     }
     widget.onVisualPositionUpdate?.call(_currentVisualPoint);
   }
@@ -210,7 +221,7 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     final DateTime now = DateTime.now();
     final int elapsedMs = now.difference(_glideStartTime).inMilliseconds;
 
-    // Phase 1: Gliding from _fromPoint to _toPoint
+    // Gliding smoothly from _fromPoint to _toPoint
     if (elapsedMs < _glideDurationMs) {
       final double t = (elapsedMs / _glideDurationMs).clamp(0.0, 1.0);
       return LatLng(
@@ -219,32 +230,9 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       );
     }
 
-    // Phase 2: Arrived at or passed _toPoint
-    // If not moving or speed is low, stay firmly at _toPoint
-    if (widget.status != VehicleStatus.moving || widget.speed < 1.5) {
-      return _toPoint;
-    }
-
-    // ── Continuous True Dead-Reckoning Coasting (elapsedMs >= _glideDurationMs) ──
-    // Moving vehicle covers (speed / 3.6) meters per second along current heading
-    final double coastSeconds = (elapsedMs - _glideDurationMs) / 1000.0;
-    // Cap coasting to 25 seconds or 350 meters to prevent unbounded drift if device goes offline
-    final double cappedCoastSeconds = min(25.0, coastSeconds);
-    final double metersPerSecond = widget.speed / 3.6;
-    final double displacementMeters = min(350.0, metersPerSecond * cappedCoastSeconds);
-
-    final double rad = _toHeading * (pi / 180.0);
-    final double uEast = sin(rad);
-    final double uNorth = cos(rad);
-
-    final double cosLat = cos(_toPoint.latitude * (pi / 180.0)).abs().clamp(0.01, 1.0);
-    final double deltaLat = (displacementMeters * uNorth) / 111320.0;
-    final double deltaLng = (displacementMeters * uEast) / (111320.0 * cosLat);
-
-    return LatLng(
-      _toPoint.latitude + deltaLat,
-      _toPoint.longitude + deltaLng,
-    );
+    // Arrived at _toPoint: stay firmly on the latest verified GPS road position.
+    // Never extrapolate past _toPoint, which guarantees the vehicle will NEVER reverse.
+    return _toPoint;
   }
 
   double get _currentVisualHeading {

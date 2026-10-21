@@ -379,8 +379,11 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       return true;
     }).toList();
 
-    // Sort order
+    // Sort order: Unseen alerts first, then sorted by timestamp
     visibleAlerts.sort((a, b) {
+      if (!a.isRead && b.isRead) return -1;
+      if (a.isRead && !b.isRead) return 1;
+
       final DateTime timeA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final DateTime timeB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return _sortNewestFirst
@@ -798,6 +801,17 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
 
       out.putIfAbsent(key, () => <FleetAlert>[]).add(a);
     }
+
+    // Ensure unseen alerts appear first within each day group
+    for (final List<FleetAlert> list in out.values) {
+      list.sort((a, b) {
+        if (!a.isRead && b.isRead) return -1;
+        if (a.isRead && !b.isRead) return 1;
+        final DateTime timeA = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final DateTime timeB = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return _sortNewestFirst ? timeB.compareTo(timeA) : timeA.compareTo(timeB);
+      });
+    }
     return out;
   }
 }
@@ -937,13 +951,15 @@ class AlertTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: alert.isRead
             ? theme.colorScheme.surfaceContainer
-            : theme.colorScheme.surfaceContainerHigh,
+            : (theme.brightness == Brightness.dark
+                ? color.withOpacity(0.12)
+                : color.withOpacity(0.06)),
         borderRadius: Corners.rMd,
         border: Border.all(
           color: !alert.isRead
-              ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.5 : 0.3)
+              ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.6 : 0.45)
               : theme.colorScheme.outlineVariant.withOpacity(0.4),
-          width: !alert.isRead ? 1.4 : 1.0,
+          width: !alert.isRead ? 1.5 : 1.0,
         ),
       ),
       child: Material(
@@ -1012,26 +1028,6 @@ class AlertTile extends StatelessWidget {
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
                                   color: color,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                          if (!alert.isRead) ...<Widget>[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'NEW',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
                                   letterSpacing: 0.5,
                                 ),
                               ),

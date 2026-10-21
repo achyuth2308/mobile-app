@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -23,6 +24,8 @@ class UniversalLiveMap extends StatefulWidget {
     required this.fallbackCenter,
     required this.selectedId,
     required this.followingId,
+    this.isFollowPaused = false,
+    this.onFollowPausedChanged,
     required this.onMapReady,
     required this.onUserInteracting,
     required this.onTapMap,
@@ -42,6 +45,8 @@ class UniversalLiveMap extends StatefulWidget {
   final LatLng fallbackCenter;
   final String? selectedId;
   final String? followingId;
+  final bool isFollowPaused;
+  final ValueChanged<bool>? onFollowPausedChanged;
   final String? pendingFocusId;
   final VoidCallback onMapReady;
   final ValueChanged<bool> onUserInteracting;
@@ -79,16 +84,32 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   final Map<String, List<LatLng>> _confirmedTrails = {};
 
   bool _isUserInteracting = false;
+  Timer? _autoResumeTimer;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    const Distance dist = Distance();
     // Seed each vehicle with its current GPS as the start of the confirmed trail.
     for (final v in widget.vehicles) {
       if (v.hasLocation) {
         _confirmedTrails[v.id] = <LatLng>[LatLng(v.latitude!, v.longitude!)];
+      }
+    }
+
+    final String? activeId = _resolvedActiveId;
+    if (activeId != null && widget.route.isNotEmpty) {
+      final List<LatLng> routePoints = [];
+      for (final TrackPoint tp in widget.route) {
+        if (!tp.isValid) continue;
+        if (routePoints.isEmpty || dist(routePoints.last, tp.latLng) >= 2.0) {
+          routePoints.add(tp.latLng);
+        }
+      }
+      if (routePoints.isNotEmpty) {
+        _confirmedTrails[activeId] = routePoints;
       }
     }
   }
@@ -96,13 +117,62 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
   @override
   void didUpdateWidget(UniversalLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Ensure newly-visible vehicles get a seed position.
+    const Distance dist = Distance();
+
+    // Ensure newly-visible vehicles get a seed position and append verified GPS fixes
     for (final v in widget.vehicles) {
-      if (v.hasLocation) {
-        _confirmedTrails.putIfAbsent(
-            v.id, () => <LatLng>[LatLng(v.latitude!, v.longitude!)]);
+      if (!v.hasLocation) continue;
+      final LatLng pt = LatLng(v.latitude!, v.longitude!);
+      final List<LatLng> trail =
+          _confirmedTrails.putIfAbsent(v.id, () => <LatLng>[pt]);
+      if (trail.isEmpty) {
+        trail.add(pt);
+      } else if (v.id != _resolvedActiveId) {
+        final double d = dist(trail.last, pt);
+        // Append if moved at least 3 meters and not an impossible teleport jump (>2km)
+        // (Active vehicle trail points are confirmed exclusively via _onPositionConfirmed when reached)
+        if (d >= 3.0 && d < 2000.0) {
+          trail.add(pt);
+        }
       }
     }
+
+    // Seed/sync active vehicle trail from widget.route when route arrives or expands
+    final String? activeId = _resolvedActiveId;
+    if (activeId != null && widget.route.isNotEmpty) {
+      final List<LatLng> trail =
+          _confirmedTrails.putIfAbsent(activeId, () => <LatLng>[]);
+      if (trail.length <= 1) {
+        final List<LatLng> routePoints = [];
+        for (final TrackPoint tp in widget.route) {
+          if (!tp.isValid) continue;
+          if (routePoints.isEmpty || dist(routePoints.last, tp.latLng) >= 2.0) {
+            routePoints.add(tp.latLng);
+          }
+        }
+        if (routePoints.isNotEmpty) {
+          trail.clear();
+          trail.addAll(routePoints);
+        }
+      }
+    }
+
+    if (widget.followingId != oldWidget.followingId) {
+      _autoResumeTimer?.cancel();
+      _autoResumeTimer = null;
+      if (widget.followingId != null) {
+        widget.onFollowPausedChanged?.call(false);
+      }
+    } else if (oldWidget.isFollowPaused && !widget.isFollowPaused) {
+      _autoResumeTimer?.cancel();
+      _autoResumeTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoResumeTimer?.cancel();
+    super.dispose();
   }
 
   String? get _resolvedActiveId =>
@@ -110,6 +180,31 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
       widget.followingId ??
       widget.pendingFocusId ??
       (widget.vehicles.isNotEmpty ? widget.vehicles.first.id : null);
+
+  // ── Camera Follow Logic ───────────────────────────────────────────────────
+
+  void _pauseFollow() {
+    _autoResumeTimer?.cancel();
+    _autoResumeTimer = null;
+    if (widget.followingId != null && !widget.isFollowPaused) {
+      widget.onFollowPausedChanged?.call(true);
+    }
+  }
+
+  void _resumeFollow() {
+    _autoResumeTimer?.cancel();
+    _autoResumeTimer = null;
+    if (widget.followingId != null && widget.isFollowPaused) {
+      widget.onFollowPausedChanged?.call(false);
+    }
+
+    final LatLng? target = _activeVisualPos;
+    if (target != null) {
+      final double currentZoom = widget.mapController.camera.zoom;
+      final double targetZoom = currentZoom < 14.0 ? 15.5 : currentZoom;
+      widget.mapController.move(target, targetZoom);
+    }
+  }
 
   // ── Callbacks from AnimatedVehicleMarker ───────────────────────────────────
 
@@ -123,7 +218,10 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         _confirmedTrails.putIfAbsent(activeId, () => <LatLng>[pos]);
     const Distance d = Distance();
     if (trail.isEmpty || d(trail.last, pos) >= 1.5) {
-      setState(() => trail.add(pos));
+      trail.add(pos);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
     }
   }
 
@@ -134,22 +232,46 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     final String? activeId = _resolvedActiveId;
     if (activeId == null) return;
 
-    // Debounce: skip rebuilds for micro-jitter (<0.25m)
+    // Debounce: skip rebuilds only for imperceptible micro-jitter (<0.02m)
     if (_activeVisualPos != null) {
       const Distance d = Distance();
-      if (d(_activeVisualPos!, pos) < 0.25) return;
+      if (d(_activeVisualPos!, pos) < 0.02) return;
     }
 
     setState(() => _activeVisualPos = pos);
-    if (widget.followingId != null && !_isUserInteracting) {
-      if (widget.mapController.camera.rotation != 0) {
-        widget.mapController.moveAndRotate(
-          pos,
-          widget.mapController.camera.zoom,
-          0.0,
-        );
-      } else {
-        widget.mapController.move(pos, widget.mapController.camera.zoom);
+
+    if (widget.followingId != null) {
+      if (!_isUserInteracting && !widget.isFollowPaused) {
+        if (widget.mapController.camera.rotation != 0) {
+          widget.mapController.moveAndRotate(
+            pos,
+            widget.mapController.camera.zoom,
+            0.0,
+          );
+        } else {
+          widget.mapController.move(pos, widget.mapController.camera.zoom);
+        }
+      } else if (!_isUserInteracting && widget.isFollowPaused) {
+        // Vehicle is moving while camera follow is paused.
+        // If vehicle approaches within 15% margin of screen boundaries, auto-resume follow!
+        try {
+          final camera = widget.mapController.camera;
+          final math.Point<double> screenPoint =
+              camera.latLngToScreenPoint(pos);
+          final math.Point<double> size = camera.nonRotatedSize;
+          if (size.x > 50 && size.y > 50) {
+            final double marginX = size.x * 0.15;
+            final double marginY = size.y * 0.15;
+            final bool nearEdge = screenPoint.x < marginX ||
+                screenPoint.x > (size.x - marginX) ||
+                screenPoint.y < marginY ||
+                screenPoint.y > (size.y - marginY);
+
+            if (nearEdge) {
+              _resumeFollow();
+            }
+          }
+        } catch (_) {}
       }
     }
   }
@@ -179,108 +301,158 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     // ── Trail polylines ──────────────────────────────────────────────────────
     final List<Polyline> allPolylines = [];
 
-    if (widget.showTrail) {
+    if (widget.showTrail && activeV != null) {
       const Distance dist = Distance();
 
-      if (widget.showFullTrail && activeV != null && widget.route.isNotEmpty) {
-        // ── FULL TRAIL MODE (Vehicle clicked/selected) ──────────────────────
-        // Displays today's complete recorded journey up to the current live marker.
-        final List<LatLng> fullPoints = [];
-        LatLng? lastPt;
+      // 1. Gather all base trail points in chronological order
+      final List<LatLng> basePoints = [];
 
+      if (widget.route.isNotEmpty) {
         for (final TrackPoint tp in widget.route) {
           if (!tp.isValid) continue;
-          if (lastPt != null && dist(lastPt, tp.latLng) > 2000) {
-            // Flush segment before gap (>2km gap = offline / overnight)
-            if (fullPoints.length >= 2) {
-              allPolylines.addAll(_splitPolyline(
-                points: List<LatLng>.from(fullPoints),
-                color: const Color(0xFF10B981),
-                strokeWidth: 4.5,
-              ));
-            }
-            fullPoints.clear();
+          if (basePoints.isEmpty || dist(basePoints.last, tp.latLng) >= 1.0) {
+            basePoints.add(tp.latLng);
           }
-          fullPoints.add(tp.latLng);
-          lastPt = tp.latLng;
+        }
+      }
+
+      // If widget.route is empty, use confirmed live trail fixes
+      if (basePoints.isEmpty && activeId != null) {
+        final List<LatLng>? confirmed = _confirmedTrails[activeId];
+        if (confirmed != null && confirmed.isNotEmpty) {
+          for (final LatLng pt in confirmed) {
+            if (basePoints.isEmpty || dist(basePoints.last, pt) >= 1.0) {
+              basePoints.add(pt);
+            }
+          }
+        }
+      }
+
+      // Also append any newly confirmed points from _confirmedTrails that extend beyond widget.route
+      if (activeId != null &&
+          _confirmedTrails.containsKey(activeId) &&
+          basePoints.isNotEmpty) {
+        final List<LatLng> confirmed = _confirmedTrails[activeId]!;
+        final LatLng lastBase = basePoints.last;
+        bool isAhead = false;
+        for (final LatLng pt in confirmed) {
+          if (!isAhead) {
+            if (dist(lastBase, pt) < 5.0) {
+              isAhead = true;
+            }
+          } else {
+            if (dist(basePoints.last, pt) >= 3.0 && dist(basePoints.last, pt) < 2000.0) {
+              basePoints.add(pt);
+            }
+          }
+        }
+      }
+
+      // 2. CRITICAL: Strictly truncate basePoints so NO POINT can ever exist ahead of activeVisualPos.
+      // The trail MUST terminate exactly at activeVisualPos (the vehicle marker tip).
+      if (activeVisualPos != null && basePoints.isNotEmpty) {
+        final LatLng V = activeVisualPos;
+        const double metersPerDeg = 111319.9;
+        final double cosLat = math.cos(V.latitude * math.pi / 180.0);
+
+        int bestSegmentIdx = -1;
+        double bestT = 1.0;
+        double minPerpDistSq = double.infinity;
+
+        // Search segments from newest (end of route) backwards.
+        final int startIdx = math.max(0, basePoints.length - 250);
+        for (int i = basePoints.length - 2; i >= startIdx; i--) {
+          final LatLng A = basePoints[i];
+          final LatLng B = basePoints[i + 1];
+
+          final double abX = (B.longitude - A.longitude) * cosLat * metersPerDeg;
+          final double abY = (B.latitude - A.latitude) * metersPerDeg;
+          final double abLenSq = abX * abX + abY * abY;
+          if (abLenSq < 0.25) continue; // skip sub-meter / identical points
+
+          final double avX = (V.longitude - A.longitude) * cosLat * metersPerDeg;
+          final double avY = (V.latitude - A.latitude) * metersPerDeg;
+
+          final double t = (avX * abX + avY * abY) / abLenSq;
+          final double clampedT = t.clamp(0.0, 1.0);
+          final double projX = clampedT * abX;
+          final double projY = clampedT * abY;
+          final double distSq = (avX - projX) * (avX - projX) + (avY - projY) * (avY - projY);
+
+          if (distSq < minPerpDistSq) {
+            minPerpDistSq = distSq;
+            bestSegmentIdx = i;
+            bestT = t;
+            // If right on top of segment (< 10m) and within segment bounds, match found
+            if (distSq < 100.0 && t >= -0.05 && t <= 1.05) {
+              break;
+            }
+          }
         }
 
-        // Attach the live animated tip to the end of the route
-        if (activeVisualPos != null && fullPoints.isNotEmpty) {
-          // Truncate any points in widget.route that lie ahead of activeVisualPos
-          // (which happens if history has points ahead or during a turnaround/retreat)
-          int bestMatchIdx = fullPoints.length - 1;
-          double minDist = dist(fullPoints.last, activeVisualPos);
-
-          final int searchWindow = math.max(0, fullPoints.length - 80);
-          for (int i = fullPoints.length - 1; i >= searchWindow; i--) {
-            final double d = dist(fullPoints[i], activeVisualPos);
+        if (bestSegmentIdx != -1 && minPerpDistSq < 10000.0) { // within 100m of road segment
+          if (bestT < 1.0) {
+            // V is on or before segment bestSegmentIdx -> bestSegmentIdx + 1.
+            // That means point bestSegmentIdx + 1 (and all points after it) are AHEAD of V!
+            // Prune everything ahead of V!
+            final int keepCount = bestT <= 0.0 ? bestSegmentIdx : bestSegmentIdx + 1;
+            if (keepCount < basePoints.length) {
+              basePoints.removeRange(keepCount, basePoints.length);
+            }
+          }
+          // If bestT >= 1.0 on the last segment, V has reached/passed it, so keep all basePoints.
+        } else {
+          // Fallback: if off-road or telemetric jump, find closest single point
+          int closestIdx = basePoints.length - 1;
+          double minDist = dist(basePoints.last, V);
+          final int fallbackStart = math.max(0, basePoints.length - 80);
+          for (int i = basePoints.length - 1; i >= fallbackStart; i--) {
+            final double d = dist(basePoints[i], V);
             if (d < minDist) {
               minDist = d;
-              bestMatchIdx = i;
+              closestIdx = i;
             }
           }
-
-          if (bestMatchIdx < fullPoints.length - 1) {
-            // Cut off all points that extend ahead of the live marker
-            fullPoints.removeRange(bestMatchIdx + 1, fullPoints.length);
-          }
-
-          // Anti-overshoot: ensure no point extends ahead along heading vector
-          if (activeV.heading > 0 && fullPoints.length >= 2) {
-            final LatLng tip = fullPoints.last;
-            final double rad = activeV.heading * (math.pi / 180.0);
-            final double cosLat = math
-                .cos(activeVisualPos.latitude * (math.pi / 180.0))
-                .abs()
-                .clamp(0.01, 1.0);
-            final double dNorth =
-                (tip.latitude - activeVisualPos.latitude) * 111320.0;
-            final double dEast =
-                (tip.longitude - activeVisualPos.longitude) * 111320.0 * cosLat;
-            final double aheadMeters =
-                (dEast * math.sin(rad)) + (dNorth * math.cos(rad));
-            if (aheadMeters > 1.0) {
-              fullPoints.removeLast();
-            }
-          }
-
-          if (minDist < 12.0 && fullPoints.isNotEmpty) {
-            fullPoints[fullPoints.length - 1] = activeVisualPos;
-          } else if (minDist >= 2.0) {
-            fullPoints.add(activeVisualPos);
+          if (closestIdx < basePoints.length - 1) {
+            basePoints.removeRange(closestIdx + 1, basePoints.length);
           }
         }
 
-        if (fullPoints.length >= 2) {
-          allPolylines.addAll(_splitPolyline(
-            points: fullPoints,
-            color: const Color(0xFF10B981),
-            strokeWidth: 4.5,
-          ));
+        // Attach the live vehicle marker position as the absolute tip of the trail
+        if (basePoints.isEmpty) {
+          basePoints.add(V);
+        } else if (dist(basePoints.last, V) >= 0.5) {
+          basePoints.add(V);
         }
-      } else if (activeId != null && activeV != null) {
-        // ── LIVE POURING TRAIL MODE (Default / Running mode) ────────────────
-        // When vehicle is moving, trail pours smoothly out behind the marker.
-        // Pure live trail: confirmed positions already passed + live visual tip.
-        final List<LatLng> trail =
-            List<LatLng>.from(_confirmedTrails[activeId] ?? const []);
+      } else if (activeVisualPos != null) {
+        basePoints.add(activeVisualPos);
+      }
 
-        if (activeVisualPos != null) {
-          if (trail.isEmpty) {
-            trail.add(activeVisualPos);
-          } else if (trail.last != activeVisualPos) {
-            trail.add(activeVisualPos);
+      // 3. Now split basePoints by large telemetry gaps (>2000m = offline / overnight)
+      // and create polylines. Since basePoints was already pruned to terminate at activeVisualPos,
+      // no segment can ever extend ahead of the marker!
+      final List<LatLng> currentSegment = [];
+      LatLng? prevPt;
+      for (final LatLng pt in basePoints) {
+        if (prevPt != null && dist(prevPt, pt) > 2000.0) {
+          if (currentSegment.length >= 2) {
+            allPolylines.addAll(_splitPolyline(
+              points: List<LatLng>.from(currentSegment),
+              color: const Color(0xFF10B981),
+              strokeWidth: 4.5,
+            ));
           }
+          currentSegment.clear();
         }
-
-        if (trail.length >= 2) {
-          allPolylines.addAll(_splitPolyline(
-            points: trail,
-            color: const Color(0xFF10B981),
-            strokeWidth: 4.5,
-          ));
-        }
+        currentSegment.add(pt);
+        prevPt = pt;
+      }
+      if (currentSegment.length >= 2) {
+        allPolylines.addAll(_splitPolyline(
+          points: currentSegment,
+          color: const Color(0xFF10B981),
+          strokeWidth: 4.5,
+        ));
       }
     }
 
@@ -383,12 +555,35 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         ),
         onMapReady: widget.onMapReady,
         onPointerDown: (_, __) {
+          _autoResumeTimer?.cancel();
+          _autoResumeTimer = null;
           _isUserInteracting = true;
           widget.onUserInteracting(true);
         },
         onPointerUp: (_, __) {
           _isUserInteracting = false;
           widget.onUserInteracting(false);
+          if (widget.followingId != null && widget.isFollowPaused) {
+            _autoResumeTimer?.cancel();
+            _autoResumeTimer = Timer(const Duration(seconds: 5), () {
+              if (mounted &&
+                  widget.followingId != null &&
+                  widget.isFollowPaused) {
+                _resumeFollow();
+              }
+            });
+          }
+        },
+        onPointerCancel: (_, __) {
+          _isUserInteracting = false;
+          widget.onUserInteracting(false);
+        },
+        onPositionChanged: (MapCamera camera, bool hasGesture) {
+          if (hasGesture &&
+              widget.followingId != null &&
+              !widget.isFollowPaused) {
+            _pauseFollow();
+          }
         },
         onTap: (_, __) => widget.onTapMap(),
       ),

@@ -332,8 +332,8 @@ class ReportRepository {
     );
 
     dynamic filteredRes = res;
-    if (vehicleId != null && type != ReportType.consolidated && type != ReportType.fuelConsolidated) {
-      filteredRes = _filterPayloadByVehicle(res, vehicleId);
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      filteredRes = _filterPayloadByVehicle(res, vehicleId, vehicle);
     }
 
     if (vehicle != null && type != ReportType.consolidated && type != ReportType.fuelConsolidated) {
@@ -356,7 +356,7 @@ class ReportRepository {
     return parsed;
   }
 
-  dynamic _filterPayloadByVehicle(dynamic payload, String vehicleId) {
+  dynamic _filterPayloadByVehicle(dynamic payload, String vehicleId, [Vehicle? vehicle]) {
     if (payload is List) {
       return payload.where((item) {
         if (item is Map) {
@@ -366,7 +366,26 @@ class ReportRepository {
               item['deviceId']?.toString() ??
               item['device_id']?.toString();
           if (rowVehicleId != null && rowVehicleId.isNotEmpty) {
-            return rowVehicleId == vehicleId;
+            if (rowVehicleId == vehicleId) return true;
+          }
+          if (vehicle != null) {
+            final String? itemPlate = item['plate']?.toString() ?? item['registrationNumber']?.toString();
+            if (itemPlate != null && itemPlate.isNotEmpty) {
+              if (itemPlate.toLowerCase() == vehicle.registrationNumber.toLowerCase() ||
+                  itemPlate.toLowerCase() == vehicle.plate.toLowerCase()) {
+                return true;
+              }
+            }
+            final String? itemName = item['vehicle_name']?.toString() ?? item['name']?.toString();
+            if (itemName != null && itemName.isNotEmpty) {
+              if (itemName.toLowerCase() == vehicle.name.toLowerCase() ||
+                  itemName.toLowerCase() == vehicle.displayName.toLowerCase()) {
+                return true;
+              }
+            }
+          }
+          if (rowVehicleId != null && rowVehicleId.isNotEmpty) {
+            return false;
           }
         }
         return true;

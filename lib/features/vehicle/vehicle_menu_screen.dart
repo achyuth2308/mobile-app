@@ -335,19 +335,20 @@ class _HeroMetric extends StatelessWidget {
     return Column(
       children: [
         Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
           value,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
             color: color,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
           ),
         ),
       ],

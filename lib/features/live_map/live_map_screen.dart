@@ -60,10 +60,12 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   MapStyle _style = MapStyle.google;
   bool _mapReady = false;
   bool _userInteracting = false;
+  bool _isFollowPaused = false;
   bool _isHistoryMode = false;
   bool _isShowingOverallTrip = false;
   bool _showTodayHistoryRoute = false;
   final ValueNotifier<double> _sheetExtentNotifier = ValueNotifier(0.32);
+  AnimationController? _recenterAnimController;
 
   /// India-centred default until the first fix arrives.
   static const LatLng _fallbackCenter = LatLng(17.385, 78.4867);
@@ -74,6 +76,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       if (!mounted) return;
       setState(() {
         _followingId = id;
+        _isFollowPaused = false;
         _isHistoryMode =
             false; // Reset to Live mode when selecting/following vehicle
       });
@@ -90,6 +93,61 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     }
   }
 
+  void _recenterFollow() {
+    if (!mounted || _followingId == null) return;
+    final vehicles = ref.read(fleetProvider).vehicles;
+    final target = vehicles.cast<Vehicle?>().firstWhere(
+          (v) => v?.id == _followingId,
+          orElse: () => null,
+        );
+    if (target != null && target.hasLocation) {
+      setState(() => _isFollowPaused = false);
+      final double currentZoom = _map.camera.zoom;
+      final double targetZoom = currentZoom < 14.0 ? 15.5 : currentZoom;
+      _animatedMapMove(LatLng(target.latitude!, target.longitude!), targetZoom);
+    }
+  }
+
+  void _animatedMapMove(LatLng destLocation, double destZoom) {
+    if (!_mapReady) return;
+    _recenterAnimController?.stop();
+    _recenterAnimController?.dispose();
+
+    final camera = _map.camera;
+    final latTween = Tween<double>(
+        begin: camera.center.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(
+        begin: camera.center.longitude, end: destLocation.longitude);
+    final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
+
+    final controller = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _recenterAnimController = controller;
+    final animation =
+        CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic);
+
+    controller.addListener(() {
+      _map.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+        zoomTween.evaluate(animation),
+      );
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed ||
+          status == AnimationStatus.dismissed) {
+        if (_recenterAnimController == controller) {
+          _recenterAnimController = null;
+        }
+        controller.dispose();
+      }
+    });
+
+    controller.forward();
+  }
+
   void _handleBack() {
     debugPrint(
         '[LiveMapScreen] _handleBack: canPop=${context.canPop()}, focus=${widget.focusVehicleId}, following=$_followingId');
@@ -98,11 +156,13 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         _followingId = null;
         _selectedId = null;
         _pendingFocusId = null;
+        _isFollowPaused = false;
       });
     } else {
       _followingId = null;
       _selectedId = null;
       _pendingFocusId = null;
+      _isFollowPaused = false;
     }
     try {
       ref.read(activeFollowingVehicleIdProvider.notifier).state = null;
@@ -164,6 +224,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   @override
   void dispose() {
+    _recenterAnimController?.dispose();
     _sheetExtentNotifier.dispose();
     super.dispose();
   }
@@ -577,11 +638,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                           initMap();
                         }
                       },
+                      isFollowPaused: _isFollowPaused,
+                      onFollowPausedChanged: (paused) {
+                        if (mounted && _isFollowPaused != paused) {
+                          setState(() => _isFollowPaused = paused);
+                        }
+                      },
                       onUserInteracting: (interacting) {
                         _userInteracting = interacting;
-                        if (interacting && _followingId != null) {
-                          _setFollowingId(null);
-                        }
                       },
                       onTapMap: () {
                         if (_selectedId != null) {
@@ -653,6 +717,61 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                     },
                   ),
                 ),
+              ),
+
+            if (following != null && _isFollowPaused)
+              ValueListenableBuilder<double>(
+                valueListenable: _sheetExtentNotifier,
+                builder: (context, extent, child) {
+                  final double screenH = MediaQuery.sizeOf(context).height;
+                  final double bottomOffset = (screenH * extent) + 16.0;
+                  final ThemeData theme = Theme.of(context);
+                  return Positioned(
+                    bottom: bottomOffset,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: PointerInterceptor(
+                        child: Material(
+                          elevation: 6,
+                          shadowColor: Colors.black45,
+                          borderRadius: BorderRadius.circular(24),
+                          color: theme.colorScheme.primary,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(24),
+                            onTap: _recenterFollow,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.my_location_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Re-center',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
 
             Positioned(
@@ -765,10 +884,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                   onBack: _handleBack,
                   onToggleHistoryMode: _toggleHistoryMode,
                   onRecenter: following != null && following.hasLocation
-                      ? () => _move(
-                            LatLng(following.latitude!, following.longitude!),
-                            zoom: 14.5,
-                          )
+                      ? _recenterFollow
                       : null,
                   onRefresh: () {
                     ref.invalidate(fleetProvider);

@@ -68,7 +68,7 @@ class TelemetryGrid extends StatelessWidget {
         _Cell(
           icon: Icons.battery_charging_full_rounded,
           label: 'Battery',
-          value: vehicle.batteryLevel!.toStringAsFixed(2),
+          value: vehicle.batteryLevel!.toStringAsFixed(1),
           unit: 'V',
           color: vehicle.batteryLevel! < 11.5 ? AppColors.danger : null,
         ),
@@ -104,7 +104,7 @@ class TelemetryGrid extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: cells.length,
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 110,
+            maxCrossAxisExtent: 115,
             mainAxisSpacing: Gap.sm,
             crossAxisSpacing: Gap.sm,
             childAspectRatio: 0.98,
@@ -147,7 +147,7 @@ class _TelemetryCell extends StatelessWidget {
     final Color accent = cell.color ?? theme.colorScheme.onSurface;
 
     return Container(
-      padding: const EdgeInsets.all(Gap.md),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: Gap.md),
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
         borderRadius: Corners.rLg,
@@ -168,30 +168,32 @@ class _TelemetryCell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: <Widget>[
-                  Flexible(
-                    child: Text(
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
                       cell.value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.metric(size: 24, color: accent)
+                      style: AppTypography.metric(size: 21, color: accent)
                           .copyWith(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  if (cell.unit != null) ...<Widget>[
-                    const SizedBox(width: 2),
-                    Text(
-                      cell.unit!,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 9,
-                        letterSpacing: 0,
+                    if (cell.unit != null) ...<Widget>[
+                      const SizedBox(width: 2),
+                      Text(
+                        cell.unit!,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
               const SizedBox(height: 2),
               Text(

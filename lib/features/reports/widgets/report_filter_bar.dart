@@ -355,43 +355,100 @@ class ReportFilterBar extends ConsumerWidget {
           ],
 
           // Inline Vehicle Picker
-          if (type != ReportType.consolidated && type != ReportType.fuelConsolidated) ...<Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  'VEHICLE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF64748B),
-                    letterSpacing: 0.5,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  const Text(
+                    'VEHICLE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: <Widget>[
-                    if (!requiresVehicle)
+                  InkWell(
+                    onTap: () => _showVehiclePickerModal(context, vehicles),
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.search_rounded, size: 14, color: Color(0xFF2563EB)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Search & Select',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  if (!requiresVehicle)
+                    _buildChip(
+                      context: context,
+                      label: 'All Vehicles',
+                      selected: vehicleId == null,
+                      onTap: () => onVehicleChanged(null),
+                    ),
+                  ...() {
+                    if (vehicles.length <= 6) {
+                      return vehicles.map((Vehicle v) => _buildChip(
+                            context: context,
+                            label: v.displayName,
+                            selected: vehicleId == v.id,
+                            onTap: () => onVehicleChanged(v.id),
+                          ));
+                    }
+                    final List<Vehicle> initial = vehicles.take(5).toList();
+                    final Vehicle? selectedV = vehicleId != null
+                        ? vehicles.where((v) => v.id == vehicleId).firstOrNull
+                        : null;
+                    final bool selectedInInitial = selectedV != null && initial.any((v) => v.id == selectedV.id);
+
+                    return <Widget>[
+                      ...initial.map((Vehicle v) => _buildChip(
+                            context: context,
+                            label: v.displayName,
+                            selected: vehicleId == v.id,
+                            onTap: () => onVehicleChanged(v.id),
+                          )),
+                      if (selectedV != null && !selectedInInitial)
+                        _buildChip(
+                          context: context,
+                          label: selectedV.displayName,
+                          selected: true,
+                          onTap: () => onVehicleChanged(selectedV.id),
+                        ),
                       _buildChip(
                         context: context,
-                        label: 'All Vehicles',
-                        selected: vehicleId == null,
-                        onTap: () => onVehicleChanged(null),
+                        label: '+ Search / More (${vehicles.length})',
+                        selected: false,
+                        icon: Icons.search_rounded,
+                        onTap: () => _showVehiclePickerModal(context, vehicles),
                       ),
-                    ...vehicles.map((Vehicle v) => _buildChip(
-                          context: context,
-                          label: v.displayName,
-                          selected: vehicleId == v.id,
-                          onTap: () => onVehicleChanged(v.id),
-                        )),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
+                    ];
+                  }(),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
           // Inline Date Preset Picker
           Column(
@@ -516,6 +573,30 @@ class ReportFilterBar extends ConsumerWidget {
     );
   }
 
+
+  Future<void> _showVehiclePickerModal(
+    BuildContext context,
+    List<Vehicle> vehicles,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (BuildContext ctx) => _VehiclePickerSheet(
+        vehicles: vehicles,
+        selectedId: vehicleId,
+        allowAll: !requiresVehicle,
+        onSelect: (String? id) {
+          Navigator.pop(ctx);
+          onVehicleChanged(id);
+        },
+      ),
+    );
+  }
 
   Future<void> _pickDateOrTime(BuildContext context) async {
     if (type == ReportType.trip) {

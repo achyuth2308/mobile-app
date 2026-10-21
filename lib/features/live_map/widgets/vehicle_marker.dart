@@ -15,6 +15,7 @@ class VehicleMarkerPin extends StatefulWidget {
     required this.vehicle,
     this.selected = false,
     this.showLabel = false,
+    this.showSpeed = true,
     this.useSprite = false,
     this.headingOverride,
     super.key,
@@ -23,6 +24,7 @@ class VehicleMarkerPin extends StatefulWidget {
   final Vehicle vehicle;
   final bool selected;
   final bool showLabel;
+  final bool showSpeed;
   final bool useSprite;
   final double? headingOverride;
 
@@ -194,6 +196,22 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
               ),
             ),
           ),
+
+          // ── 4. Floating Speed Badge directly above pin head without disturbing marker ──
+          if (widget.showSpeed)
+            Positioned(
+              bottom: pinHeight + 3.0,
+              left: -32.0,
+              right: -32.0,
+              child: Center(
+                child: _SpeedBadge(
+                  speed: widget.vehicle.speed,
+                  status: widget.vehicle.status,
+                  color: pinColor,
+                  isSelected: widget.selected,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -326,6 +344,80 @@ class _Label extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: Colors.white,
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Real-time Speed Badge floating directly on the marker
+// ─────────────────────────────────────────────────────────────────────────────
+class _SpeedBadge extends StatelessWidget {
+  const _SpeedBadge({
+    required this.speed,
+    required this.status,
+    required this.color,
+    this.isSelected = false,
+  });
+
+  final double speed;
+  final VehicleStatus status;
+  final Color color;
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final int speedInt = math.max(0, speed.round());
+    final String speedText = '$speedInt km/h';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.92), // Sleek dark slate
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: color,
+          width: isSelected ? 1.4 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.40),
+            blurRadius: 4,
+            offset: const Offset(0, 1.5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Live status pulse indicator
+          Container(
+            width: 4.5,
+            height: 4.5,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.6),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 3.0),
+          Text(
+            speedText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }

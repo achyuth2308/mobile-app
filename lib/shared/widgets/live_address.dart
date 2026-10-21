@@ -17,12 +17,16 @@ class LiveAddress extends StatefulWidget {
     required this.vehicle,
     required this.max,
     this.style,
+    this.textAlign,
+    this.onAddressResolved,
     super.key,
   });
 
   final Vehicle vehicle;
   final int max;
   final TextStyle? style;
+  final TextAlign? textAlign;
+  final ValueChanged<String>? onAddressResolved;
 
   @override
   State<LiveAddress> createState() => _LiveAddressState();
@@ -121,6 +125,7 @@ class _LiveAddressState extends State<LiveAddress> {
         setState(() {
           _resolvedAddress = addr;
         });
+        widget.onAddressResolved?.call(addr);
       }
     });
   }
@@ -134,6 +139,7 @@ class _LiveAddressState extends State<LiveAddress> {
       maxLines: widget.max,
       overflow: TextOverflow.ellipsis,
       softWrap: true,
+      textAlign: widget.textAlign,
       style: widget.style,
     );
   }
