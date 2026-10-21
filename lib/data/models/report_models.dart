@@ -242,9 +242,69 @@ class ReportRow extends Equatable {
   String? get fromLocation => asStringOrNull(raw, <String>['startAddress', 'start_address', 'fromLocation', 'from_location', 'origin']);
   String? get toLocation => asStringOrNull(raw, <String>['endAddress', 'end_address', 'toLocation', 'to_location', 'destination']);
 
-  int get tripCount => asInt(raw, <String>['trip_count', 'tripCount', 'trips', 'totalTrips']);
-  int get stoppageCount => asInt(raw, <String>['stoppage_count', 'stoppageCount', 'stoppages', 'totalStops']);
-  int get overspeedingCount => asInt(raw, <String>['overspeeding_count', 'overspeedingCount', 'overspeeding', 'overspeedCount', 'violations']);
+  int _extractCount(List<String> keys) {
+    for (final String k in keys) {
+      final Object? v = raw[k];
+      if (v is List) return v.length;
+      if (v is num) return v.toInt();
+      if (v is String) {
+        final int? parsed = int.tryParse(v.trim());
+        if (parsed != null) return parsed;
+      }
+    }
+    for (final String sub in <String>['summary', 'activity', 'stats', 'events', 'data']) {
+      final Object? subMap = raw[sub];
+      if (subMap is Map) {
+        for (final String k in keys) {
+          final Object? v = subMap[k];
+          if (v is List) return v.length;
+          if (v is num) return v.toInt();
+          if (v is String) {
+            final int? parsed = int.tryParse(v.trim());
+            if (parsed != null) return parsed;
+          }
+        }
+      }
+    }
+    return asInt(raw, keys);
+  }
+
+  int get tripCount => _extractCount(<String>[
+        'trip_count',
+        'tripCount',
+        'trips',
+        'totalTrips',
+        'total_trips',
+        'tripsCount',
+        'trip_events',
+        'tripEvents',
+      ]);
+
+  int get stoppageCount => _extractCount(<String>[
+        'stoppage_count',
+        'stoppageCount',
+        'stoppages',
+        'totalStops',
+        'total_stops',
+        'stops',
+        'stop_count',
+        'stopCount',
+        'total_stoppages',
+        'stoppage',
+      ]);
+
+  int get overspeedingCount => _extractCount(<String>[
+        'overspeeding_count',
+        'overspeedingCount',
+        'overspeeding',
+        'overspeedCount',
+        'overspeed_count',
+        'overspeeds',
+        'total_overspeed',
+        'total_overspeeds',
+        'total_overspeeding',
+        'violations',
+      ]);
 
   factory ReportRow.fromJson(Map<String, dynamic> json) {
     final Map<String, String> cells = <String, String>{};
