@@ -10,25 +10,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../data/models/alert.dart';
 
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse notificationResponse) async {
-  if (notificationResponse.actionId == 'view_maps') {
-    if (notificationResponse.payload != null) {
-      try {
-        final data = jsonDecode(notificationResponse.payload!) as Map<String, dynamic>;
-        final lat = data['lat'];
-        final lng = data['lng'];
-        if (lat != null && lng != null) {
-          final url = Uri.parse('https://maps.google.com/?q=$lat,$lng');
-          await launchUrl(url, mode: LaunchMode.externalApplication);
-        }
-      } catch (_) {}
-    }
-  }
+  // Handled by system / app launch
 }
 
 /// Top-level background handler — required by FCM to be a static/top-level
@@ -148,13 +134,6 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(content.body),
-          actions: <AndroidNotificationAction>[
-            const AndroidNotificationAction(
-              'view_maps',
-              '🗺️ View on Google Maps',
-              showsUserInterface: true,
-            ),
-          ],
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
@@ -391,17 +370,7 @@ class PushService {
         if (r.payload == null || r.payload!.isEmpty) return;
         try {
           final data = jsonDecode(r.payload!) as Map<String, dynamic>;
-          if (r.actionId == 'view_maps') {
-            final lat = data['lat'];
-            final lng = data['lng'];
-            if (lat != null && lng != null) {
-              final url = Uri.parse('https://maps.google.com/?q=$lat,$lng');
-              await launchUrl(url, mode: LaunchMode.externalApplication);
-            }
-          } else {
-            // view_app action or normal tap
-            _onNotificationTap(data);
-          }
+          _onNotificationTap(data);
         } catch (_) {/* malformed payload — ignore */}
       },
     );
@@ -498,14 +467,6 @@ class PushService {
           color: const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(content.body),
-          actions: <AndroidNotificationAction>[
-            AndroidNotificationAction(
-              'view_maps',
-              '🗺️ View on Google Maps',
-              showsUserInterface: true,
-              icon: const DrawableResourceAndroidBitmap('@drawable/ic_notification'),
-            ),
-          ],
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,

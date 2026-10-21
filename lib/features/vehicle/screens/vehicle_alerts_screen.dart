@@ -5,9 +5,10 @@ import '../../../providers/fleet_provider.dart';
 import '../../alerts/alerts_screen.dart';
 
 class VehicleAlertsScreen extends ConsumerWidget {
-  const VehicleAlertsScreen({required this.vehicleId, super.key});
+  const VehicleAlertsScreen({required this.vehicleId, this.alertId, super.key});
 
   final String vehicleId;
+  final String? alertId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,6 +21,7 @@ class VehicleAlertsScreen extends ConsumerWidget {
       ),
       body: AlertsScreen(
         vehicleId: vehicleId,
+        alertId: alertId,
       ),
     );
   }

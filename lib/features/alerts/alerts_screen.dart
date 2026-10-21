@@ -17,6 +17,7 @@ import '../../data/models/alert.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/alerts_provider.dart';
 import '../../providers/core_providers.dart';
+import '../../core/notifications/push_service.dart';
 import '../../providers/fleet_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/connectivity_banner.dart';
@@ -26,9 +27,10 @@ import '../../shared/widgets/connectivity_banner.dart';
 /// Foreground `alert:new` socket events prepend to the list; while the app is
 /// backgrounded the same events arrive as FCM push instead.
 class AlertsScreen extends ConsumerStatefulWidget {
-  const AlertsScreen({super.key, this.vehicleId});
+  const AlertsScreen({super.key, this.vehicleId, this.alertId});
 
   final String? vehicleId;
+  final String? alertId;
 
   @override
   ConsumerState<AlertsScreen> createState() => _AlertsScreenState();
@@ -209,6 +211,20 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
               );
 
       if (!mounted) return;
+      if (reset && widget.alertId != null && widget.alertId!.isNotEmpty) {
+        final bool exists = data.any((FleetAlert a) => a.id == widget.alertId);
+        if (!exists) {
+          final List<Map<String, dynamic>> local = await PushService.getLocalAlerts();
+          final Map<String, dynamic>? match = local.where((Map<String, dynamic> m) => m['id']?.toString() == widget.alertId).firstOrNull;
+          if (match != null) {
+            try {
+              data.insert(0, FleetAlert.fromJson(match));
+            } catch (_) {}
+          }
+        }
+        unawaited(ref.read(alertRepositoryProvider).markAsRead(widget.alertId!));
+      }
+
       setState(() {
         if (reset) _alerts.clear();
         _alerts.addAll(data);
@@ -748,6 +764,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
           },
           child: AlertTile(
             alert: alert,
+            isHighlighted: alert.id == widget.alertId,
             onTap: () => _openAlert(alert),
             onMarkRead: alert.isRead ? null : () => _markSingleAsRead(alert),
           ),
@@ -903,12 +920,14 @@ class AlertTile extends StatelessWidget {
     required this.alert,
     required this.onTap,
     this.onMarkRead,
+    this.isHighlighted = false,
     super.key,
   });
 
   final FleetAlert alert;
   final VoidCallback onTap;
   final VoidCallback? onMarkRead;
+  final bool isHighlighted;
 
   Color _getAlertColor(FleetAlert alert) {
     final String type = alert.type.toLowerCase().trim();
@@ -949,18 +968,33 @@ class AlertTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: Gap.sm),
       decoration: BoxDecoration(
-        color: alert.isRead
-            ? theme.colorScheme.surfaceContainer
-            : (theme.brightness == Brightness.dark
-                ? color.withOpacity(0.12)
-                : color.withOpacity(0.06)),
+        color: isHighlighted
+            ? (theme.brightness == Brightness.dark
+                ? theme.colorScheme.primary.withOpacity(0.18)
+                : theme.colorScheme.primary.withOpacity(0.08))
+            : (alert.isRead
+                ? theme.colorScheme.surfaceContainer
+                : (theme.brightness == Brightness.dark
+                    ? color.withOpacity(0.12)
+                    : color.withOpacity(0.06))),
         borderRadius: Corners.rMd,
         border: Border.all(
-          color: !alert.isRead
-              ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.6 : 0.45)
-              : theme.colorScheme.outlineVariant.withOpacity(0.4),
-          width: !alert.isRead ? 1.5 : 1.0,
+          color: isHighlighted
+              ? theme.colorScheme.primary
+              : (!alert.isRead
+                  ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.6 : 0.45)
+                  : theme.colorScheme.outlineVariant.withOpacity(0.4)),
+          width: isHighlighted ? 2.0 : (!alert.isRead ? 1.5 : 1.0),
         ),
+        boxShadow: isHighlighted
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.25),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
       ),
       child: Material(
         color: Colors.transparent,
@@ -995,6 +1029,26 @@ class AlertTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      if (isHighlighted)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 5.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'OPENED FROM NOTIFICATION',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 9,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
                       Row(
                         children: <Widget>[
                           Flexible(

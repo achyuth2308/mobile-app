@@ -213,7 +213,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
           GoRoute(
             path: 'alerts',
             builder: (BuildContext c, GoRouterState s) =>
-                VehicleAlertsScreen(vehicleId: s.pathParameters['id'] ?? ''),
+                VehicleAlertsScreen(
+                  vehicleId: s.pathParameters['id'] ?? '',
+                  alertId: s.uri.queryParameters['alertId'],
+                ),
           ),
           GoRoute(
             path: 'settings',
@@ -225,7 +228,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/alerts',
         parentNavigatorKey: _rootKey,
-        builder: (BuildContext c, GoRouterState s) => const AlertsScreen(),
+        builder: (BuildContext c, GoRouterState s) => AlertsScreen(
+          vehicleId: s.uri.queryParameters['vehicleId'],
+          alertId: s.uri.queryParameters['alertId'],
+        ),
       ),
       GoRoute(
         path: '/geofences',
@@ -308,12 +314,21 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
 
 /// Maps an FCM payload to an in-app destination.
 String routeForNotification(Map<String, dynamic> data) {
-  final String type = (data['type'] ?? '').toString().toLowerCase();
+  final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase();
   final String? vehicleId =
       (data['vehicleId'] ?? data['vehicle_id'])?.toString();
+  final String? alertId =
+      (data['alertId'] ?? data['id'])?.toString();
 
   if (type.contains('renewal') || type.contains('billing')) return '/renewals';
-  if (type == 'route_deviation' || type == 'trip_started' || type == 'trip_ended') return '/routes';
-  if (vehicleId != null && vehicleId.isNotEmpty) return '/vehicle-map?focus=$vehicleId';
-  return '/dashboard';
+  if (type == 'route_deviation') return '/routes';
+
+  final Map<String, String> query = <String, String>{};
+  if (vehicleId != null && vehicleId.isNotEmpty) query['vehicleId'] = vehicleId;
+  if (alertId != null && alertId.isNotEmpty) query['alertId'] = alertId;
+
+  if (query.isNotEmpty) {
+    return Uri(path: '/alerts', queryParameters: query).toString();
+  }
+  return '/alerts';
 }
