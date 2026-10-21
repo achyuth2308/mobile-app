@@ -38,18 +38,48 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   final TextEditingController _placeSearchCtrl = TextEditingController();
 
   // ── Start & Destination Search Controllers & State ─────────────────
-  final TextEditingController _startLocationCtrl = TextEditingController();
-  final TextEditingController _endLocationCtrl = TextEditingController();
+  TextEditingController? _startLocationCtrlField;
+  TextEditingController get _startLocationCtrl =>
+      _startLocationCtrlField ??= TextEditingController();
+
+  TextEditingController? _endLocationCtrlField;
+  TextEditingController get _endLocationCtrl =>
+      _endLocationCtrlField ??= TextEditingController();
+
   Timer? _startDebounce;
   Timer? _endDebounce;
-  List<GeocodeSearchResult> _startSuggestions = <GeocodeSearchResult>[];
-  List<GeocodeSearchResult> _endSuggestions = <GeocodeSearchResult>[];
-  bool _isSearchingStart = false;
-  bool _isSearchingEnd = false;
-  bool _isSearchCardExpanded = true;
+
+  List<GeocodeSearchResult>? _startSuggestionsField;
+  List<GeocodeSearchResult> get _startSuggestions =>
+      _startSuggestionsField ??= <GeocodeSearchResult>[];
+  set _startSuggestions(List<GeocodeSearchResult> val) =>
+      _startSuggestionsField = val;
+
+  List<GeocodeSearchResult>? _endSuggestionsField;
+  List<GeocodeSearchResult> get _endSuggestions =>
+      _endSuggestionsField ??= <GeocodeSearchResult>[];
+  set _endSuggestions(List<GeocodeSearchResult> val) =>
+      _endSuggestionsField = val;
+
+  bool? _isSearchingStartField;
+  bool get _isSearchingStart => _isSearchingStartField ?? false;
+  set _isSearchingStart(bool val) => _isSearchingStartField = val;
+
+  bool? _isSearchingEndField;
+  bool get _isSearchingEnd => _isSearchingEndField ?? false;
+  set _isSearchingEnd(bool val) => _isSearchingEndField = val;
+
+  bool? _isSearchCardExpandedField;
+  bool get _isSearchCardExpanded => _isSearchCardExpandedField ?? true;
+  set _isSearchCardExpanded(bool val) => _isSearchCardExpandedField = val;
+
   LatLng? _startLocation;
   LatLng? _endLocation;
-  bool _isRouting = false;
+
+  bool? _isRoutingField;
+  bool get _isRouting => _isRoutingField ?? false;
+  set _isRouting(bool val) => _isRoutingField = val;
+
   String? _routeDurationText;
   String? _routeSummaryText;
   String? _routingSource;
@@ -74,8 +104,30 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   String _endPlace = '';
 
   @override
+  void reassemble() {
+    super.reassemble();
+    _startLocationCtrlField ??= TextEditingController();
+    _endLocationCtrlField ??= TextEditingController();
+    _startSuggestionsField ??= <GeocodeSearchResult>[];
+    _endSuggestionsField ??= <GeocodeSearchResult>[];
+    _isSearchingStartField ??= false;
+    _isSearchingEndField ??= false;
+    _isSearchCardExpandedField ??= true;
+    _isRoutingField ??= false;
+  }
+
+  @override
   void initState() {
     super.initState();
+    _startLocationCtrlField ??= TextEditingController();
+    _endLocationCtrlField ??= TextEditingController();
+    _startSuggestionsField ??= <GeocodeSearchResult>[];
+    _endSuggestionsField ??= <GeocodeSearchResult>[];
+    _isSearchingStartField ??= false;
+    _isSearchingEndField ??= false;
+    _isSearchCardExpandedField ??= true;
+    _isRoutingField ??= false;
+
     final AppRoute? ex = widget.existing;
     if (ex != null) {
       _nameCtrl.text = ex.name;
@@ -413,8 +465,8 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   void dispose() {
     _startDebounce?.cancel();
     _endDebounce?.cancel();
-    _startLocationCtrl.dispose();
-    _endLocationCtrl.dispose();
+    _startLocationCtrlField?.dispose();
+    _endLocationCtrlField?.dispose();
     _nameCtrl.dispose();
     _searchCtrl.dispose();
     _placeSearchCtrl.dispose();
@@ -1743,7 +1795,16 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   }
 
   Widget _buildLocationSearchCard(bool isDark, ThemeData theme) {
-    final bool hasSuggestions = _startSuggestions.isNotEmpty || _endSuggestions.isNotEmpty;
+    final List<GeocodeSearchResult> sSuggs = _startSuggestions;
+    final List<GeocodeSearchResult> eSuggs = _endSuggestions;
+    final TextEditingController sCtrl = _startLocationCtrl;
+    final TextEditingController eCtrl = _endLocationCtrl;
+    final bool isExp = _isSearchCardExpanded;
+    final bool isRoute = _isRouting;
+    final bool isSearchS = _isSearchingStart;
+    final bool isSearchE = _isSearchingEnd;
+
+    final bool hasSuggestions = sSuggs.isNotEmpty || eSuggs.isNotEmpty;
     final Color cardBg = isDark ? const Color(0xFF1E293B).withOpacity(0.96) : Colors.white.withOpacity(0.96);
     final Color borderColor = isDark ? Colors.white12 : Colors.black12;
 
@@ -1770,10 +1831,10 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
           children: <Widget>[
             // Header bar
             InkWell(
-              onTap: () => setState(() => _isSearchCardExpanded = !_isSearchCardExpanded),
+              onTap: () => setState(() => _isSearchCardExpanded = !isExp),
               borderRadius: BorderRadius.vertical(
                 top: const Radius.circular(16),
-                bottom: _isSearchCardExpanded ? Radius.zero : const Radius.circular(16),
+                bottom: isExp ? Radius.zero : const Radius.circular(16),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
@@ -1790,7 +1851,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    if (_isRouting) ...<Widget>[
+                    if (isRoute) ...<Widget>[
                       const SizedBox(
                         width: 13,
                         height: 13,
@@ -1839,7 +1900,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                     ],
                     const Spacer(),
                     Icon(
-                      _isSearchCardExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      isExp ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
                       size: 20,
                       color: isDark ? Colors.white60 : Colors.black45,
                     ),
@@ -1848,7 +1909,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
               ),
             ),
 
-            if (_isSearchCardExpanded) ...<Widget>[
+            if (isExp) ...<Widget>[
               Divider(height: 1, color: borderColor),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 8, 12),
@@ -1886,7 +1947,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                           SizedBox(
                             height: 36,
                             child: TextField(
-                              controller: _startLocationCtrl,
+                              controller: sCtrl,
                               onChanged: _onStartChanged,
                               style: TextStyle(
                                 fontSize: 13,
@@ -1906,14 +1967,14 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide.none,
                                 ),
-                                suffixIcon: _startLocationCtrl.text.isNotEmpty
+                                suffixIcon: sCtrl.text.isNotEmpty
                                     ? IconButton(
                                         icon: const Icon(Icons.close_rounded, size: 15),
                                         onPressed: _clearStart,
                                         splashRadius: 14,
                                         padding: EdgeInsets.zero,
                                       )
-                                    : (_isSearchingStart
+                                    : (isSearchS
                                         ? const Padding(
                                             padding: EdgeInsets.all(10),
                                             child: SizedBox(
@@ -1932,7 +1993,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                           SizedBox(
                             height: 36,
                             child: TextField(
-                              controller: _endLocationCtrl,
+                              controller: eCtrl,
                               onChanged: _onEndChanged,
                               style: TextStyle(
                                 fontSize: 13,
@@ -1952,14 +2013,14 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide.none,
                                 ),
-                                suffixIcon: _endLocationCtrl.text.isNotEmpty
+                                suffixIcon: eCtrl.text.isNotEmpty
                                     ? IconButton(
                                         icon: const Icon(Icons.close_rounded, size: 15),
                                         onPressed: _clearEnd,
                                         splashRadius: 14,
                                         padding: EdgeInsets.zero,
                                       )
-                                    : (_isSearchingEnd
+                                    : (isSearchE
                                         ? const Padding(
                                             padding: EdgeInsets.all(10),
                                             child: SizedBox(
@@ -1995,14 +2056,14 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: _startSuggestions.isNotEmpty
-                        ? _startSuggestions.length
-                        : _endSuggestions.length,
+                    itemCount: sSuggs.isNotEmpty
+                        ? sSuggs.length
+                        : eSuggs.length,
                     separatorBuilder: (_, __) => Divider(height: 1, color: borderColor),
                     itemBuilder: (BuildContext context, int index) {
-                      final bool isStart = _startSuggestions.isNotEmpty;
+                      final bool isStart = sSuggs.isNotEmpty;
                       final GeocodeSearchResult item =
-                          isStart ? _startSuggestions[index] : _endSuggestions[index];
+                          isStart ? sSuggs[index] : eSuggs[index];
                       return InkWell(
                         onTap: () => isStart ? _selectStartPlace(item) : _selectEndPlace(item),
                         child: Padding(
