@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart' hide Path;
@@ -16,6 +17,7 @@ import '../../shared/map/app_map.dart';
 import '../../shared/map/app_map_controller.dart';
 import '../../shared/map/app_map_models.dart';
 import '../../core/utils/geocoder.dart';
+import '../../core/utils/routing_service.dart';
 
 /// Full-screen sheet for drawing a route on the map and assigning it
 /// to one or more vehicles. Opened from [RoutesScreen].
@@ -34,6 +36,23 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _placeSearchCtrl = TextEditingController();
+
+  // ── Start & Destination Search Controllers & State ─────────────────
+  final TextEditingController _startLocationCtrl = TextEditingController();
+  final TextEditingController _endLocationCtrl = TextEditingController();
+  Timer? _startDebounce;
+  Timer? _endDebounce;
+  List<GeocodeSearchResult> _startSuggestions = <GeocodeSearchResult>[];
+  List<GeocodeSearchResult> _endSuggestions = <GeocodeSearchResult>[];
+  bool _isSearchingStart = false;
+  bool _isSearchingEnd = false;
+  bool _isSearchCardExpanded = true;
+  LatLng? _startLocation;
+  LatLng? _endLocation;
+  bool _isRouting = false;
+  String? _routeDurationText;
+  String? _routeSummaryText;
+  String? _routingSource;
 
   final List<LatLng> _waypoints = <LatLng>[];
   final List<LatLng> _initialWaypoints = <LatLng>[];
@@ -66,6 +85,11 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
       _tolerance = ex.toleranceMeters;
       _selectedVehicleIds.addAll(ex.vehicleIds);
       _canEditTrail = false; // Existing routes are locked by default so clicks won't move the trail
+      if (ex.coordinates.isNotEmpty) {
+        _startLocation = ex.coordinates.first;
+        _endLocation = ex.coordinates.last;
+        _initExistingPlaceNames();
+      }
     } else {
       _sourceWaypoints = List<LatLng>.from(_waypoints);
       _canEditTrail = true;
@@ -79,6 +103,22 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
     if (_sourceWaypoints.length >= 10) {
       _detectMajorStops();
     }
+  }
+
+  Future<void> _initExistingPlaceNames() async {
+    if (_waypoints.length < 2) return;
+    try {
+      final List<String> addrs = await Future.wait(<Future<String>>[
+        Geocoder.getAddress(_waypoints.first.latitude, _waypoints.first.longitude),
+        Geocoder.getAddress(_waypoints.last.latitude, _waypoints.last.longitude),
+      ]);
+      if (mounted) {
+        setState(() {
+          _startLocationCtrl.text = Geocoder.cleanPlaceName(addrs[0]);
+          _endLocationCtrl.text = Geocoder.cleanPlaceName(addrs[1]);
+        });
+      }
+    } catch (_) {}
   }
 
   bool get _isLoop {
@@ -371,10 +411,191 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
 
   @override
   void dispose() {
+    _startDebounce?.cancel();
+    _endDebounce?.cancel();
+    _startLocationCtrl.dispose();
+    _endLocationCtrl.dispose();
     _nameCtrl.dispose();
     _searchCtrl.dispose();
     _placeSearchCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Start & Destination Search & Road Routing Logic ────────────────
+
+  void _onStartChanged(String val) {
+    _startDebounce?.cancel();
+    final String q = val.trim();
+    if (q.isEmpty) {
+      setState(() {
+        _startSuggestions = <GeocodeSearchResult>[];
+        _isSearchingStart = false;
+        _startLocation = null;
+      });
+      return;
+    }
+    setState(() => _isSearchingStart = true);
+    _startDebounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final List<GeocodeSearchResult> results = await Geocoder.searchPlaces(q);
+        if (mounted) {
+          setState(() {
+            _startSuggestions = results;
+            _isSearchingStart = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isSearchingStart = false);
+      }
+    });
+  }
+
+  void _onEndChanged(String val) {
+    _endDebounce?.cancel();
+    final String q = val.trim();
+    if (q.isEmpty) {
+      setState(() {
+        _endSuggestions = <GeocodeSearchResult>[];
+        _isSearchingEnd = false;
+        _endLocation = null;
+      });
+      return;
+    }
+    setState(() => _isSearchingEnd = true);
+    _endDebounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final List<GeocodeSearchResult> results = await Geocoder.searchPlaces(q);
+        if (mounted) {
+          setState(() {
+            _endSuggestions = results;
+            _isSearchingEnd = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isSearchingEnd = false);
+      }
+    });
+  }
+
+  void _selectStartPlace(GeocodeSearchResult place) {
+    FocusScope.of(context).unfocus();
+    final LatLng pos = LatLng(place.lat, place.lon);
+    setState(() {
+      _startLocation = pos;
+      _startLocationCtrl.text = place.name;
+      _startSuggestions = <GeocodeSearchResult>[];
+      _isSearchingStart = false;
+    });
+    _mapCtrl.move(pos, 14.5);
+    if (_endLocation != null) {
+      _calculateRoadRoute();
+    }
+  }
+
+  void _selectEndPlace(GeocodeSearchResult place) {
+    FocusScope.of(context).unfocus();
+    final LatLng pos = LatLng(place.lat, place.lon);
+    setState(() {
+      _endLocation = pos;
+      _endLocationCtrl.text = place.name;
+      _endSuggestions = <GeocodeSearchResult>[];
+      _isSearchingEnd = false;
+    });
+    _mapCtrl.move(pos, 14.5);
+    if (_startLocation != null) {
+      _calculateRoadRoute();
+    }
+  }
+
+  void _swapStartAndEnd() {
+    if (_startLocation == null && _endLocation == null) return;
+    setState(() {
+      final LatLng? tempLoc = _startLocation;
+      _startLocation = _endLocation;
+      _endLocation = tempLoc;
+
+      final String tempText = _startLocationCtrl.text;
+      _startLocationCtrl.text = _endLocationCtrl.text;
+      _endLocationCtrl.text = tempText;
+
+      _startSuggestions = <GeocodeSearchResult>[];
+      _endSuggestions = <GeocodeSearchResult>[];
+    });
+
+    if (_startLocation != null && _endLocation != null) {
+      _calculateRoadRoute();
+    }
+  }
+
+  void _clearStart() {
+    setState(() {
+      _startLocation = null;
+      _startLocationCtrl.clear();
+      _startSuggestions = <GeocodeSearchResult>[];
+      _isSearchingStart = false;
+    });
+  }
+
+  void _clearEnd() {
+    setState(() {
+      _endLocation = null;
+      _endLocationCtrl.clear();
+      _endSuggestions = <GeocodeSearchResult>[];
+      _isSearchingEnd = false;
+    });
+  }
+
+  Future<void> _calculateRoadRoute() async {
+    if (_startLocation == null || _endLocation == null) return;
+    setState(() => _isRouting = true);
+
+    try {
+      final RouteResult? result = await RoutingService.getDirections(
+        origin: _startLocation!,
+        destination: _endLocation!,
+        customApiKey: ref.read(authProvider).user?.apiKey,
+      );
+
+      if (!mounted) return;
+
+      if (result != null && result.points.length >= 2) {
+        setState(() {
+          _waypoints.clear();
+          _waypoints.addAll(result.points);
+          _sourceWaypoints = List<LatLng>.from(result.points);
+          _trimRange = RangeValues(0, (_sourceWaypoints.length - 1).toDouble());
+          _routeDurationText = result.durationText;
+          _routeSummaryText = result.summary;
+          _routingSource = result.source;
+          _isRouting = false;
+        });
+
+        final String sName = _startLocationCtrl.text.trim();
+        final String eName = _endLocationCtrl.text.trim();
+        if (sName.isNotEmpty && eName.isNotEmpty && (_nameCtrl.text.trim().isEmpty || _nameCtrl.text.contains('–'))) {
+          _nameCtrl.text = '$sName – $eName';
+        }
+
+        _fitFullRoute();
+        _showSnack('Road route: ${result.distanceKm.toStringAsFixed(1)} km (${result.durationText})');
+      } else {
+        // Fallback: direct connection
+        setState(() {
+          _waypoints.clear();
+          _waypoints.addAll(<LatLng>[_startLocation!, _endLocation!]);
+          _sourceWaypoints = List<LatLng>.from(_waypoints);
+          _trimRange = const RangeValues(0, 1);
+          _isRouting = false;
+        });
+        _fitFullRoute();
+        _showSnack('Road network unavailable. Connected directly.');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isRouting = false);
+        _showSnack('Route calculation error: $e');
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -384,7 +605,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
       return;
     }
     if (_waypoints.length < 2) {
-      _showSnack('Tap the map to add at least 2 waypoints.');
+      _showSnack('Please set start and destination locations or add waypoints.');
       return;
     }
     setState(() => _saving = true);
@@ -441,17 +662,51 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ── Map tap → add waypoint ─────────────────────────────────────────────────
+  // ── Map tap → smart start/destination or waypoint ──────────────────────────
 
-  void _onTap(LatLng point) {
+  void _onTap(LatLng point) async {
     if (_saving || !_canEditTrail) return;
+
+    // If start is empty, tap sets start
+    if (_startLocation == null) {
+      setState(() {
+        _startLocation = point;
+        _startLocationCtrl.text = '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}';
+      });
+      _showSnack('Start point set. Tap map or search for destination.');
+      try {
+        final String addr = await Geocoder.getAddress(point.latitude, point.longitude);
+        if (mounted) {
+          setState(() => _startLocationCtrl.text = Geocoder.cleanPlaceName(addr));
+        }
+      } catch (_) {}
+      return;
+    }
+
+    // If destination is empty, tap sets destination and triggers road route!
+    if (_endLocation == null) {
+      setState(() {
+        _endLocation = point;
+        _endLocationCtrl.text = '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}';
+      });
+      try {
+        final String addr = await Geocoder.getAddress(point.latitude, point.longitude);
+        if (mounted) {
+          setState(() => _endLocationCtrl.text = Geocoder.cleanPlaceName(addr));
+        }
+      } catch (_) {}
+      await _calculateRoadRoute();
+      return;
+    }
+
+    // Both set: tap appends detour point
     setState(() {
       _waypoints.add(point);
       _sourceWaypoints = List<LatLng>.from(_waypoints);
       _trimRange = RangeValues(0, (_sourceWaypoints.length - 1).toDouble());
     });
     if (_waypoints.length >= 2) {
-      _autoNameFromPlaces();
+      await _autoNameFromPlaces();
     }
   }
 
@@ -462,6 +717,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
     final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
 
     final List<Vehicle> filteredVehicles = vehicles.where((Vehicle v) {
@@ -590,8 +846,16 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                       ),
                   ],
                 ),
+                // ── Start & Destination Search Panel (Floating on Map) ─────
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  right: 10,
+                  child: _buildLocationSearchCard(isDark, theme),
+                ),
+
                 // Hint overlay
-                if (_waypoints.isEmpty)
+                if (_waypoints.isEmpty && !_isSearchCardExpanded)
                   Positioned(
                     bottom: 16,
                     left: 0,
@@ -605,7 +869,7 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                           borderRadius: Corners.rPill,
                         ),
                         child: const Text(
-                          'Tap the map to add waypoints • Long press to remove',
+                          'Search locations above or tap map to set route',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -614,77 +878,10 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                       ),
                     ),
                   ),
-                // Mode indicator & toggle button banner (Clickable pill!)
-                if (_waypoints.isNotEmpty)
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          setState(() => _canEditTrail = !_canEditTrail);
-                          _showSnack(_canEditTrail
-                              ? 'Trail editing enabled: Click map to add points'
-                              : 'Trail locked: Map clicks will not modify trail');
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 11, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: _canEditTrail
-                                ? const Color(0xFFF59E0B)
-                                : Colors.black.withOpacity(0.8),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: _canEditTrail
-                                  ? Colors.transparent
-                                  : Colors.white24,
-                            ),
-                            boxShadow: const <BoxShadow>[
-                              BoxShadow(
-                                color: Colors.black38,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(
-                                _canEditTrail
-                                    ? Icons.edit_road_rounded
-                                    : Icons.lock_rounded,
-                                size: 14,
-                                color: _canEditTrail
-                                    ? Colors.black87
-                                    : const Color(0xFF10B981),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _canEditTrail
-                                    ? 'Editing Active (Tap to Lock)'
-                                    : 'Trail Locked (Tap to Edit)',
-                                style: TextStyle(
-                                  color: _canEditTrail
-                                      ? Colors.black87
-                                      : Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+
                 // Map control buttons (Fit Full Route, Lock/Edit, Undo, Revert)
                 Positioned(
-                  top: 12,
+                  bottom: 12,
                   right: 12,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1541,6 +1738,323 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLocationSearchCard(bool isDark, ThemeData theme) {
+    final bool hasSuggestions = _startSuggestions.isNotEmpty || _endSuggestions.isNotEmpty;
+    final Color cardBg = isDark ? const Color(0xFF1E293B).withOpacity(0.96) : Colors.white.withOpacity(0.96);
+    final Color borderColor = isDark ? Colors.white12 : Colors.black12;
+
+    return Material(
+      color: Colors.transparent,
+      elevation: 6,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Header bar
+            InkWell(
+              onTap: () => setState(() => _isSearchCardExpanded = !_isSearchCardExpanded),
+              borderRadius: BorderRadius.vertical(
+                top: const Radius.circular(16),
+                bottom: _isSearchCardExpanded ? Radius.zero : const Radius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                child: Row(
+                  children: <Widget>[
+                    const Icon(Icons.alt_route_rounded, color: Color(0xFF00C6FF), size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Route Locations',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_isRouting) ...<Widget>[
+                      const SizedBox(
+                        width: 13,
+                        height: 13,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00C6FF)),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Snapping road route...',
+                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black54),
+                      ),
+                    ] else if (_waypoints.length >= 2) ...<Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                        ),
+                        child: Text(
+                          '${_approxLengthKm.toStringAsFixed(1)} km${_routeDurationText != null && _routeDurationText!.isNotEmpty ? " • $_routeDurationText" : ""}${_routeSummaryText != null && _routeSummaryText!.isNotEmpty ? " ($_routeSummaryText)" : ""}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                      ),
+                      if (_routingSource != null) ...<Widget>[
+                        const SizedBox(width: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00C6FF).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _routingSource!,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF00C6FF),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                    const Spacer(),
+                    Icon(
+                      _isSearchCardExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: isDark ? Colors.white60 : Colors.black45,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (_isSearchCardExpanded) ...<Widget>[
+              Divider(height: 1, color: borderColor),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 8, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    // Left route line indicator (Green dot -> line -> Red pin)
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        Container(
+                          width: 1.5,
+                          height: 28,
+                          color: isDark ? Colors.white24 : Colors.black26,
+                        ),
+                        const Icon(Icons.location_on_rounded, color: Color(0xFFEF4444), size: 14),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Inputs Column
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          // Start Location Input
+                          SizedBox(
+                            height: 36,
+                            child: TextField(
+                              controller: _startLocationCtrl,
+                              onChanged: _onStartChanged,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search start location or tap map...',
+                                hintStyle: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                                filled: true,
+                                fillColor: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
+                                ),
+                                suffixIcon: _startLocationCtrl.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.close_rounded, size: 15),
+                                        onPressed: _clearStart,
+                                        splashRadius: 14,
+                                        padding: EdgeInsets.zero,
+                                      )
+                                    : (_isSearchingStart
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(10),
+                                            child: SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            ),
+                                          )
+                                        : null),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Destination Location Input
+                          SizedBox(
+                            height: 36,
+                            child: TextField(
+                              controller: _endLocationCtrl,
+                              onChanged: _onEndChanged,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search destination location or tap map...',
+                                hintStyle: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                                filled: true,
+                                fillColor: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
+                                ),
+                                suffixIcon: _endLocationCtrl.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.close_rounded, size: 15),
+                                        onPressed: _clearEnd,
+                                        splashRadius: 14,
+                                        padding: EdgeInsets.zero,
+                                      )
+                                    : (_isSearchingEnd
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(10),
+                                            child: SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            ),
+                                          )
+                                        : null),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Swap Button
+                    IconButton(
+                      icon: const Icon(Icons.swap_vert_rounded),
+                      tooltip: 'Swap start and destination',
+                      color: isDark ? Colors.white70 : Colors.black54,
+                      onPressed: _swapStartAndEnd,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Autocomplete suggestions list
+              if (hasSuggestions) ...<Widget>[
+                Divider(height: 1, color: borderColor),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: _startSuggestions.isNotEmpty
+                        ? _startSuggestions.length
+                        : _endSuggestions.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: borderColor),
+                    itemBuilder: (BuildContext context, int index) {
+                      final bool isStart = _startSuggestions.isNotEmpty;
+                      final GeocodeSearchResult item =
+                          isStart ? _startSuggestions[index] : _endSuggestions[index];
+                      return InkWell(
+                        onTap: () => isStart ? _selectStartPlace(item) : _selectEndPlace(item),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                isStart ? Icons.trip_origin_rounded : Icons.location_on_outlined,
+                                size: 17,
+                                color: isStart ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      item.name,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : Colors.black87,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (item.address.isNotEmpty) ...<Widget>[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.address,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isDark ? Colors.white60 : Colors.black54,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
       ),
     );
   }
