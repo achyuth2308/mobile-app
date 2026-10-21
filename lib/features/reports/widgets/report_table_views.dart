@@ -1699,41 +1699,7 @@ class ConsolidatedReportTable extends StatelessWidget {
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 12),
 
-                // 2. Activity & Driving Summary
-                const Text(
-                  'ACTIVITY & EVENTS',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF94A3B8),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    _buildStat('TOTAL TRIPS', '${r.tripCount}'),
-                    _buildStat('STOPPAGES', '${r.stoppageCount}'),
-                    _buildStat('OVERSPEEDS', '${r.overspeedingCount}'),
-                  ],
-                ),
-                if (r.maxSpeedVal != null || r.avgSpeedVal != null) ...<Widget>[
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      _buildStat('MAX SPEED', r.maxSpeedVal != null ? '${r.maxSpeedVal!.toStringAsFixed(0)} km/h' : '-'),
-                      _buildStat('AVG SPEED', r.avgSpeedVal != null ? '${r.avgSpeedVal!.toStringAsFixed(0)} km/h' : '-'),
-                      const SizedBox(width: 100),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 12),
-
-                // 3. Locations
+                // 2. Locations
                 const Text(
                   'LOCATION BOUNDS',
                   style: TextStyle(

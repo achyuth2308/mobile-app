@@ -6,6 +6,7 @@ import '../../core/network/api_client.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/trip_provider.dart';
+import '../models/json_utils.dart';
 import '../models/report_models.dart';
 import '../models/user_trip.dart';
 import '../models/vehicle.dart';
@@ -176,11 +177,163 @@ class ReportRepository {
   }) async {
     ReportResult processedRes = res;
 
-    // 1. CONSOLIDATED & FUEL CONSOLIDATED — backend already returns coordinates/fuel.
-    // Just pass through. No extra trip fetch needed.
-    if (type == ReportType.consolidated || type == ReportType.fuelConsolidated) {
-      // Nothing to do — coordinates are already in the rows from the backend.
-      // The AddressCell widget will reverse-geocode them automatically.
+    // 1. CONSOLIDATED & FUEL CONSOLIDATED — enrich rows with trips, stoppages, and overspeeds
+    if ((type == ReportType.consolidated || type == ReportType.fuelConsolidated) &&
+        processedRes.rows.isNotEmpty) {
+      try {
+        final List<ReportRow> updatedRows = await Future.wait(
+          processedRes.rows.map((ReportRow row) async {
+            // If the row already has valid activity & event counts, keep it
+            if (row.tripCount > 0 || row.stoppageCount > 0 || row.overspeedingCount > 0) {
+              return row;
+            }
+
+            final String? targetId = row.vehicleId ??
+                id ??
+                row.raw['vehicle_id']?.toString() ??
+                row.raw['vehicleId']?.toString() ??
+                vehicle?.id;
+
+            if (targetId == null || targetId.isEmpty) {
+              return row;
+            }
+
+            int trips = 0;
+            int stops = 0;
+            int overspeeds = 0;
+
+            // Step 1: Probe /reports/individual which packages activity & event summaries together
+            try {
+              final dynamic indRes = await _api.get<dynamic>(
+                '/reports/individual',
+                query: <String, dynamic>{
+                  'vehicleId': targetId,
+                  'startDate': start.toUtc().toIso8601String(),
+                  'endDate': end.toUtc().toIso8601String(),
+                  'from': start.toUtc().toIso8601String(),
+                  'to': end.toUtc().toIso8601String(),
+                },
+                cancelToken: cancelToken,
+              );
+
+              if (indRes is Map) {
+                final dynamic s = indRes['summary'] ?? indRes['data']?['summary'];
+                if (s is Map) {
+                  final Map<String, dynamic> sMap = Map<String, dynamic>.from(s);
+                  trips = asInt(sMap, <String>['trip_count', 'trips', 'totalTrips', 'total_trips']);
+                  stops = asInt(sMap, <String>['stoppage_count', 'stoppages', 'totalStops', 'total_stops']);
+                  overspeeds = asInt(sMap, <String>['overspeeding_count', 'overspeeding', 'violations', 'overspeed_count']);
+                }
+                if (trips == 0) {
+                  final dynamic tList = indRes['trips'] ?? indRes['data']?['trips'];
+                  if (tList is List) trips = tList.length;
+                }
+                if (stops == 0) {
+                  final dynamic sList = indRes['stoppages'] ?? indRes['data']?['stoppages'];
+                  if (sList is List) stops = sList.length;
+                }
+                if (overspeeds == 0) {
+                  final dynamic oList = indRes['overspeeding'] ?? indRes['data']?['overspeeding'];
+                  if (oList is List) overspeeds = oList.length;
+                }
+              }
+            } catch (_) {}
+
+            // Step 2: If any counts are still 0, query the specific report endpoints in parallel
+            if (trips == 0 || stops == 0 || overspeeds == 0) {
+              final List<int> dedicatedResults = await Future.wait<int>(<Future<int>>[
+                if (trips == 0)
+                  _api.get<dynamic>(
+                    '/reports/trip',
+                    query: <String, dynamic>{
+                      'vehicleId': targetId,
+                      'startDate': start.toUtc().toIso8601String(),
+                      'endDate': end.toUtc().toIso8601String(),
+                      'from': start.toUtc().toIso8601String(),
+                      'to': end.toUtc().toIso8601String(),
+                    },
+                    cancelToken: cancelToken,
+                  ).then((dynamic r) {
+                    if (r is List) return r.length;
+                    if (r is Map) {
+                      final dynamic d = r['data'] ?? r['trips'] ?? r['records'] ?? r['rows'];
+                      if (d is List) return d.length;
+                      if (d is Map && d['total'] is num) return (d['total'] as num).toInt();
+                    }
+                    return 0;
+                  }).catchError((_) => 0)
+                else
+                  Future<int>.value(trips),
+
+                if (stops == 0)
+                  _api.get<dynamic>(
+                    '/reports/stoppages',
+                    query: <String, dynamic>{
+                      'vehicleId': targetId,
+                      'startDate': start.toUtc().toIso8601String(),
+                      'endDate': end.toUtc().toIso8601String(),
+                      'from': start.toUtc().toIso8601String(),
+                      'to': end.toUtc().toIso8601String(),
+                    },
+                    cancelToken: cancelToken,
+                  ).then((dynamic r) {
+                    if (r is List) return r.length;
+                    if (r is Map) {
+                      final dynamic d = r['data'] ?? r['stoppages'] ?? r['records'] ?? r['rows'];
+                      if (d is List) return d.length;
+                      if (d is Map && d['total'] is num) return (d['total'] as num).toInt();
+                    }
+                    return 0;
+                  }).catchError((_) => 0)
+                else
+                  Future<int>.value(stops),
+
+                if (overspeeds == 0)
+                  _api.get<dynamic>(
+                    '/reports/overspeeding',
+                    query: <String, dynamic>{
+                      'vehicleId': targetId,
+                      'startDate': start.toUtc().toIso8601String(),
+                      'endDate': end.toUtc().toIso8601String(),
+                      'from': start.toUtc().toIso8601String(),
+                      'to': end.toUtc().toIso8601String(),
+                    },
+                    cancelToken: cancelToken,
+                  ).then((dynamic r) {
+                    if (r is List) return r.length;
+                    if (r is Map) {
+                      final dynamic d = r['data'] ?? r['overspeeding'] ?? r['records'] ?? r['rows'];
+                      if (d is List) return d.length;
+                      if (d is Map && d['total'] is num) return (d['total'] as num).toInt();
+                    }
+                    return 0;
+                  }).catchError((_) => 0)
+                else
+                  Future<int>.value(overspeeds),
+              ]);
+
+              trips = dedicatedResults[0];
+              stops = dedicatedResults[1];
+              overspeeds = dedicatedResults[2];
+            }
+
+            final Map<String, dynamic> mutableRaw = Map<String, dynamic>.of(row.raw);
+            mutableRaw['trip_count'] = trips;
+            mutableRaw['stoppage_count'] = stops;
+            mutableRaw['overspeeding_count'] = overspeeds;
+
+            return ReportRow.fromJson(mutableRaw);
+          }),
+        );
+
+        processedRes = ReportResult(
+          rows: updatedRows,
+          summary: ReportSummary.fromRows(updatedRows),
+          columns: updatedRows.isEmpty ? <String>[] : updatedRows.first.cells.keys.toList(),
+        );
+      } catch (e) {
+        debugPrint('Failed to enrich consolidated activity & event counts: $e');
+      }
     }
 
     // 2. DAILY DISTANCE ODOMETER BACK-CALCULATION
