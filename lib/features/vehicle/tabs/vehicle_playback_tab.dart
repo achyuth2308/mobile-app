@@ -2475,7 +2475,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
           // Speed Dropdown
           DropdownButtonHideUnderline(
             child: DropdownButton<double>(
-              value: [1.0, 2.0, 4.0, 8.0].contains(widget.speed) ? widget.speed : 1.0,
+              value: [1.0, 2.0, 4.0].contains(widget.speed) ? widget.speed : 1.0,
               icon: const Icon(Icons.arrow_drop_down, size: 20),
               isDense: true,
               style: TextStyle(
@@ -2488,7 +2488,6 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 DropdownMenuItem(value: 1.0, child: Text('1x')),
                 DropdownMenuItem(value: 2.0, child: Text('2x')),
                 DropdownMenuItem(value: 4.0, child: Text('4x')),
-                DropdownMenuItem(value: 8.0, child: Text('8x')),
               ],
               onChanged: (v) {
                 if (v != null) widget.onSpeedChange(v);
