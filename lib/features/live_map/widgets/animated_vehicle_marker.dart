@@ -137,19 +137,24 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
             ? ((segmentBearing - widget.heading + 180.0) % 360.0 - 180.0).abs()
             : 0.0;
 
-        if (headingDiff > 90.0) {
-          // Target is behind current visual position — NEVER drive backward!
+        if (headingDiff > 85.0) {
+          // Target is behind current visual position (GPS jitter / latency) —
+          // NEVER drive backward! Project forward along the verified road heading.
           _fromPoint = currentVisual;
-          _toPoint = widget.point;
           _toHeading = widget.heading > 0 ? widget.heading : _toHeading;
+          _toPoint = _offsetPoint(
+              currentVisual, _toHeading, max(4.0, strideMeters * 0.4));
         } else {
           _fromPoint = currentVisual;
           _toPoint = widget.point;
           _toHeading = segmentBearing;
         }
 
-        // Pace the glide across the packet interval (+15% padding so it never freezes prematurely)
-        _glideDurationMs = max(3000, (_estimatedIntervalMs * 1.15).round());
+        // Kinematic Rapido formula: time = distance / speed
+        // Paced to physical velocity with telemetry interval smoothing
+        final double speedMps = max(1.5, widget.speed / 3.6);
+        final int kinematicMs = ((strideMeters / speedMps) * 1000).round();
+        _glideDurationMs = kinematicMs.clamp(2000, 10000);
       } else {
         _fromPoint = currentVisual;
         _toPoint = widget.point;
@@ -207,10 +212,15 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
     final DateTime now = DateTime.now();
     final int elapsedMs = now.difference(_glideStartTime).inMilliseconds;
 
+    final bool isMoving =
+        widget.status == VehicleStatus.moving && widget.speed >= 1.5;
+
     if (!_positionConfirmedFired && elapsedMs >= _glideDurationMs) {
       _positionConfirmedFired = true;
       widget.onPositionConfirmed?.call(_toPoint);
-      _glideController.stop();
+      if (!isMoving) {
+        _glideController.stop();
+      }
     }
     widget.onVisualPositionUpdate?.call(_currentVisualPoint);
   }
@@ -230,9 +240,44 @@ class _AnimatedVehicleMarkerState extends State<AnimatedVehicleMarker>
       );
     }
 
-    // Arrived at _toPoint: stay firmly on the latest verified GPS road position.
-    // Never extrapolate past _toPoint, which guarantees the vehicle will NEVER reverse.
+    final bool isMoving =
+        widget.status == VehicleStatus.moving && widget.speed >= 1.5;
+
+    if (isMoving) {
+      // Rapido / Uber kinematic dead reckoning:
+      // When between telemetry packets, maintain continuous forward motion at speed v.
+      // v = speed (km/h) / 3.6 (m/s). Never freezes or jerks.
+      final double overtimeSeconds =
+          (elapsedMs - _glideDurationMs) / 1000.0;
+      final double speedMps = widget.speed / 3.6;
+      // Cap maximum forward extrapolation to 35m to prevent drifting if offline
+      final double coastDistance = min(35.0, speedMps * overtimeSeconds);
+      return _offsetPoint(_toPoint, _toHeading, coastDistance);
+    }
+
     return _toPoint;
+  }
+
+  static LatLng _offsetPoint(
+      LatLng from, double bearingDeg, double distMeters) {
+    if (distMeters <= 0.01) return from;
+    const double earthRadius = 6371000.0;
+    final double radBearing = bearingDeg * pi / 180.0;
+    final double radLat = from.latitude * pi / 180.0;
+    final double radLng = from.longitude * pi / 180.0;
+    final double dByR = distMeters / earthRadius;
+
+    final double newLat = asin(
+      sin(radLat) * cos(dByR) +
+          cos(radLat) * sin(dByR) * cos(radBearing),
+    );
+    final double newLng = radLng +
+        atan2(
+          sin(radBearing) * sin(dByR) * cos(radLat),
+          cos(dByR) - sin(radLat) * sin(newLat),
+        );
+
+    return LatLng(newLat * 180.0 / pi, newLng * 180.0 / pi);
   }
 
   double get _currentVisualHeading {

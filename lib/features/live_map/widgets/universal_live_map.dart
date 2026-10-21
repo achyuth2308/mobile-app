@@ -391,16 +391,14 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         }
 
         if (bestSegmentIdx != -1 && minPerpDistSq < 10000.0) { // within 100m of road segment
-          if (bestT < 1.0) {
-            // V is on or before segment bestSegmentIdx -> bestSegmentIdx + 1.
-            // That means point bestSegmentIdx + 1 (and all points after it) are AHEAD of V!
-            // Prune everything ahead of V!
-            final int keepCount = bestT <= 0.0 ? bestSegmentIdx : bestSegmentIdx + 1;
-            if (keepCount < basePoints.length) {
-              basePoints.removeRange(keepCount, basePoints.length);
-            }
+          // Point (bestSegmentIdx + 1) or (bestSegmentIdx + 2) is the cut boundary.
+          // Any points after the vehicle's projection must be strictly removed so
+          // the green trail NEVER appears ahead of the vehicle marker!
+          final int cutIdx =
+              (bestT >= 1.0) ? bestSegmentIdx + 2 : bestSegmentIdx + 1;
+          if (cutIdx < basePoints.length) {
+            basePoints.removeRange(cutIdx, basePoints.length);
           }
-          // If bestT >= 1.0 on the last segment, V has reached/passed it, so keep all basePoints.
         } else {
           // Fallback: if off-road or telemetric jump, find closest single point
           int closestIdx = basePoints.length - 1;

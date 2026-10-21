@@ -367,7 +367,7 @@ class _SpeedBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int speedInt = math.max(0, speed.round());
+    final int speedInt = math.max(0, speed.toInt());
     final String speedText = '$speedInt km/h';
 
     return Container(
