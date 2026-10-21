@@ -234,6 +234,49 @@ class SecureStore {
     } catch (_) {}
   }
 
+  // ── Custom Local Routes Storage ──────────────────────────────────
+  static const _kCustomRoutes = 'ft_custom_routes';
+
+  List<Map<String, dynamic>> getCustomRoutes() {
+    try {
+      final String? raw = _prefs.getString(_kCustomRoutes);
+      if (raw == null || raw.isEmpty) return <Map<String, dynamic>>[];
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is! List) return <Map<String, dynamic>>[];
+      return decoded
+          .whereType<Map>()
+          .map((dynamic m) => Map<String, dynamic>.from(m))
+          .toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> saveCustomRoute(Map<String, dynamic> routeJson) async {
+    try {
+      final List<Map<String, dynamic>> current = getCustomRoutes();
+      final String id = (routeJson['id'] ?? '').toString();
+      final String name = (routeJson['name'] ?? '').toString();
+      final List<Map<String, dynamic>> updated = current
+          .where((Map<String, dynamic> r) =>
+              r['id'] != id && (name.isEmpty || r['name'] != name))
+          .toList();
+      updated.add(routeJson);
+      await _prefs.setString(_kCustomRoutes, jsonEncode(updated));
+    } catch (_) {}
+  }
+
+  Future<void> removeCustomRoute(String routeId) async {
+    if (routeId.isEmpty) return;
+    try {
+      final List<Map<String, dynamic>> current = getCustomRoutes();
+      final List<Map<String, dynamic>> updated = current
+          .where((Map<String, dynamic> r) => r['id'] != routeId)
+          .toList();
+      await _prefs.setString(_kCustomRoutes, jsonEncode(updated));
+    } catch (_) {}
+  }
+
   // ── Local Trips Storage ──────────────────────────────────────────
   static const _kLocalTrips = 'ft_local_trips';
 

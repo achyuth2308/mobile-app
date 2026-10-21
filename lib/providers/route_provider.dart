@@ -48,11 +48,31 @@ class RouteController extends Notifier<RouteState> {
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final List<AppRoute> remoteRoutes = await _repo.getRoutes();
+      List<AppRoute> remoteRoutes = <AppRoute>[];
+      try {
+        remoteRoutes = await _repo.getRoutes();
+      } catch (_) {}
+
+      final List<Map<String, dynamic>> localCustomRaw =
+          ref.read(secureStoreProvider).getCustomRoutes();
+      final List<AppRoute> localCustom = localCustomRaw
+          .map(AppRoute.fromJson)
+          .where((AppRoute r) => r.id.isNotEmpty || r.name.isNotEmpty)
+          .toList();
+
       final Map<String, List<String>> localAssignments =
           ref.read(secureStoreProvider).getRouteVehicleAssignments();
 
-      final List<AppRoute> merged = remoteRoutes.map((AppRoute r) {
+      final Map<String, AppRoute> combinedMap = <String, AppRoute>{};
+      for (final AppRoute r in remoteRoutes) {
+        combinedMap[r.id] = r;
+      }
+      for (final AppRoute r in localCustom) {
+        final String key = r.id.isNotEmpty ? r.id : r.name;
+        combinedMap[key] = r;
+      }
+
+      final List<AppRoute> merged = combinedMap.values.map((AppRoute r) {
         final List<String>? byId = localAssignments[r.id];
         final List<String>? byName = localAssignments[r.name];
         final Set<String> combined = <String>{
@@ -76,36 +96,65 @@ class RouteController extends Notifier<RouteState> {
 
   Future<AppRoute?> create(AppRoute route, {List<String>? vehicleIds}) async {
     state = state.copyWith(isSaving: true, clearError: true);
+    final List<String> vids = vehicleIds ?? route.vehicleIds;
+    AppRoute created;
     try {
-      final List<String> vids = vehicleIds ?? route.vehicleIds;
-      AppRoute created = await _repo.createRoute(route, vehicleIds: vids);
-      if (vids.isNotEmpty) {
-        if (created.id.isNotEmpty) {
-          await ref
-              .read(secureStoreProvider)
-              .saveRouteVehicleAssignments(created.id, vids);
-        }
-        if (created.name.isNotEmpty) {
-          await ref
-              .read(secureStoreProvider)
-              .saveRouteVehicleAssignments(created.name, vids);
-        }
-        try {
-          if (created.id.isNotEmpty) {
-            await _repo.assignRoute(created.id, vids);
-          }
-        } catch (_) {}
-        created = created.copyWith(vehicleIds: vids);
-      }
-      state = state.copyWith(
-        isSaving: false,
-        routes: <AppRoute>[...state.routes, created],
+      created = await _repo.createRoute(route, vehicleIds: vids);
+    } catch (_) {
+      // Fallback: If backend returns foreign key constraint error ("Referenced record does not exist")
+      // or network error, save as a persistent local custom route!
+      final String fallbackId =
+          route.id.isNotEmpty ? route.id : 'route_${DateTime.now().millisecondsSinceEpoch}';
+      created = AppRoute(
+        id: fallbackId,
+        name: route.name,
+        coordinates: route.coordinates,
+        toleranceMeters: route.toleranceMeters,
+        isActive: route.isActive,
+        vehicleIds: vids,
+        createdAt: DateTime.now(),
       );
-      return created;
-    } catch (e) {
-      state = state.copyWith(isSaving: false, error: e.toString());
-      return null;
     }
+
+    // Persist locally
+    final Map<String, dynamic> rJson = <String, dynamic>{
+      'id': created.id,
+      'name': created.name,
+      'tolerance': created.toleranceMeters.round(),
+      'is_active': created.isActive,
+      'vehicleIds': vids,
+      'coordinates': created.coordinates
+          .map((LatLng p) => <String, double>{'lat': p.latitude, 'lng': p.longitude})
+          .toList(),
+    };
+    await ref.read(secureStoreProvider).saveCustomRoute(rJson);
+
+    if (vids.isNotEmpty) {
+      if (created.id.isNotEmpty) {
+        await ref
+            .read(secureStoreProvider)
+            .saveRouteVehicleAssignments(created.id, vids);
+      }
+      if (created.name.isNotEmpty) {
+        await ref
+            .read(secureStoreProvider)
+            .saveRouteVehicleAssignments(created.name, vids);
+      }
+      try {
+        if (created.id.isNotEmpty && !created.id.startsWith('route_')) {
+          await _repo.assignRoute(created.id, vids);
+        }
+      } catch (_) {}
+    }
+    final AppRoute result = created.copyWith(vehicleIds: vids);
+    state = state.copyWith(
+      isSaving: false,
+      routes: <AppRoute>[
+        ...state.routes.where((AppRoute r) => r.id != result.id),
+        result,
+      ],
+    );
+    return result;
   }
 
   // ── Update ────────────────────────────────────────────────────
@@ -242,11 +291,16 @@ class RouteController extends Notifier<RouteState> {
 
   Future<bool> delete(String routeId, {String? routeName}) async {
     try {
-      await _repo.deleteRoute(routeId);
+      try {
+        await _repo.deleteRoute(routeId);
+      } catch (_) {}
       if (routeId.isNotEmpty) {
         await ref
             .read(secureStoreProvider)
             .removeRouteVehicleAssignments(routeId);
+        await ref
+            .read(secureStoreProvider)
+            .removeCustomRoute(routeId);
       }
       if (routeName != null && routeName.isNotEmpty) {
         await ref

@@ -81,7 +81,6 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
   set _isRouting(bool val) => _isRoutingField = val;
 
   String? _routeDurationText;
-  String? _routeSummaryText;
   String? _routingSource;
 
   final List<LatLng> _waypoints = <LatLng>[];
@@ -617,7 +616,6 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
           _sourceWaypoints = List<LatLng>.from(result.points);
           _trimRange = RangeValues(0, (_sourceWaypoints.length - 1).toDouble());
           _routeDurationText = result.durationText;
-          _routeSummaryText = result.summary;
           _routingSource = result.source;
           _isRouting = false;
         });
@@ -794,25 +792,27 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: <Widget>[
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.all(14),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            TextButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Save'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.brand,
-                textStyle: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _saving
+                ? const Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : FilledButton(
+                    onPressed: _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                      minimumSize: const Size(60, 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+          ),
         ],
       ),
       body: Column(
@@ -1452,12 +1452,16 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                           const Icon(Icons.circle,
                               size: 8, color: Color(0xFF10B981)),
                           const SizedBox(width: 4),
-                          Text(
-                            _startPlace.isNotEmpty ? _startPlace : 'Start',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF10B981),
+                          Flexible(
+                            child: Text(
+                              _startPlace.isNotEmpty ? _startPlace : 'Start',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF10B981),
+                              ),
                             ),
                           ),
                           const Padding(
@@ -1468,12 +1472,16 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                           const Icon(Icons.circle,
                               size: 8, color: Color(0xFFEF4444)),
                           const SizedBox(width: 4),
-                          Text(
-                            _endPlace.isNotEmpty ? _endPlace : 'End',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFEF4444),
+                          Flexible(
+                            child: Text(
+                              _endPlace.isNotEmpty ? _endPlace : 'End',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFEF4444),
+                              ),
                             ),
                           ),
                           const Spacer(),
@@ -1858,47 +1866,63 @@ class _RouteEditorSheetState extends ConsumerState<RouteEditorSheet> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00C6FF)),
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        'Snapping road route...',
-                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black54),
+                      const Expanded(
+                        child: Text(
+                          'Snapping route...',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11),
+                        ),
                       ),
                     ] else if (_waypoints.length >= 2) ...<Widget>[
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
-                        ),
-                        child: Text(
-                          '${_approxLengthKm.toStringAsFixed(1)} km${_routeDurationText != null && _routeDurationText!.isNotEmpty ? " • $_routeDurationText" : ""}${_routeSummaryText != null && _routeSummaryText!.isNotEmpty ? " ($_routeSummaryText)" : ""}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF10B981),
-                          ),
+                      Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  '${_approxLengthKm.toStringAsFixed(1)} km${_routeDurationText != null && _routeDurationText!.isNotEmpty ? " • $_routeDurationText" : ""}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_routingSource != null) ...<Widget>[
+                              const SizedBox(width: 5),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00C6FF).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  _routingSource!,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF00C6FF),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (_routingSource != null) ...<Widget>[
-                        const SizedBox(width: 5),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF00C6FF).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _routingSource!,
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF00C6FF),
-                            ),
-                          ),
-                        ),
-                      ],
+                    ] else ...<Widget>[
+                      const Spacer(),
                     ],
-                    const Spacer(),
+                    const SizedBox(width: 4),
                     Icon(
                       isExp ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
                       size: 20,
