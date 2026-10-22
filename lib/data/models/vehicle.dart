@@ -427,7 +427,8 @@ class Vehicle extends Equatable {
         asBool(srcAttrs, ignKeys) ||
         asBool(jsonAttrs, ignKeys) ||
         asBool(device, ignKeys) ||
-        asBool(deviceAttrs, ignKeys);
+        asBool(deviceAttrs, ignKeys) ||
+        parsedSpeed > 2.0;
 
     final bool isMotion = asBool(src, motionKeys) ||
         asBool(json, motionKeys) ||
@@ -827,12 +828,14 @@ class Vehicle extends Equatable {
         ? incoming.isOnline
         : isOnline;
 
+    final double effectiveSpeed = hasExplicitSpeed ? incoming.speed : (incoming.speed != 0 ? incoming.speed : speed);
+
     final Vehicle mergedDraft = copyWith(
       latitude: acceptLocation ? (incoming.latitude ?? latitude) : latitude,
       longitude: acceptLocation ? (incoming.longitude ?? longitude) : longitude,
-      speed: hasExplicitSpeed ? incoming.speed : (incoming.speed != 0 ? incoming.speed : speed),
+      speed: effectiveSpeed,
       heading: incoming.heading != 0 ? incoming.heading : heading,
-      ignition: hasExplicitIgnition ? incoming.ignition : ignition,
+      ignition: effectiveSpeed > 2.0 ? true : (hasExplicitIgnition ? incoming.ignition : ignition),
       isMoving: hasExplicitMotion ? incoming.isMoving : isMoving,
       isOnline: nextIsOnline,
       odometer: nextOdometer ?? odometer,
