@@ -25,8 +25,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final TextEditingController _search = TextEditingController();
   final ScrollController _scroll = ScrollController();
 
-  bool _searchOpen = false;
-
   @override
   void dispose() {
     _search.dispose();
@@ -57,7 +55,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // ── Header ─────────────────────────────────────────────
             SliverAppBar(
               pinned: true,
-              expandedHeight: 80 + MediaQuery.paddingOf(context).top,
+              expandedHeight: 90 + MediaQuery.paddingOf(context).top,
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.lg,
@@ -65,18 +63,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 background: SafeArea(
                   child: Padding(
                     padding:
-                        const EdgeInsets.fromLTRB(Gap.lg, Gap.md, 110.0, 0),
+                        const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, 100.0, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Text(
                           _greeting(name),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.headlineSmall?.copyWith(
+                          maxLines: 2,
+                          softWrap: true,
+                          style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
+                            fontSize: 18,
+                            height: 1.25,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -127,6 +127,68 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     const OfflineNotice(),
+                    // ── Search Bar directly above Total Fleet card ───────
+                    Container(
+                      margin: const EdgeInsets.only(top: Gap.xs, bottom: Gap.md),
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark
+                            ? theme.colorScheme.surfaceContainerHigh
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.brightness == Brightness.dark
+                              ? theme.colorScheme.outlineVariant.withValues(alpha: 0.4)
+                              : const Color(0xFFE2E8F0),
+                          width: 1.2,
+                        ),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _search,
+                        textInputAction: TextInputAction.search,
+                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+                        decoration: InputDecoration(
+                          hintText: 'Search plate, name, driver or IMEI',
+                          hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: Gap.md,
+                            vertical: 12,
+                          ),
+                          suffixIcon: _search.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear_rounded, size: 18),
+                                  onPressed: () {
+                                    _search.clear();
+                                    ref.read(fleetSearchProvider.notifier).state = '';
+                                    setState(() {});
+                                  },
+                                ),
+                        ),
+                        onChanged: (String v) {
+                          ref.read(fleetSearchProvider.notifier).state = v;
+                          setState(() {});
+                        },
+                      ),
+                    ),
                     const FleetOverviewCard()
                         .animate()
                         .fadeIn(duration: 400.ms)
@@ -158,26 +220,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         style: theme.textTheme.labelSmall,
                       ),
                     ),
-                    const SizedBox(width: Gap.sm),
-                    IconButton(
-                      tooltip: 'Search vehicles',
-                      icon: Icon(
-                        _searchOpen ? Icons.close_rounded : Icons.search_rounded,
-                        size: 20,
-                        color: _searchOpen
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () {
-                        setState(() => _searchOpen = !_searchOpen);
-                        if (!_searchOpen) {
+                    const Spacer(),
+                    if (_search.text.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () {
                           _search.clear();
                           ref.read(fleetSearchProvider.notifier).state = '';
-                        }
-                      },
-                    ),
-                    const Spacer(),
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        label: const Text('Clear search'),
+                      ),
                     if (ref.watch(fleetFilterProvider) != null)
                       TextButton.icon(
                         onPressed: () =>
@@ -190,43 +243,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
             ),
-
-            // ── Search field above vehicle list ──────────────────────
-            if (_searchOpen)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, Gap.lg, Gap.md),
-                  child: TextField(
-                    controller: _search,
-                    autofocus: true,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: 'Search plate, name, driver or IMEI',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: Gap.lg,
-                        vertical: Gap.md,
-                      ),
-                      suffixIcon: _search.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 18),
-                              onPressed: () {
-                                _search.clear();
-                                ref.read(fleetSearchProvider.notifier).state =
-                                    '';
-                                setState(() {});
-                              },
-                            ),
-                    ),
-                    onChanged: (String v) {
-                      ref.read(fleetSearchProvider.notifier).state = v;
-                      setState(() {});
-                    },
-                  ),
-                ).animate().fadeIn(duration: 200.ms).slideY(begin: -0.1),
-              ),
 
             // ── Refresh indicator (after resume from background) ─────
             if (fleet.isRefreshing && fleet.vehicles.isNotEmpty)
@@ -300,7 +316,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         : hour < 17
             ? 'Good afternoon'
             : 'Good evening';
-    final String first = (name ?? '').split(' ').first;
-    return first.isEmpty ? part : '$part, $first';
+    final String clean = (name ?? '').trim();
+    return clean.isEmpty ? part : '$part,\n$clean';
   }
 }

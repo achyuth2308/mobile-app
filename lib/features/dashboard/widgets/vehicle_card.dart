@@ -553,7 +553,6 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
     Color border;
     IconData icon;
     String statusTitle;
-    String actionWord;
 
     switch (v.status) {
       case VehicleStatus.moving:
@@ -563,8 +562,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
             : const Color(0xFFF0FDF4);
         border = isDark ? const Color(0xFF166534) : const Color(0xFFBBF7D0);
         icon = Icons.navigation_rounded;
-        statusTitle = 'Moving Since';
-        actionWord = 'Running for';
+        statusTitle = 'Moving';
       case VehicleStatus.idle:
         color = const Color(0xFFD97706);
         bg = isDark
@@ -572,8 +570,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
             : const Color(0xFFFFFBEB);
         border = isDark ? const Color(0xFF92400E) : const Color(0xFFFDE68A);
         icon = Icons.key_rounded;
-        statusTitle = 'Idling Since';
-        actionWord = 'Idling for';
+        statusTitle = 'Idle';
       case VehicleStatus.stopped:
         color = const Color(0xFF475569);
         bg = isDark
@@ -581,8 +578,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
             : const Color(0xFFF8FAFC);
         border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
         icon = Icons.local_parking_rounded;
-        statusTitle = 'Parking Since';
-        actionWord = 'Parked for';
+        statusTitle = 'Stopped';
       case VehicleStatus.offline:
         color = const Color(0xFFDC2626);
         bg = isDark
@@ -590,15 +586,13 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
             : const Color(0xFFFEF2F2);
         border = isDark ? const Color(0xFF991B1B) : const Color(0xFFFECACA);
         icon = Icons.cloud_off_rounded;
-        statusTitle = 'Offline Since';
-        actionWord = 'Inactive for';
+        statusTitle = 'No Data';
       case VehicleStatus.noData:
         color = const Color(0xFF64748B);
         bg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
         border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
         icon = Icons.sensors_off_rounded;
-        statusTitle = 'No Data Available';
-        actionWord = '';
+        statusTitle = 'Unreachable';
     }
 
     if (v.status == VehicleStatus.noData || since == null) {
@@ -626,6 +620,8 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
       );
     }
 
+    final String dateStr =
+        '${since.day.toString().padLeft(2, '0')}/${since.month.toString().padLeft(2, '0')}/${since.year}';
     final String timeStr = Fmt.time12Sec(since);
     final String durStr = Fmt.statusDuration(since);
 
@@ -646,23 +642,22 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
               overflow: TextOverflow.ellipsis,
               text: TextSpan(
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   color: isDark ? Colors.grey.shade300 : const Color(0xFF334155),
                 ),
                 children: [
                   TextSpan(
-                    text: '$statusTitle $timeStr',
+                    text: '$statusTitle $dateStr $timeStr',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: color,
                     ),
                   ),
-                  const TextSpan(text: '  •  '),
                   TextSpan(
-                    text: '$actionWord $durStr',
+                    text: ' ($durStr)',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white70 : const Color(0xFF1E293B),
+                      color: isDark ? Colors.white70 : const Color(0xFF475569),
                     ),
                   ),
                 ],

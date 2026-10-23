@@ -27,10 +27,11 @@ import '../../shared/widgets/connectivity_banner.dart';
 /// Foreground `alert:new` socket events prepend to the list; while the app is
 /// backgrounded the same events arrive as FCM push instead.
 class AlertsScreen extends ConsumerStatefulWidget {
-  const AlertsScreen({super.key, this.vehicleId, this.alertId});
+  const AlertsScreen({super.key, this.vehicleId, this.alertId, this.typeFilter});
 
   final String? vehicleId;
   final String? alertId;
+  final String? typeFilter;
 
   @override
   ConsumerState<AlertsScreen> createState() => _AlertsScreenState();
@@ -66,6 +67,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   void initState() {
     super.initState();
     _selectedVehicleId = (widget.vehicleId != null && widget.vehicleId!.isNotEmpty) ? widget.vehicleId : null;
+    _typeFilter = (widget.typeFilter != null && widget.typeFilter!.isNotEmpty) ? widget.typeFilter : null;
     _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _load(reset: true);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -110,6 +111,7 @@ class FleetOverviewCard extends ConsumerWidget {
           const SizedBox(height: Gap.md),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
+              final bool showUnreachable = stats.noData > 0;
               if (constraints.maxWidth < 580) {
                 return Column(
                   children: [
@@ -157,7 +159,7 @@ class FleetOverviewCard extends ConsumerWidget {
                       children: <Widget>[
                         Expanded(
                           child: _StatusTile(
-                            label: 'Offline',
+                            label: 'No Data',
                             count: stats.offline,
                             color: AppColors.offline,
                             icon: Icons.cloud_off_rounded,
@@ -169,15 +171,29 @@ class FleetOverviewCard extends ConsumerWidget {
                         const SizedBox(width: Gap.sm),
                         Expanded(
                           child: _StatusTile(
-                            label: 'No Data',
-                            count: stats.noData,
-                            color: AppColors.noData,
-                            icon: Icons.sensors_off_rounded,
-                            selected: active == VehicleStatus.noData,
-                            onTap: () => _toggle(ref, VehicleStatus.noData),
+                            label: 'Overspeed',
+                            count: stats.overspeeding,
+                            color: const Color(0xFFF43F5E),
+                            icon: Icons.speed_rounded,
+                            selected: false,
+                            onTap: () => context.push('/alerts?type=overspeed'),
                             isDark: isDark,
                           ),
                         ),
+                        if (showUnreachable) ...[
+                          const SizedBox(width: Gap.sm),
+                          Expanded(
+                            child: _StatusTile(
+                              label: 'Unreachable',
+                              count: stats.noData,
+                              color: AppColors.noData,
+                              icon: Icons.sensors_off_rounded,
+                              selected: active == VehicleStatus.noData,
+                              onTap: () => _toggle(ref, VehicleStatus.noData),
+                              isDark: isDark,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -225,7 +241,7 @@ class FleetOverviewCard extends ConsumerWidget {
                   const SizedBox(width: Gap.sm),
                   Expanded(
                     child: _StatusTile(
-                      label: 'Offline',
+                      label: 'No Data',
                       count: stats.offline,
                       color: AppColors.offline,
                       icon: Icons.cloud_off_rounded,
@@ -237,15 +253,29 @@ class FleetOverviewCard extends ConsumerWidget {
                   const SizedBox(width: Gap.sm),
                   Expanded(
                     child: _StatusTile(
-                      label: 'No Data',
-                      count: stats.noData,
-                      color: AppColors.noData,
-                      icon: Icons.sensors_off_rounded,
-                      selected: active == VehicleStatus.noData,
-                      onTap: () => _toggle(ref, VehicleStatus.noData),
+                      label: 'Overspeed',
+                      count: stats.overspeeding,
+                      color: const Color(0xFFF43F5E),
+                      icon: Icons.speed_rounded,
+                      selected: false,
+                      onTap: () => context.push('/alerts?type=overspeed'),
                       isDark: isDark,
                     ),
                   ),
+                  if (showUnreachable) ...[
+                    const SizedBox(width: Gap.sm),
+                    Expanded(
+                      child: _StatusTile(
+                        label: 'Unreachable',
+                        count: stats.noData,
+                        color: AppColors.noData,
+                        icon: Icons.sensors_off_rounded,
+                        selected: active == VehicleStatus.noData,
+                        onTap: () => _toggle(ref, VehicleStatus.noData),
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
                 ],
               );
             },
@@ -446,21 +476,21 @@ class _StatusTile extends StatelessWidget {
             highlightColor: color.withOpacity(0.1),
             child: Padding(
               padding:
-                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+                  const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
               child: Column(
                 children: <Widget>[
                   Icon(
                     icon,
-                    size: 20,
+                    size: 16,
                     color: selected
                         ? color
                         : (isDark ? color.withOpacity(0.8) : color),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     '$count',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: isDark ? Colors.white : const Color(0xFF1E2432),
                     ),
@@ -498,15 +528,6 @@ class AttentionStrip extends ConsumerWidget {
     final FleetStats stats = ref.watch(fleetStatsProvider);
 
     final List<Widget> items = <Widget>[];
-
-    if (stats.overspeeding > 0) {
-      items.add(_AttentionChip(
-        icon: Icons.speed_rounded,
-        label: '${stats.overspeeding} overspeeding',
-        color: AppColors.danger,
-        onTap: () => ref.read(fleetSearchProvider.notifier).state = '',
-      ));
-    }
 
     if (stats.expiringSoon > 0) {
       items.add(_AttentionChip(

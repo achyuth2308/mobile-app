@@ -15,16 +15,16 @@ extension VehicleStatusX on VehicleStatus {
         VehicleStatus.moving => 'Running',
         VehicleStatus.idle => 'Idle',
         VehicleStatus.stopped => 'Parking',
-        VehicleStatus.offline => 'Offline',
-        VehicleStatus.noData => 'No Data',
+        VehicleStatus.offline => 'No Data',
+        VehicleStatus.noData => 'Unreachable',
       };
 
   String get sinceLabel => switch (this) {
-        VehicleStatus.moving => 'Moving Since',
-        VehicleStatus.idle => 'Idling Since',
-        VehicleStatus.stopped => 'Parking Since',
-        VehicleStatus.offline => 'Offline Since',
-        VehicleStatus.noData => 'No Data',
+        VehicleStatus.moving => 'Moving',
+        VehicleStatus.idle => 'Idle',
+        VehicleStatus.stopped => 'Stopped',
+        VehicleStatus.offline => 'No Data',
+        VehicleStatus.noData => 'Unreachable',
       };
 
   String get description => switch (this) {

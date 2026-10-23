@@ -231,6 +231,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         builder: (BuildContext c, GoRouterState s) => AlertsScreen(
           vehicleId: s.uri.queryParameters['vehicleId'],
           alertId: s.uri.queryParameters['alertId'],
+          typeFilter: s.uri.queryParameters['type'],
         ),
       ),
       GoRoute(

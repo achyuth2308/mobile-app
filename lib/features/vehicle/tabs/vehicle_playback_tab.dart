@@ -345,9 +345,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       final List<Polyline<Object>> ghostSegs = _buildGhostSegments(
         points: cachedLatLng,
         gaps: gaps,
-        normalColor: const Color(0xFF4B5563),
+        normalColor: const Color(0xFF2563EB).withValues(alpha: 0.7),
         gapColor: const Color(0xFFEF4444),
-        strokeWidth: 3.5,
+        strokeWidth: 4.0,
       );
 
       final List<double> dists = List<double>.filled(cachedLatLng.length, 0.0);
@@ -396,9 +396,6 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         setState(() {
           _loading = false;
         });
-        if (_points.isNotEmpty && !_playing) {
-          _togglePlay();
-        }
       }
     } catch (e, stack) {
       debugPrint('Error in _load: $e\n$stack');
@@ -597,6 +594,28 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       );
     }
     return totalMeters / 1000.0;
+  }
+
+  /// Total cumulative distance of the selected history route in km.
+  double get _totalRouteDistanceKm {
+    if (_cumulativeDistances.isEmpty) return 0.0;
+    return _cumulativeDistances.last / 1000.0;
+  }
+
+  /// Total overspeeds across the entire route.
+  int get _totalOverspeedCount {
+    if (_points.isEmpty) return 0;
+    int count = 0;
+    bool wasOver = false;
+    for (int i = 0; i < _points.length; i++) {
+      if (_points[i].speed > 80 && !wasOver) {
+        count++;
+        wasOver = true;
+      } else if (_points[i].speed <= 80) {
+        wasOver = false;
+      }
+    }
+    return count;
   }
 
   /// Current stoppages reached up to current playback progress.
@@ -938,9 +957,13 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         key: const ValueKey('playback_floating_card'),
                         point: _currentPoint,
                         distKm: _distanceCovered,
+                        totalDistKm: _totalRouteDistanceKm,
                         playing: _playing,
                         overspeedCount: _currentOverspeedCount,
+                        totalOverspeedCount: _totalOverspeedCount,
                         stoppageCount: _currentStoppageCount,
+                        totalStoppageCount: _stoppages.length,
+                        hasStarted: _hasStartedPlayback,
                       ),
                     ),
                     
@@ -2526,16 +2549,24 @@ class _PlaybackFloatingCard extends StatefulWidget {
     super.key,
     required this.point,
     required this.distKm,
+    required this.totalDistKm,
     required this.playing,
     required this.overspeedCount,
+    required this.totalOverspeedCount,
     required this.stoppageCount,
+    required this.totalStoppageCount,
+    this.hasStarted = false,
   });
 
   final TrackPoint point;
   final double distKm;
+  final double totalDistKm;
   final bool playing;
   final int overspeedCount;
+  final int totalOverspeedCount;
   final int stoppageCount;
+  final int totalStoppageCount;
+  final bool hasStarted;
 
   @override
   State<_PlaybackFloatingCard> createState() => _PlaybackFloatingCardState();
@@ -2640,7 +2671,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
     return Align(
       alignment: Alignment.topLeft,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
+        constraints: const BoxConstraints(maxWidth: 350),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
@@ -2674,7 +2705,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                             Text(
                               timeStr,
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF1E293B),
                                 height: 1.2,
@@ -2692,49 +2723,82 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                             ),
                           ],
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 10),
                         Container(
                           width: 1,
-                          height: 32,
+                          height: 30,
                           color: const Color.fromRGBO(0, 0, 0, 0.12),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 10),
                         // Speed & Direction
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            RichText(
+                              text: TextSpan(
+                                children: <TextSpan>[
+                                  TextSpan(
+                                    text: '$spd ',
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1E293B),
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                  const TextSpan(
+                                    text: 'km/h',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF64748B),
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _getDirection(p.heading),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF64748B),
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          width: 1,
+                          height: 30,
+                          color: const Color.fromRGBO(0, 0, 0, 0.12),
+                        ),
+                        const SizedBox(width: 10),
+                        // Total Day Distance Metric (Matching Web "Total Dist: X.XX Kms")
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
-                              RichText(
-                                text: TextSpan(
-                                  children: <TextSpan>[
-                                    TextSpan(
-                                      text: '$spd ',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1E293B),
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                    const TextSpan(
-                                      text: 'km/h',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF64748B),
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                '${widget.totalDistKm.toStringAsFixed(2)} km',
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0284C7),
+                                  height: 1.2,
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                _getDirection(p.heading),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
+                              const Text(
+                                'Total Dist',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
                                   color: Color(0xFF64748B),
                                   height: 1.2,
                                 ),
@@ -2795,7 +2859,9 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${widget.overspeedCount} overspeeds  •  ${widget.distKm.toStringAsFixed(1)} km  •  ${widget.stoppageCount} stops',
+                            widget.hasStarted && widget.distKm > 0.05
+                                ? 'Covered: ${widget.distKm.toStringAsFixed(2)} / ${widget.totalDistKm.toStringAsFixed(2)} km  •  ${widget.totalStoppageCount} stops'
+                                : 'Total: ${widget.totalDistKm.toStringAsFixed(2)} km  •  ${widget.totalStoppageCount} stops  •  ${widget.totalOverspeedCount} overspeeds',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
