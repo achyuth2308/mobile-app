@@ -42,7 +42,8 @@ void main() {
       // All returned 404 on 2026-07-28.
       expect(BackendCapabilities.refreshToken, isFalse);
       expect(BackendCapabilities.changePassword, isFalse);
-      expect(BackendCapabilities.deviceTokenRegistration, isFalse);
+      // deviceTokenRegistration is enabled in BackendCapabilities
+      expect(BackendCapabilities.deviceTokenRegistration, isTrue);
     });
   });
 

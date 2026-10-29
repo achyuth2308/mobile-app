@@ -121,8 +121,12 @@ class FleetAlert extends Equatable {
         'power_cut' ||
         'theft' ||
         'theft_alarm' ||
-        'safety_park' =>
+        'safety_park' ||
+        'fuel_theft' =>
           AlertSeverity.critical,
+        'fuel_refill' ||
+        'fuel_refill_final' =>
+          AlertSeverity.info,
         'overspeed' ||
         'overspeeding' ||
         'harsh_braking' ||
@@ -210,7 +214,8 @@ class FleetAlert extends Equatable {
         'moving' || 'start_moving' => 'Vehicle Moving',
         'stopped' => 'Vehicle Stopped',
         'parking' => 'Parking Alert',
-        'theft' || 'theft_alarm' || 'safety_park' => 'Vehicle Theft Alarm',
+        'theft' || 'theft_alarm' || 'safety_park' || 'fuel_theft' => 'Vehicle Theft Alarm',
+        'fuel_refill' || 'fuel_refill_final' => 'Fuel Refill Confirmed',
         _ => 'Fleet Alert',
       };
 
