@@ -569,12 +569,33 @@ class Vehicle extends Equatable {
         }
         return val;
       }(),
-      fuelLevel:
-          asDoubleOrNull(src, <String>['fuel', 'fuelLevel', 'fuelPercent', 'current_fuel', 'currentFuel']) ??
-              asDoubleOrNull(
-                  srcAttrs, <String>['fuel', 'fuelLevel', 'fuelPercent', 'current_fuel', 'currentFuel']) ??
-              asDoubleOrNull(json, <String>['fuel', 'fuelLevel', 'current_fuel', 'currentFuel']) ??
-              asDoubleOrNull(jsonAttrs, <String>['fuel', 'fuelLevel', 'current_fuel', 'currentFuel']),
+      fuelLevel: () {
+        const List<String> fuelKeys = <String>[
+          'fuel',
+          'fuelLevel',
+          'fuel_level',
+          'fuelPercent',
+          'fuel_percent',
+          'current_fuel',
+          'currentFuel',
+          'current_fuel_level',
+          'currentFuelLevel',
+          'fuel_litres',
+          'fuelLitres',
+          'fuel_liters',
+          'fuelLiters',
+          'litres',
+          'liters',
+          'fuel_qty',
+          'fuelQty',
+        ];
+        return asDoubleOrNull(src, fuelKeys) ??
+            asDoubleOrNull(srcAttrs, fuelKeys) ??
+            asDoubleOrNull(json, fuelKeys) ??
+            asDoubleOrNull(jsonAttrs, fuelKeys) ??
+            asDoubleOrNull(device, fuelKeys) ??
+            asDoubleOrNull(deviceAttrs, fuelKeys);
+      }(),
       batteryLevel:
           asDoubleOrNull(src, <String>['current_voltage', 'voltage', 'external_voltage']) ??
               asDoubleOrNull(

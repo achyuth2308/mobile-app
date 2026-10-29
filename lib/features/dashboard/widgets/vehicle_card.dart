@@ -205,6 +205,16 @@ class VehicleCard extends ConsumerWidget {
                                           : 'N/A',
                                       dotColor: Colors.cyan,
                                     ),
+                                    if (vehicle.fuelLevel != null) ...[
+                                      const SizedBox(height: 12),
+                                      _MetricItem(
+                                        icon: Icons.local_gas_station_rounded,
+                                        label: 'Fuel',
+                                        value:
+                                            '${vehicle.fuelLevel!.round()} ${vehicle.fuelLevel! > 100 ? 'L' : '%'}',
+                                        dotColor: const Color(0xFFF97316),
+                                      ),
+                                    ],
                                     const SizedBox(height: 12),
                                     Wrap(
                                       spacing: 8,
@@ -263,7 +273,7 @@ class VehicleCard extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              // Standard Column 2 (Today km)
+                              // Standard Column 2 (Today km & Fuel)
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,6 +284,16 @@ class VehicleCard extends ConsumerWidget {
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
+                                    if (vehicle.fuelLevel != null) ...[
+                                      const SizedBox(height: 12),
+                                      _MetricItem(
+                                        icon: Icons.local_gas_station_rounded,
+                                        label: 'Fuel',
+                                        value:
+                                            '${vehicle.fuelLevel!.round()} ${vehicle.fuelLevel! > 100 ? 'L' : '%'}',
+                                        dotColor: const Color(0xFFF97316),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -675,13 +695,13 @@ class _MetricItem extends StatelessWidget {
     required this.label,
     required this.value,
     required this.dotColor,
-    this.valueWidget,
+    this.icon,
   });
 
   final String label;
   final String value;
-  final Widget? valueWidget;
   final Color dotColor;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -691,28 +711,30 @@ class _MetricItem extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.circle, size: 8, color: dotColor),
-            const SizedBox(width: 6),
+            if (icon != null)
+              Icon(icon, size: 12, color: dotColor)
+            else
+              Icon(Icons.circle, size: 8, color: dotColor),
+            const SizedBox(width: 5),
             Expanded(
-              child: valueWidget ??
-                  Text(
-                    value,
-                    style: TextStyle(
-                      color: isDark
-                          ? Colors.grey.shade200
-                          : const Color(0xFF2E3355),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: isDark
+                      ? Colors.grey.shade200
+                      : const Color(0xFF2E3355),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
         const SizedBox(height: 2),
         Padding(
-          padding: const EdgeInsets.only(left: 14),
+          padding: EdgeInsets.only(left: icon != null ? 17 : 14),
           child: Text(
             label,
             style: TextStyle(
