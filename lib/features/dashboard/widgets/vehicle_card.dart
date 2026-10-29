@@ -205,7 +205,7 @@ class VehicleCard extends ConsumerWidget {
                                           : 'N/A',
                                       dotColor: Colors.cyan,
                                     ),
-                                    if (vehicle.fuelLevel != null) ...[
+                                    if (vehicle.fuelLevel != null && vehicle.fuelLevel! > 0) ...[
                                       const SizedBox(height: 12),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
@@ -284,7 +284,7 @@ class VehicleCard extends ConsumerWidget {
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
-                                    if (vehicle.fuelLevel != null) ...[
+                                    if (vehicle.fuelLevel != null && vehicle.fuelLevel! > 0) ...[
                                       const SizedBox(height: 12),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
