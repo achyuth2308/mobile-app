@@ -208,11 +208,13 @@ _NotificationContent _buildNotificationContent(Map<String, dynamic> data, Remote
   final String timeStr = (data['deviceTime'] ?? data['device_time'] ?? data['timestamp'] ?? data['time'] ?? '').toString();
   final String duration = (data['duration'] ?? data['durationMinutes'] ?? '').toString();
 
-  if (startTime.isNotEmpty && endTime.isNotEmpty) {
+  if (startTime.isNotEmpty && endTime.isNotEmpty && startTime != endTime) {
     finalBody += '\n🕒 $startTime to $endTime';
     if (duration.isNotEmpty) finalBody += ' ($duration)';
   } else if (startTime.isNotEmpty && duration.isNotEmpty) {
     finalBody += '\n🕒 Started: $startTime ($duration)';
+  } else if (startTime.isNotEmpty) {
+    finalBody += '\n🕒 Started: $startTime (Ongoing)';
   } else if (timeStr.isNotEmpty) {
     finalBody += '\n🕒 $timeStr';
   }
@@ -504,8 +506,19 @@ class PushService {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final List<String> list = prefs.getStringList(_localAlertsKey) ?? <String>[];
-      final String alertId = alertMap['id']?.toString() ??
-          'push_${DateTime.now().millisecondsSinceEpoch}_${alertMap.hashCode}';
+      final String? rawId = alertMap['id']?.toString() ?? alertMap['alertId']?.toString();
+      final String vId = alertMap['vehicleId']?.toString() ?? alertMap['vehicle_id']?.toString() ?? '';
+      final String type = (alertMap['type'] ?? alertMap['alertType'] ?? 'alert').toString().toLowerCase().trim();
+      
+      final String timeStr = (alertMap['createdAt'] ?? alertMap['deviceTime'] ?? alertMap['serverTime'] ?? '').toString();
+      final DateTime time = DateTime.tryParse(timeStr) ?? DateTime.now();
+      // 5-minute bucket for deduplicating burst alerts
+      final int bucket5Min = time.millisecondsSinceEpoch ~/ (5 * 60 * 1000);
+      
+      final String alertId = (rawId != null && rawId.isNotEmpty && !rawId.startsWith('alert_') && !rawId.startsWith('push_'))
+          ? rawId
+          : (vId.isNotEmpty ? '${type}_${vId}_$bucket5Min' : 'alert_${type}_$bucket5Min');
+
       final Map<String, dynamic> clean = <String, dynamic>{
         ...alertMap,
         'id': alertId,

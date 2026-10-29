@@ -55,11 +55,13 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
 
   static const List<(String?, String)> _filters = <(String?, String)>[
     (null, 'All'),
-    ('geofence', 'Geofence'),
+    ('critical', 'Critical'),
     ('overspeed', 'Overspeed'),
+    ('idle', 'Idling & Parking'),
+    ('geofence', 'Geofence'),
     ('ignition', 'Ignition & Movement'),
-    ('sos', 'Safety & Theft'),
     ('power', 'Power & Battery'),
+    ('sos', 'SOS & Theft'),
     ('harsh', 'Harsh Events'),
   ];
 
@@ -76,33 +78,50 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   }
 
   bool _matchesFilter(FleetAlert alert, String? filter) {
-    final String type = alert.type.toLowerCase().trim();
     if (filter == null || filter.isEmpty) return true;
 
+    final String type = alert.type.toLowerCase().trim();
     final String title = alert.title.toLowerCase();
     final String message = alert.message.toLowerCase();
 
     return switch (filter) {
+      'critical' =>
+        alert.severity == AlertSeverity.critical ||
+            alert.isContinuousOverspeed ||
+            type == 'main_battery_disconnected' ||
+            type == 'power_cut' ||
+            type == 'sos',
       'geofence' || 'geofence_enter' || 'geofence_exit' || 'geofenceenter' || 'geofenceexit' =>
         type.contains('geofence') ||
             title.contains('geofence') ||
             message.contains('geofence') ||
             message.contains('fence'),
       'overspeed' || 'overspeeding' =>
-        type.contains('overspeed') ||
-            title.contains('overspeed') ||
-            message.contains('overspeed') ||
-            message.contains('speed limit') ||
-            message.contains('speeding'),
+        alert.isOverspeed,
+      'idle' || 'excessive_idle' || 'parking' || 'stoppage' =>
+        alert.isExcessiveIdle ||
+            type == 'stoppage' ||
+            type == 'parking' ||
+            type == 'idle' ||
+            title.contains('idling') ||
+            title.contains('stoppage') ||
+            title.contains('parking') ||
+            message.contains('idling') ||
+            message.contains('parked') ||
+            message.contains('stopped'),
       'sos' || 'safety' =>
         type == 'sos' ||
             type == 'panic' ||
             type == 'theft' ||
             type == 'theft_alarm' ||
+            type == 'safety_park' ||
             type == 'tamper' ||
             type == 'tow' ||
             type == 'crash' ||
             type == 'accident' ||
+            title.contains('safety') ||
+            message.contains('safety park') ||
+            message.contains('safety parking') ||
             title.contains('sos') ||
             title.contains('panic') ||
             title.contains('theft') ||
@@ -119,22 +138,17 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
             type == 'trip_started' ||
             type == 'trip_start' ||
             type == 'stopped' ||
-            type == 'idle' ||
-            type == 'stoppage' ||
-            type == 'excessive_idle' ||
             title.contains('ignition') ||
             title.contains('engine') ||
             title.contains('trip') ||
             title.contains('moving') ||
-            title.contains('stopped') ||
-            title.contains('idle') ||
-            title.contains('stoppage') ||
             message.contains('trip') ||
-            message.contains('started') ||
-            message.contains('stopped') ||
             message.contains('engine'),
       'power' || 'power_cut' || 'battery' =>
-        type == 'power_cut' ||
+        alert.isMainBatteryAlert ||
+            type == 'main_battery_disconnected' ||
+            type == 'main_battery_connected' ||
+            type == 'power_cut' ||
             type == 'power_disconnected' ||
             type == 'low_battery' ||
             type.contains('power') ||
@@ -162,7 +176,17 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     _socketSub = ref.read(socketServiceProvider).events$.listen((event) {
       if (event.name == 'alert:new' || event.name == 'geofence:event') {
         try {
-          final FleetAlert newAlert = FleetAlert.fromJson(event.payload);
+          FleetAlert newAlert = FleetAlert.fromJson(event.payload);
+          if (newAlert.vehicleName == null || newAlert.vehicleName!.isEmpty) {
+            final String? vId = newAlert.vehicleId;
+            if (vId != null) {
+              final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+              final Vehicle? matched = vehicles.where((Vehicle v) => v.id == vId).firstOrNull;
+              if (matched != null) {
+                newAlert = newAlert.copyWith(vehicleName: matched.displayName);
+              }
+            }
+          }
           final bool matchesVehicle = _selectedVehicleId == null ||
               _selectedVehicleId!.isEmpty ||
               newAlert.vehicleId == _selectedVehicleId;
@@ -236,6 +260,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       });
       final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
       ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+      final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
+      ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -281,6 +307,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       });
       final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
       ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+      final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
+      ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -311,6 +339,8 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     });
     final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
     ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+    final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
+    ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
   }
 
   Future<void> _confirmClearAll(BuildContext context) async {
@@ -351,6 +381,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
           _alerts.clear();
         });
         ref.read(unreadAlertsCountProvider.notifier).reset();
+        ref.read(unreadOverspeedCountProvider.notifier).reset();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Alerts cleared successfully'),
@@ -867,22 +898,58 @@ class _AddressTextState extends State<_AddressText> {
     super.initState();
     _resolveAddress();
   }
-  
+
+  @override
+  void didUpdateWidget(_AddressText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.alert.id != widget.alert.id ||
+        oldWidget.alert.address != widget.alert.address ||
+        oldWidget.alert.latitude != widget.alert.latitude ||
+        oldWidget.alert.longitude != widget.alert.longitude) {
+      _resolveAddress();
+    }
+  }
+
   void _resolveAddress() {
-    if (widget.alert.address != null) {
-      _address = widget.alert.address;
-    } else if (widget.alert.hasLocation) {
+    final String? direct = widget.alert.address;
+    if (direct != null &&
+        direct.trim().isNotEmpty &&
+        direct.toLowerCase() != 'location pending' &&
+        direct.toLowerCase() != 'unknown location') {
+      _address = direct;
+      return;
+    }
+
+    if (widget.alert.hasLocation) {
+      // 1. Try instantaneous synchronous cache first
+      final String? cached = Geocoder.getCachedAddress(
+        widget.alert.latitude!,
+        widget.alert.longitude!,
+      );
+      if (cached != null &&
+          cached.isNotEmpty &&
+          cached != 'Location unavailable') {
+        _address = cached;
+        return;
+      }
+
+      // 2. Fetch reverse geocode asynchronously
       Geocoder.getAddress(widget.alert.latitude!, widget.alert.longitude!)
           .then((String addr) {
-        if (mounted) setState(() => _address = addr);
+        if (mounted && addr.isNotEmpty && addr != 'Location unavailable') {
+          setState(() => _address = addr);
+        }
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_address == null) return const SizedBox.shrink();
+    final String displayText = _address ??
+        (widget.alert.hasLocation ? 'Resolving address' : 'Location unavailable');
     final ThemeData theme = Theme.of(context);
+    final bool isResolving = _address == null && widget.alert.hasLocation;
+
     return Padding(
       padding: const EdgeInsets.only(top: 4.0),
       child: Row(
@@ -890,15 +957,24 @@ class _AddressTextState extends State<_AddressText> {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.only(top: 1.5),
-            child: Icon(Icons.location_on_rounded, size: 12, color: theme.colorScheme.onSurfaceVariant),
+            child: Icon(
+              Icons.location_on_rounded,
+              size: 12,
+              color: isResolving
+                  ? theme.colorScheme.primary.withOpacity(0.6)
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              _address!,
+              displayText,
               style: theme.textTheme.labelSmall?.copyWith(
                 letterSpacing: 0,
-                color: theme.colorScheme.onSurfaceVariant,
+                color: isResolving
+                    ? theme.colorScheme.primary.withOpacity(0.7)
+                    : theme.colorScheme.onSurfaceVariant,
+                fontStyle: isResolving ? FontStyle.italic : FontStyle.normal,
               ),
             ),
           ),
@@ -907,6 +983,7 @@ class _AddressTextState extends State<_AddressText> {
     );
   }
 }
+
 
 /// Returns true for alert types that represent a stoppage / parking / idle
 /// event — these cards should display Start, End, and Duration rows.
@@ -932,12 +1009,17 @@ class AlertTile extends StatelessWidget {
   final bool isHighlighted;
 
   Color _getAlertColor(FleetAlert alert) {
+    if (alert.isContinuousOverspeed) {
+      return const Color(0xFFDC2626); // Deep Critical Red for Continuous Overspeed
+    }
     final String type = alert.type.toLowerCase().trim();
     return switch (type) {
       'parking' => const Color(0xFF7C3AED), // Vibrant Indigo / Purple for Parking Alert
       'stoppage' => const Color(0xFFD97706), // Warm Amber / Orange for Long Stoppage
       'idle' || 'excessive_idle' || 'excessive_idling' => const Color(0xFF0284C7), // Electric Cyan / Blue for Excessive Idling
       'overspeed' || 'overspeeding' => const Color(0xFFEF4444), // Vibrant Red
+      'main_battery_disconnected' || 'power_cut' || 'power_disconnected' => const Color(0xFFDC2626), // Critical Red
+      'main_battery_connected' => const Color(0xFF10B981), // Emerald Green
       'geofence' || 'geofence_enter' || 'geofence_exit' => const Color(0xFF10B981), // Emerald Green
       'ignition_on' => const Color(0xFF10B981), // Green
       'ignition_off' => const Color(0xFF64748B), // Slate Grey
@@ -950,21 +1032,29 @@ class AlertTile extends StatelessWidget {
     };
   }
 
-  String? _getPurposeLabel(String type) => switch (type.toLowerCase().trim()) {
-        'parking' => 'PARKED',
-        'stoppage' => 'STOPPAGE',
-        'idle' || 'excessive_idle' || 'excessive_idling' => 'ENGINE IDLE',
-        'overspeed' || 'overspeeding' => 'OVERSPEED',
-        'geofence' || 'geofence_enter' || 'geofence_exit' => 'GEOFENCE',
-        _ => null,
-      };
+  String? _getPurposeLabel(FleetAlert alert) {
+    if (alert.isContinuousOverspeed) {
+      return 'SUSTAINED OVERSPEED';
+    }
+    final String type = alert.type.toLowerCase().trim();
+    return switch (type) {
+      'parking' => 'PARKED',
+      'stoppage' => 'STOPPAGE',
+      'idle' || 'excessive_idle' || 'excessive_idling' => 'ENGINE IDLE',
+      'overspeed' || 'overspeeding' => 'OVERSPEED',
+      'main_battery_disconnected' => 'BATTERY CUT',
+      'main_battery_connected' => 'BATTERY RESTORED',
+      'geofence' || 'geofence_enter' || 'geofence_exit' => 'GEOFENCE',
+      _ => null,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
     final Color color = _getAlertColor(alert);
-    final String? purposeLabel = _getPurposeLabel(alert.type);
+    final String? purposeLabel = _getPurposeLabel(alert);
     final String? stoppageDuration = alert.formattedStoppageDuration;
 
     return Container(
@@ -1053,11 +1143,9 @@ class AlertTile extends StatelessWidget {
                         ),
                       Row(
                         children: <Widget>[
-                          Flexible(
+                          Expanded(
                             child: Text(
                               alert.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: alert.isRead
                                     ? FontWeight.w500
@@ -1094,12 +1182,12 @@ class AlertTile extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         alert.message,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: alert.isRead
                               ? theme.colorScheme.onSurfaceVariant
                               : theme.colorScheme.onSurface,
+                          height: 1.35,
                         ),
                       ),
                       const SizedBox(height: Gap.sm),
@@ -1188,12 +1276,16 @@ class AlertTile extends StatelessWidget {
                                             ),
                                           ),
                                           TextSpan(
-                                            text: alert.calculatedEndTime != null
+                                            text: (alert.calculatedEndTime != null &&
+                                                    alert.calculatedStartTime != null &&
+                                                    alert.calculatedEndTime!.difference(alert.calculatedStartTime!).inSeconds.abs() >= 60)
                                                 ? Fmt.full(alert.calculatedEndTime)
                                                 : 'Ongoing',
                                             style: theme.textTheme.labelSmall?.copyWith(
                                               fontWeight: FontWeight.w700,
-                                              color: alert.calculatedEndTime != null
+                                              color: (alert.calculatedEndTime != null &&
+                                                      alert.calculatedStartTime != null &&
+                                                      alert.calculatedEndTime!.difference(alert.calculatedStartTime!).inSeconds.abs() >= 60)
                                                   ? theme.colorScheme.onSurface
                                                   : color,
                                             ),
@@ -1204,7 +1296,10 @@ class AlertTile extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              if (stoppageDuration != null) ...<Widget>[
+                              if (stoppageDuration != null &&
+                                  stoppageDuration != '0m' &&
+                                  stoppageDuration != '0 min' &&
+                                  stoppageDuration != '0s') ...<Widget>[
                                 const SizedBox(height: 3),
                                 Row(
                                   children: <Widget>[
@@ -1221,6 +1316,33 @@ class AlertTile extends StatelessWidget {
                                   ],
                                 ),
                               ],
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (alert.isContinuousOverspeed) ...<Widget>[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: color.withOpacity(0.25), width: 0.8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(Icons.speed_rounded, size: 13, color: color),
+                              const SizedBox(width: 5),
+                              Text(
+                                alert.effectiveDurationMinutes != null
+                                    ? 'Sustained for ${alert.effectiveDurationMinutes} mins above speed limit'
+                                    : 'Sustained overspeeding observed',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: color,
+                                ),
+                              ),
                             ],
                           ),
                         ),

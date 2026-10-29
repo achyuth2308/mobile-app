@@ -142,6 +142,11 @@ class SecureStore {
   bool get notifHarsh => _prefs.getBool('ft_notif_harsh') ?? true;
   Future<void> setNotifHarsh(bool v) => _prefs.setBool('ft_notif_harsh', v);
 
+  // ── No Data Rule Persistence ───────────────────────────────────────
+  static const String _kNodataThresholdHours = 'ft_nodata_threshold_hours';
+  double get nodataThresholdHours => _prefs.getDouble(_kNodataThresholdHours) ?? 1.0;
+  Future<void> setNodataThresholdHours(double v) => _prefs.setDouble(_kNodataThresholdHours, v);
+
   // ── Deleted Alert Persistence ──────────────────────────────────────
   static const _kDeletedAlerts = 'ft_deleted_alerts';
 

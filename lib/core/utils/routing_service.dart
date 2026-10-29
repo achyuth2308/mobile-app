@@ -2,6 +2,7 @@ import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../data/models/json_utils.dart';
 import '../config/app_config.dart';
 import 'polyline_simplifier.dart';
 
@@ -126,7 +127,7 @@ class RoutingService {
     if (legs != null && legs.isNotEmpty) {
       for (final dynamic leg in legs) {
         if (leg is Map<String, dynamic>) {
-          final num? distMeters = leg['distance']?['value'] as num?;
+          final double? distMeters = toDouble(leg['distance']?['value']);
           if (distMeters != null) totalDistanceKm += distMeters / 1000.0;
           final String? dur = leg['duration']?['text']?.toString();
           if (dur != null && dur.isNotEmpty) durationText = dur;
@@ -175,9 +176,9 @@ class RoutingService {
       final List<dynamic> rawCoords = geometry['coordinates'] as List<dynamic>;
       for (final dynamic coord in rawCoords) {
         if (coord is List && coord.length >= 2) {
-          final double lon = (coord[0] as num).toDouble();
-          final double lat = (coord[1] as num).toDouble();
-          if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+          final double? lon = toDouble(coord[0]);
+          final double? lat = toDouble(coord[1]);
+          if (lat != null && lon != null && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
             points.add(LatLng(lat, lon));
           }
         }
@@ -192,8 +193,8 @@ class RoutingService {
       points = _simplify(points, epsilonMeters: 8.0);
     }
 
-    final num distMeters = (route['distance'] as num?) ?? 0;
-    final num durSeconds = (route['duration'] as num?) ?? 0;
+    final double distMeters = toDouble(route['distance']) ?? 0;
+    final int durSeconds = toInt(route['duration']) ?? 0;
 
     final double distanceKm = distMeters / 1000.0;
     final int hours = durSeconds ~/ 3600;

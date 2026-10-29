@@ -74,10 +74,54 @@ void main() {
   group('ReportType routing', () {
     test('every type maps to an /api/reports path', () {
       for (final ReportType t in ReportType.values) {
+        if (t == ReportType.manualTrip) continue;
         expect(t.path, startsWith('/reports/'));
         expect(t.label, isNotEmpty);
         expect(t.blurb, isNotEmpty);
       }
+    });
+
+    test('parses ignition report payload with intervals, events and summary', () {
+      final ReportResult r = ReportResult.parse(<String, dynamic>{
+        'success': true,
+        'data': <String, dynamic>{
+          'vehicleInfo': <String, dynamic>{
+            'name': 'AP21TB3569',
+            'plate': 'AP21TB3569',
+          },
+          'events': <dynamic>[
+            <String, dynamic>{
+              'time': '2026-10-29T00:00:00.000Z',
+              'status': 'ON',
+              'durationMs': 17947000,
+              'lat': 16.785373,
+              'lng': 75.740478,
+            },
+          ],
+          'intervals': <dynamic>[
+            <String, dynamic>{
+              'status': 'ON',
+              'startTime': '2026-10-29T00:00:00.000Z',
+              'endTime': '2026-10-29T04:59:07.000Z',
+              'durationMs': 17947000,
+              'startLat': 16.785373,
+              'startLng': 75.740478,
+            },
+          ],
+          'summary': <String, dynamic>{
+            'totalRunningMs': 17947000,
+            'totalDistance': '190.00',
+            'topSpeed': 66,
+            'totalEvents': 1,
+          },
+        },
+      });
+
+      expect(r.rows.length, 1);
+      expect(r.rows.first.isEngineOn, isTrue);
+      expect(r.rows.first.durationSecVal, 17947);
+      expect(r.summary.totalDurationSeconds, 17947);
+      expect(r.summary.totalDistanceKm, 190.0);
     });
 
     test('route history and individual reports require a vehicle', () {

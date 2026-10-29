@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/vehicle.dart';
+import '../../../providers/alerts_provider.dart';
+import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
 
 /// The hero panel: total fleet count with a proportional status bar and
@@ -23,6 +25,7 @@ class FleetOverviewCard extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final FleetStats stats = ref.watch(fleetStatsProvider);
     final VehicleStatus? active = ref.watch(fleetFilterProvider);
+    final double thresholdHours = ref.watch(noDataThresholdProvider);
     final bool isDark = theme.brightness == Brightness.dark;
 
     return Container(
@@ -111,8 +114,106 @@ class FleetOverviewCard extends ConsumerWidget {
           const SizedBox(height: Gap.md),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
+              final int overspeedCount = ref.watch(unreadOverspeedCountProvider);
+              final bool showOverspeed = overspeedCount > 0;
               final bool showUnreachable = stats.noData > 0;
+
               if (constraints.maxWidth < 580) {
+                // If extra dynamic tiles are present (overspeed or unreachable),
+                // use 3 tiles in row 1 and dynamic tiles in row 2.
+                // Otherwise use standard 2x2 grid.
+                if (showOverspeed || showUnreachable) {
+                  return Column(
+                    children: [
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: _StatusTile(
+                              label: 'Moving',
+                              count: stats.moving,
+                              color: AppColors.moving,
+                              icon: Icons.arrow_upward_rounded,
+                              selected: active == VehicleStatus.moving,
+                              onTap: () => _toggle(ref, VehicleStatus.moving),
+                              isDark: isDark,
+                            ),
+                          ),
+                          const SizedBox(width: Gap.sm),
+                          Expanded(
+                            child: _StatusTile(
+                              label: 'Idle',
+                              count: stats.idle,
+                              color: AppColors.idle,
+                              icon: Icons.hourglass_empty_rounded,
+                              selected: active == VehicleStatus.idle,
+                              onTap: () => _toggle(ref, VehicleStatus.idle),
+                              isDark: isDark,
+                            ),
+                          ),
+                          const SizedBox(width: Gap.sm),
+                          Expanded(
+                            child: _StatusTile(
+                              label: 'Stopped',
+                              count: stats.stopped,
+                              color: AppColors.stopped,
+                              icon: Icons.local_parking_rounded,
+                              selected: active == VehicleStatus.stopped,
+                              onTap: () => _toggle(ref, VehicleStatus.stopped),
+                              isDark: isDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: Gap.sm),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: _StatusTile(
+                              label: 'No Data',
+                              count: stats.offline,
+                              color: AppColors.offline,
+                              icon: Icons.cloud_off_rounded,
+                              selected: active == VehicleStatus.offline,
+                              onTap: () => _toggle(ref, VehicleStatus.offline),
+                              isDark: isDark,
+                              dropdown: _buildNoDataDropdown(context, ref, thresholdHours, isDark, AppColors.offline),
+                            ),
+                          ),
+                          if (showOverspeed) ...[
+                            const SizedBox(width: Gap.sm),
+                            Expanded(
+                              child: _StatusTile(
+                                label: 'Overspeed',
+                                count: overspeedCount,
+                                color: const Color(0xFFF43F5E),
+                                icon: Icons.speed_rounded,
+                                selected: false,
+                                onTap: () => context.push('/alerts?type=overspeed'),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ],
+                          if (showUnreachable) ...[
+                            const SizedBox(width: Gap.sm),
+                            Expanded(
+                              child: _StatusTile(
+                                label: 'Unreachable',
+                                count: stats.noData,
+                                color: AppColors.noData,
+                                icon: Icons.sensors_off_rounded,
+                                selected: active == VehicleStatus.noData,
+                                onTap: () => _toggle(ref, VehicleStatus.noData),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                // Standard 2x2 layout when no extra alerts
                 return Column(
                   children: [
                     Row(
@@ -140,7 +241,11 @@ class FleetOverviewCard extends ConsumerWidget {
                             isDark: isDark,
                           ),
                         ),
-                        const SizedBox(width: Gap.sm),
+                      ],
+                    ),
+                    const SizedBox(height: Gap.sm),
+                    Row(
+                      children: <Widget>[
                         Expanded(
                           child: _StatusTile(
                             label: 'Stopped',
@@ -152,11 +257,7 @@ class FleetOverviewCard extends ConsumerWidget {
                             isDark: isDark,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: Gap.sm),
-                    Row(
-                      children: <Widget>[
+                        const SizedBox(width: Gap.sm),
                         Expanded(
                           child: _StatusTile(
                             label: 'No Data',
@@ -166,34 +267,9 @@ class FleetOverviewCard extends ConsumerWidget {
                             selected: active == VehicleStatus.offline,
                             onTap: () => _toggle(ref, VehicleStatus.offline),
                             isDark: isDark,
+                            dropdown: _buildNoDataDropdown(context, ref, thresholdHours, isDark, AppColors.offline),
                           ),
                         ),
-                        const SizedBox(width: Gap.sm),
-                        Expanded(
-                          child: _StatusTile(
-                            label: 'Overspeed',
-                            count: stats.overspeeding,
-                            color: const Color(0xFFF43F5E),
-                            icon: Icons.speed_rounded,
-                            selected: false,
-                            onTap: () => context.push('/alerts?type=overspeed'),
-                            isDark: isDark,
-                          ),
-                        ),
-                        if (showUnreachable) ...[
-                          const SizedBox(width: Gap.sm),
-                          Expanded(
-                            child: _StatusTile(
-                              label: 'Unreachable',
-                              count: stats.noData,
-                              color: AppColors.noData,
-                              icon: Icons.sensors_off_rounded,
-                              selected: active == VehicleStatus.noData,
-                              onTap: () => _toggle(ref, VehicleStatus.noData),
-                              isDark: isDark,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ],
@@ -248,20 +324,23 @@ class FleetOverviewCard extends ConsumerWidget {
                       selected: active == VehicleStatus.offline,
                       onTap: () => _toggle(ref, VehicleStatus.offline),
                       isDark: isDark,
+                      dropdown: _buildNoDataDropdown(context, ref, thresholdHours, isDark, AppColors.offline),
                     ),
                   ),
-                  const SizedBox(width: Gap.sm),
-                  Expanded(
-                    child: _StatusTile(
-                      label: 'Overspeed',
-                      count: stats.overspeeding,
-                      color: const Color(0xFFF43F5E),
-                      icon: Icons.speed_rounded,
-                      selected: false,
-                      onTap: () => context.push('/alerts?type=overspeed'),
-                      isDark: isDark,
+                  if (showOverspeed) ...[
+                    const SizedBox(width: Gap.sm),
+                    Expanded(
+                      child: _StatusTile(
+                        label: 'Overspeed',
+                        count: overspeedCount,
+                        color: const Color(0xFFF43F5E),
+                        icon: Icons.speed_rounded,
+                        selected: false,
+                        onTap: () => context.push('/alerts?type=overspeed'),
+                        isDark: isDark,
+                      ),
                     ),
-                  ),
+                  ],
                   if (showUnreachable) ...[
                     const SizedBox(width: Gap.sm),
                     Expanded(
@@ -418,6 +497,99 @@ class _OnlineRing extends StatelessWidget {
   }
 }
 
+Widget _buildNoDataDropdown(
+  BuildContext context,
+  WidgetRef ref,
+  double thresholdHours,
+  bool isDark,
+  Color color,
+) {
+  final String label = thresholdHours == 1.0 ? '1 hr' : '${thresholdHours.toInt()} hr';
+
+  return Theme(
+    data: Theme.of(context).copyWith(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+    ),
+    child: PopupMenuButton<double>(
+      initialValue: thresholdHours,
+      tooltip: 'No Data Rule: 1hr by default, 3hr, 6hr, 24hr',
+      padding: EdgeInsets.zero,
+      elevation: 8,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      onSelected: (double val) {
+        ref.read(noDataThresholdProvider.notifier).setThreshold(val);
+        final String optName = val == 1.0 ? '1 hr (Default)' : '${val.toInt()} hr';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No Data Rule threshold set to $optName'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      itemBuilder: (BuildContext ctx) => AppConfig.noDataThresholdOptions.map((double opt) {
+        final String optLabel = opt == 1.0 ? '1 hr (Default)' : '${opt.toInt()} hr';
+        final bool isSelected = thresholdHours == opt;
+        return PopupMenuItem<double>(
+          value: opt,
+          height: 38,
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                size: 16,
+                color: isSelected ? const Color(0xFF0EA5E9) : Colors.grey,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                optLabel,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0EA5E9).withValues(alpha: isDark ? 0.22 : 0.12),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: const Color(0xFF0EA5E9).withValues(alpha: 0.45),
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0EA5E9),
+              ),
+            ),
+            const SizedBox(width: 1),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 14,
+              color: Color(0xFF0EA5E9),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _StatusTile extends StatelessWidget {
   const _StatusTile({
     required this.label,
@@ -427,6 +599,7 @@ class _StatusTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.isDark,
+    this.dropdown,
   });
 
   final String label;
@@ -436,6 +609,7 @@ class _StatusTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final bool isDark;
+  final Widget? dropdown;
 
   @override
   Widget build(BuildContext context) {
@@ -448,7 +622,7 @@ class _StatusTile extends StatelessWidget {
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: selected
-              ? color.withOpacity(isDark ? 0.15 : 0.08)
+              ? color.withValues(alpha: isDark ? 0.15 : 0.08)
               : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
           borderRadius: Corners.rMd,
           border: Border.all(
@@ -460,7 +634,7 @@ class _StatusTile extends StatelessWidget {
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   )
@@ -472,21 +646,22 @@ class _StatusTile extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: Corners.rMd,
-            splashColor: color.withOpacity(0.2),
-            highlightColor: color.withOpacity(0.1),
+            splashColor: color.withValues(alpha: 0.2),
+            highlightColor: color.withValues(alpha: 0.1),
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Icon(
                     icon,
                     size: 16,
                     color: selected
                         ? color
-                        : (isDark ? color.withOpacity(0.8) : color),
+                        : (isDark ? color.withValues(alpha: 0.8) : color),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     '$count',
                     style: TextStyle(
@@ -495,7 +670,7 @@ class _StatusTile extends StatelessWidget {
                       color: isDark ? Colors.white : const Color(0xFF1E2432),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(
                     label,
                     style: TextStyle(
@@ -509,6 +684,10 @@ class _StatusTile extends StatelessWidget {
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
+                  if (dropdown != null) ...[
+                    const SizedBox(height: 4),
+                    dropdown!,
+                  ],
                 ],
               ),
             ),

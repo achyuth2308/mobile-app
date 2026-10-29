@@ -145,11 +145,7 @@ class UserTrip extends Equatable {
         distanceKm:   asDouble(json, ['distance_km', 'distanceKm', 'distance'], fallback: 0.0),
         maxSpeed:     asInt(json, ['max_speed', 'maxSpeed'], fallback: 0),
         avgSpeed:     asDouble(json, ['avg_speed', 'avgSpeed'], fallback: 0.0),
-        durationSecs: json['duration_secs'] is num
-            ? (json['duration_secs'] as num).toInt()
-            : json['durationSecs'] is num
-                ? (json['durationSecs'] as num).toInt()
-                : null,
+        durationSecs: toInt(json['duration_secs'] ?? json['durationSecs']),
         stoppageCount: asInt(json, ['stoppage_count', 'stoppageCount', 'stoppages', 'stops'], fallback: 0),
         createdAt:    asDate(json, ['created_at', 'createdAt']),
       );

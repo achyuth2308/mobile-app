@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
+import '../../../data/models/json_utils.dart';
 import '../../../data/models/vehicle.dart';
+import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
+import '../../../providers/safety_parking_provider.dart';
 import '../../../shared/widgets/app_states.dart';
+import '../../../shared/widgets/duration_alert_card.dart';
 
 class VehicleSettingsScreen extends ConsumerStatefulWidget {
   const VehicleSettingsScreen({required this.vehicleId, super.key});
@@ -23,8 +26,13 @@ class _VehicleSettingsScreenState
   late double _speedLimit;
   late double _overspeedDuration;
   late double _idleDuration;
-
-  late double _stoppageDuration;
+  late double _parkingDuration;
+  late double _movingDuration;
+  late bool _safetyPark;
+  late TextEditingController _idleController;
+  late TextEditingController _parkingController;
+  late TextEditingController _movingController;
+  bool _applyAccountWide = true;
   bool _isSaving = false;
 
   final Map<String, bool> _alertToggles = {
@@ -36,6 +44,9 @@ class _VehicleSettingsScreenState
     'excessive_idle': true,
     'overspeed': true,
     'geofence': true,
+    'main_battery_disconnected': true,
+    'main_battery_connected': true,
+    'sos': true,
     'trip_started': true,
     'trip_ended': true,
     'route_deviation': true,
@@ -46,12 +57,20 @@ class _VehicleSettingsScreenState
     super.initState();
     final Vehicle? vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
     final Map<String, dynamic> metadata = (vehicle?.raw['metadata'] as Map<String, dynamic>?) ?? {};
-    _speedLimit = (metadata['overSpeedLimit'] as num?)?.toDouble() ??
-        (metadata['speedLimit'] as num?)?.toDouble() ??
+    _speedLimit = toDouble(metadata['overSpeedLimit']) ??
+        toDouble(metadata['speedLimit']) ??
         80.0;
-    _overspeedDuration = (metadata['overspeedDurationAlert'] as num?)?.toDouble() ?? 3.0;
-    _idleDuration = (metadata['idleDurationAlert'] as num?)?.toDouble() ?? 10.0;
-    _stoppageDuration = (metadata['stoppageThreshold'] as num?)?.toDouble() ?? 10.0;
+    _overspeedDuration = toDouble(metadata['overspeedDurationAlert']) ?? 3.0;
+    _idleDuration = toDouble(metadata['idleDurationAlert']) ?? 60.0;
+    _parkingDuration = toDouble(metadata['parkingDurationAlert']) ??
+        toDouble(metadata['stoppageThreshold']) ??
+        60.0;
+    _movingDuration = toDouble(metadata['movingDurationAlert']) ?? 60.0;
+    _safetyPark = vehicle?.isSafetyParkActive ?? (metadata['safetyPark'] == 'YES');
+
+    _idleController = TextEditingController(text: '${_idleDuration.round()}');
+    _parkingController = TextEditingController(text: '${_parkingDuration.round()}');
+    _movingController = TextEditingController(text: '${_movingDuration.round()}');
     
     final alertConfig = metadata['alertConfig'] as Map<String, dynamic>? ?? {};
     for (final key in _alertToggles.keys) {
@@ -59,27 +78,87 @@ class _VehicleSettingsScreenState
         _alertToggles[key] = alertConfig[key] == true;
       }
     }
+
+    // Load account-wide user preferences if available
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final Map<String, dynamic>? remote =
+            await ref.read(alertRepositoryProvider).getPreferences();
+        if (remote != null && mounted) {
+          setState(() {
+            if (remote['speed_limit'] != null) {
+              _speedLimit = toDouble(remote['speed_limit']) ?? _speedLimit;
+            }
+            if (remote['idle_duration_mins'] != null) {
+              _idleDuration = toDouble(remote['idle_duration_mins']) ?? _idleDuration;
+              _idleController.text = '${_idleDuration.round()}';
+            }
+            if (remote['parking_duration_mins'] != null) {
+              _parkingDuration = toDouble(remote['parking_duration_mins']) ?? _parkingDuration;
+              _parkingController.text = '${_parkingDuration.round()}';
+            }
+            if (remote['moving_duration_mins'] != null) {
+              _movingDuration = toDouble(remote['moving_duration_mins']) ?? _movingDuration;
+              _movingController.text = '${_movingDuration.round()}';
+            }
+            for (final key in _alertToggles.keys) {
+              if (remote.containsKey(key) && remote[key] is bool) {
+                _alertToggles[key] = remote[key] as bool;
+              }
+            }
+          });
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _idleController.dispose();
+    _parkingController.dispose();
+    _movingController.dispose();
+    super.dispose();
   }
 
   Future<void> _save() async {
     setState(() => _isSaving = true);
     try {
+      if (_applyAccountWide) {
+        // Save user-wide preferences (applies across account and backend auto-syncs all org vehicles)
+        final Map<String, dynamic> userPrefs = <String, dynamic>{
+          ..._alertToggles,
+          'speed_limit': _speedLimit,
+          'idle_duration_mins': _idleDuration,
+          'parking_duration_mins': _parkingDuration,
+          'moving_duration_mins': _movingDuration,
+        };
+        await ref.read(alertRepositoryProvider).updatePreferences(userPrefs);
+      }
+
       await ref.read(fleetProvider.notifier).updateSettings(
             widget.vehicleId,
             overSpeedLimit: _speedLimit,
             overspeedDurationAlert: _overspeedDuration,
             idleDurationAlert: _idleDuration,
-            stoppageThreshold: _stoppageDuration,
+            stoppageThreshold: _parkingDuration,
+            parkingDurationAlert: _parkingDuration,
+            movingDurationAlert: _movingDuration,
             alertConfig: _alertToggles,
+            safetyPark: _safetyPark,
           );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
-              children: const <Widget>[
-                Icon(Icons.check_circle_rounded, color: Colors.white),
-                SizedBox(width: Gap.sm),
-                Text('Vehicle settings saved successfully!'),
+              children: <Widget>[
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: Gap.sm),
+                Expanded(
+                  child: Text(_applyAccountWide
+                      ? 'Alert configuration saved for your account & applied to all vehicles!'
+                      : 'Vehicle settings saved successfully!'),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF2E7D32),
@@ -208,7 +287,219 @@ class _VehicleSettingsScreenState
                     ),
                   ),
 
-                  const SizedBox(height: Gap.xl),
+                  const SizedBox(height: Gap.md),
+
+                  // ── User-Wise (All Vehicles) Switch Banner ───────────
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
+                    decoration: BoxDecoration(
+                      color: _applyAccountWide
+                          ? (isDark
+                              ? const Color(0xFF1E3A8A).withOpacity(0.3)
+                              : const Color(0xFFEFF6FF))
+                          : cardBg,
+                      borderRadius: Corners.rLg,
+                      border: Border.all(
+                        color: _applyAccountWide
+                            ? const Color(0xFF3B82F6)
+                            : borderColor,
+                        width: _applyAccountWide ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _applyAccountWide
+                                ? const Color(0xFF2563EB)
+                                : scheme.surfaceContainerHigh,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.admin_panel_settings_rounded,
+                            color: _applyAccountWide ? Colors.white : scheme.onSurfaceVariant,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: Gap.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Account-Wide Configuration',
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (_applyAccountWide) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF2563EB),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'ALL VEHICLES',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _applyAccountWide
+                                    ? 'Settings apply to your user profile and sync across all vehicles'
+                                    : 'Settings apply only to ${vehicle.displayName}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch.adaptive(
+                          value: _applyAccountWide,
+                          activeColor: const Color(0xFF2563EB),
+                          onChanged: (bool val) => setState(() => _applyAccountWide = val),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: Gap.lg),
+
+                  // ── Section 0: Safety Parking (Theft Police Siren) ────
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _safetyPark
+                          ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+                          : cardBg,
+                      borderRadius: Corners.rLg,
+                      border: Border.all(
+                        color: _safetyPark ? const Color(0xFFDC2626) : borderColor,
+                        width: _safetyPark ? 1.5 : 1.0,
+                      ),
+                      boxShadow: <BoxShadow>[
+                        if (_safetyPark)
+                          BoxShadow(
+                            color: const Color(0xFFDC2626).withValues(alpha: 0.15),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(Gap.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _safetyPark
+                                    ? const Color(0xFFDC2626)
+                                    : const Color(0xFF64748B).withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                _safetyPark ? Icons.security_rounded : Icons.shield_outlined,
+                                color: _safetyPark ? Colors.white : const Color(0xFF64748B),
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: Gap.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Row(
+                                    children: <Widget>[
+                                      Text(
+                                        'Safety Parking (Theft Alarm)',
+                                        style: theme.textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: _safetyPark ? const Color(0xFFDC2626) : null,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _safetyPark
+                                        ? 'ARMED: Continuous police siren & red border lightning'
+                                        : 'DISARMED: Vehicle is unmonitored for parking breaches',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: _safetyPark ? FontWeight.bold : FontWeight.normal,
+                                      color: _safetyPark
+                                          ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B))
+                                          : scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _safetyPark,
+                              activeColor: const Color(0xFFDC2626),
+                              onChanged: (bool val) => setState(() => _safetyPark = val),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: Gap.sm),
+                        Text(
+                          'When armed, if this vehicle moves (speed > 1 km/h) or the engine turns ON, an immediate continuous police siren will sound across the mobile app with glowing red border lightning until turned off.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _safetyPark
+                                ? (isDark ? Colors.white70 : const Color(0xFF7F1D1D))
+                                : scheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: Gap.sm),
+                        Row(
+                          children: <Widget>[
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                ref.read(safetyParkingProvider.notifier).triggerTestAlarm(
+                                      vehicleName: vehicle.displayName,
+                                      plate: vehicle.registrationNumber,
+                                    );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFDC2626),
+                                side: const BorderSide(color: Color(0xFFDC2626)),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.volume_up_rounded, size: 14),
+                              label: const Text(
+                                'Test Siren & Lightning',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: Gap.lg),
 
                   // ── Section 1: Overspeed Limit ─────────────────────
                   _SettingsCard(
@@ -319,55 +610,20 @@ class _VehicleSettingsScreenState
                   const SizedBox(height: Gap.lg),
 
                   // ── Section 3: Idle Duration ───────────────────────
-                  _SettingsCard(
-                    cardBg: cardBg,
-                    borderColor: borderColor,
-                    isDark: isDark,
-                    title: 'Idle Duration Alert',
-                    subtitle:
-                        'Alert triggers when engine is ON but stationary',
+                  DurationAlertCard(
+                    title: 'Idle Duration',
+                    subtitle: 'Alert triggers when engine is ON but stationary',
                     icon: Icons.hourglass_empty_rounded,
                     iconColor: const Color(0xFF9C27B0),
-                    badgeText: '${_idleDuration.round()} mins',
                     badgeColor: const Color(0xFF9C27B0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Slider(
-                          value: _idleDuration,
-                          min: 5,
-                          max: 60,
-                          divisions: 55,
-                          label: '${_idleDuration.round()} mins',
-                          activeColor: const Color(0xFF9C27B0),
-                          onChanged: (double v) =>
-                              setState(() => _idleDuration = v),
-                        ),
-                        const SizedBox(height: Gap.xs),
-                        Wrap(
-                          spacing: Gap.xs,
-                          children: <double>[5, 10, 15, 30]
-                              .map(
-                                (double preset) => ChoiceChip(
-                                  label: Text('${preset.round()} mins'),
-                                  selected: _idleDuration == preset,
-                                  selectedColor: const Color(0xFF9C27B0)
-                                      .withOpacity(0.2),
-                                  labelStyle: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _idleDuration == preset
-                                        ? const Color(0xFF9C27B0)
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                                  onSelected: (_) =>
-                                      setState(() => _idleDuration = preset),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ],
-                    ),
+                    controller: _idleController,
+                    duration: _idleDuration,
+                    enabled: _alertToggles['excessive_idle'] ?? true,
+                    onToggle: (bool val) => setState(() {
+                      _alertToggles['excessive_idle'] = val;
+                      _alertToggles['idle'] = val;
+                    }),
+                    onDurationChanged: (double v) => setState(() => _idleDuration = v),
                   ),
 
                   const SizedBox(height: Gap.lg),
@@ -378,51 +634,57 @@ class _VehicleSettingsScreenState
               ListView(
                 padding: const EdgeInsets.all(Gap.lg),
                 children: [
-                  _SettingsCard(
-                    cardBg: cardBg,
-                    borderColor: borderColor,
-                    isDark: isDark,
-                    title: 'Stoppage Duration Alert',
-                    subtitle: 'Alert triggers when vehicle is stopped (speed=0) for this duration',
-                    icon: Icons.pause_circle_filled_rounded,
-                    iconColor: const Color(0xFFE91E63),
-                    badgeText: '${_stoppageDuration.round()} mins',
-                    badgeColor: const Color(0xFFE91E63),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Slider(
-                          value: _stoppageDuration,
-                          min: 5,
-                          max: 60,
-                          divisions: 55,
-                          label: '${_stoppageDuration.round()} mins',
-                          activeColor: const Color(0xFFE91E63),
-                          onChanged: (double v) =>
-                              setState(() => _stoppageDuration = v),
-                        ),
-                        const SizedBox(height: Gap.xs),
-                        Wrap(
-                          spacing: Gap.xs,
-                          children: <double>[5, 10, 20, 30]
-                              .map(
-                                (double preset) => ChoiceChip(
-                                  label: Text('${preset.round()} mins'),
-                                  selected: _stoppageDuration == preset,
-                                  selectedColor: const Color(0xFFE91E63).withOpacity(0.2),
-                                  labelStyle: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _stoppageDuration == preset ? const Color(0xFFE91E63) : scheme.onSurfaceVariant,
-                                  ),
-                                  onSelected: (_) => setState(() => _stoppageDuration = preset),
-                                ),
-                              ).toList(),
-                        ),
-                      ],
-                    ),
+                  // ── Parking Alert Card ──
+                  DurationAlertCard(
+                    title: 'Parking',
+                    subtitle: 'Alert triggers when vehicle is parked beyond duration',
+                    icon: Icons.local_parking_rounded,
+                    iconColor: const Color(0xFF2563EB),
+                    badgeColor: const Color(0xFF2563EB),
+                    controller: _parkingController,
+                    duration: _parkingDuration,
+                    enabled: _alertToggles['parking'] ?? true,
+                    onToggle: (bool val) => setState(() => _alertToggles['parking'] = val),
+                    onDurationChanged: (double v) => setState(() => _parkingDuration = v),
                   ),
+
+                  const SizedBox(height: Gap.md),
+
+                  // ── Moving (After Stoppage) Alert Card ──
+                  DurationAlertCard(
+                    title: 'Moving (After Stoppage)',
+                    subtitle: 'Alert triggers when vehicle starts moving after stoppage',
+                    icon: Icons.directions_car_rounded,
+                    iconColor: const Color(0xFF0D9488),
+                    badgeColor: const Color(0xFF0D9488),
+                    controller: _movingController,
+                    duration: _movingDuration,
+                    enabled: _alertToggles['moving'] ?? true,
+                    onToggle: (bool val) => setState(() => _alertToggles['moving'] = val),
+                    onDurationChanged: (double v) => setState(() => _movingDuration = v),
+                  ),
+
+                  const SizedBox(height: Gap.md),
+
+                  // ── Idle Alert Card ──
+                  DurationAlertCard(
+                    title: 'Idle Duration',
+                    subtitle: 'Alert triggers when engine is ON but stationary beyond duration',
+                    icon: Icons.hourglass_empty_rounded,
+                    iconColor: const Color(0xFF9C27B0),
+                    badgeColor: const Color(0xFF9C27B0),
+                    controller: _idleController,
+                    duration: _idleDuration,
+                    enabled: _alertToggles['excessive_idle'] ?? true,
+                    onToggle: (bool val) => setState(() {
+                      _alertToggles['excessive_idle'] = val;
+                      _alertToggles['idle'] = val;
+                    }),
+                    onDurationChanged: (double v) => setState(() => _idleDuration = v),
+                  ),
+
                   const SizedBox(height: Gap.lg),
+
                   Container(
                     decoration: BoxDecoration(
                       color: cardBg,
@@ -431,7 +693,9 @@ class _VehicleSettingsScreenState
                     ),
                     child: Column(
                       children: [
-                        for (final entry in _alertToggles.entries) ...[
+                        for (final entry in _alertToggles.entries.where((e) =>
+                            !const <String>{'parking', 'moving', 'stoppage', 'excessive_idle', 'idle'}
+                                .contains(e.key))) ...[
                           SwitchListTile(
                             value: entry.value,
                             activeColor: const Color(0xFF2E7D32),
@@ -439,7 +703,7 @@ class _VehicleSettingsScreenState
                             subtitle: Text('Receive notifications for ${entry.key.replaceAll('_', ' ')}'),
                             onChanged: (bool val) => setState(() => _alertToggles[entry.key] = val),
                           ),
-                          if (entry.key != _alertToggles.keys.last) Divider(height: 1, color: borderColor),
+                          Divider(height: 1, color: borderColor),
                         ]
                       ],
                     ),
@@ -447,6 +711,7 @@ class _VehicleSettingsScreenState
                   const SizedBox(height: Gap.xxl),
                 ],
               ),
+
             ],
           ),
         ),
@@ -512,11 +777,11 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (Color color, String label) = switch (status) {
-      VehicleStatus.moving => (const Color(0xFF2E7D32), 'Running'),
+      VehicleStatus.moving => (const Color(0xFF2E7D32), 'Moving'),
       VehicleStatus.idle => (const Color(0xFFED6C02), 'Idle'),
       VehicleStatus.stopped => (const Color(0xFF757575), 'Parking'),
-      VehicleStatus.offline => (const Color(0xFFD32F2F), 'Offline'),
-      VehicleStatus.noData => (const Color(0xFF94A3B8), 'No Data'),
+      VehicleStatus.offline => (const Color(0xFFD32F2F), 'No Data'),
+      VehicleStatus.noData => (const Color(0xFF94A3B8), 'Unreachable'),
     };
 
     return Container(

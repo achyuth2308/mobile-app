@@ -255,7 +255,20 @@ class FleetController extends Notifier<FleetState> {
       }
       final List<Vehicle> cleanMerged = deduplicated.values.toList();
 
-      _sort(cleanMerged);
+      if (state.vehicles.isEmpty || !silent) {
+        _sort(cleanMerged);
+      } else {
+        // Silent background sync: preserve the existing display order so cards don't jump
+        final Map<String, int> existingOrder = <String, int>{
+          for (int i = 0; i < state.vehicles.length; i++) state.vehicles[i].id: i,
+        };
+        cleanMerged.sort((Vehicle a, Vehicle b) {
+          final int orderA = existingOrder[a.id] ?? 999999;
+          final int orderB = existingOrder[b.id] ?? 999999;
+          if (orderA != orderB) return orderA.compareTo(orderB);
+          return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        });
+      }
       _rebuildIndexes(cleanMerged);
 
       if (!_mounted) return;
@@ -357,6 +370,18 @@ class FleetController extends Notifier<FleetState> {
       case 'alert:new':
       case 'geofence:event':
         // FCM handles push notifications now. Socket is just for UI state.
+        break;
+      case 'vehicle:safety_park':
+        final String? vId = event.payload['vehicleId']?.toString() ?? event.payload['id']?.toString();
+        final String? sp = event.payload['safetyPark']?.toString();
+        if (vId != null && sp != null) {
+          final bool armed = sp == 'YES' || sp == 'true';
+          final List<Vehicle> updated = state.vehicles.map((Vehicle v) {
+            if (v.id == vId) return v.withSafetyPark(armed);
+            return v;
+          }).toList();
+          _safeSetState(state.copyWith(vehicles: updated));
+        }
         break;
       default:
         break;
@@ -463,44 +488,70 @@ class FleetController extends Notifier<FleetState> {
     } catch (_) {}
   }
 
-  /// Flush buffered socket frames. Snapshots _pending immediately (so new
-  /// events keep buffering), then merges onto the CURRENT state at
-  /// write-time — not at call-time — so a concurrent load() result is
-  /// never overwritten.
+  /// Flush buffered socket frames.
+  /// Telemetry data updates the vehicle in-place at its exact position in the list
+  /// without re-sorting, ensuring vehicle cards never jump or shift unexpectedly while
+  /// the user is focusing on or viewing them. Real-time data sync remains instant.
   void _flush() {
     if (!_mounted || _pending.isEmpty) return;
 
     final Map<String, Vehicle> snapshot = Map<String, Vehicle>.from(_pending);
     _pending.clear();
 
-    final Map<String, Vehicle> next = <String, Vehicle>{
-      for (final Vehicle v in state.vehicles) v.id: v,
-      ...snapshot,
-    };
-    final List<Vehicle> list = next.values.toList();
+    if (state.vehicles.isEmpty) {
+      final List<Vehicle> initialList = snapshot.values.toList();
+      _sort(initialList);
+      _rebuildIndexes(initialList);
+      _safeSetState(state.copyWith(vehicles: initialList));
+      return;
+    }
 
-    // Deduplicate by registrationNumber and deviceId to eliminate ghost duplicate markers
-    final Map<String, Vehicle> deduplicated = <String, Vehicle>{};
-    for (final Vehicle v in list) {
-      final String dedupKey = v.registrationNumber.trim().isNotEmpty
-          ? v.registrationNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '')
-          : (v.deviceId.trim().isNotEmpty ? 'dev_${v.deviceId.trim()}' : v.id);
-      final Vehicle? prev = deduplicated[dedupKey];
-      if (prev == null) {
-        deduplicated[dedupKey] = v;
+    // 1. In-place update preserving exact card order on screen.
+    final Set<String> updatedVehicleIds = <String>{};
+    final List<Vehicle> updatedList = <Vehicle>[];
+
+    for (final Vehicle current in state.vehicles) {
+      final Vehicle? live = snapshot[current.id];
+      if (live != null) {
+        updatedList.add(live);
+        updatedVehicleIds.add(current.id);
       } else {
-        final DateTime? tPrev = prev.lastPacketAt;
-        final DateTime? tCurr = v.lastPacketAt;
-        if (tCurr != null && (tPrev == null || tCurr.isAfter(tPrev))) {
-          deduplicated[dedupKey] = v;
+        updatedList.add(current);
+      }
+    }
+
+    // 2. Append any genuinely new vehicles in snapshot that were not in state.vehicles yet
+    for (final MapEntry<String, Vehicle> entry in snapshot.entries) {
+      if (!updatedVehicleIds.contains(entry.key)) {
+        final Vehicle newVeh = entry.value;
+        final String newDedupKey = newVeh.registrationNumber.trim().isNotEmpty
+            ? newVeh.registrationNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '')
+            : (newVeh.deviceId.trim().isNotEmpty ? 'dev_${newVeh.deviceId.trim()}' : newVeh.id);
+
+        final bool alreadyExists = updatedList.any((Vehicle v) {
+          if (v.id == newVeh.id) return true;
+          final String existingDedupKey = v.registrationNumber.trim().isNotEmpty
+              ? v.registrationNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '')
+              : (v.deviceId.trim().isNotEmpty ? 'dev_${v.deviceId.trim()}' : v.id);
+          return existingDedupKey == newDedupKey;
+        });
+
+        if (!alreadyExists) {
+          updatedList.add(newVeh);
         }
       }
     }
-    final List<Vehicle> cleanList = deduplicated.values.toList();
 
-    _sort(cleanList);
-    _rebuildIndexes(cleanList);
-    _safeSetState(state.copyWith(vehicles: cleanList));
+    _rebuildIndexes(updatedList);
+    _safeSetState(state.copyWith(vehicles: updatedList));
+  }
+
+  /// Manually force a re-render so vehicles immediately evaluate against
+  /// any newly updated No Data Rule threshold.
+  void refreshVehicleStatuses() {
+    if (!_mounted || state.vehicles.isEmpty) return;
+    _safeSetState(
+        state.copyWith(vehicles: List<Vehicle>.from(state.vehicles)));
   }
 
   /// Vehicles go stale silently (no packet = no event), so we re-render
@@ -538,16 +589,30 @@ class FleetController extends Notifier<FleetState> {
     double? overspeedDurationAlert,
     double? idleDurationAlert,
     double? stoppageThreshold,
+    double? parkingDurationAlert,
+    double? movingDurationAlert,
     Map<String, bool>? alertConfig,
+    bool? safetyPark,
   }) async {
     try {
+      if (safetyPark != null) {
+        final List<Vehicle> updated = state.vehicles.map((Vehicle v) {
+          if (v.id == vehicleId) return v.withSafetyPark(safetyPark);
+          return v;
+        }).toList();
+        _safeSetState(state.copyWith(vehicles: updated));
+      }
+
       await ref.read(vehicleRepositoryProvider).updateSettings(
             vehicleId,
             overSpeedLimit: overSpeedLimit,
             overspeedDurationAlert: overspeedDurationAlert,
             idleDurationAlert: idleDurationAlert,
             stoppageThreshold: stoppageThreshold,
+            parkingDurationAlert: parkingDurationAlert,
+            movingDurationAlert: movingDurationAlert,
             alertConfig: alertConfig,
+            safetyPark: safetyPark,
           );
       // Reload fleet so changes reflect instantly in UI
       await load(silent: true);

@@ -9,17 +9,52 @@ class GeofenceRepository {
 
   final ApiClient _api;
 
-  Future<List<Geofence>> getGeofences() async {
+  Future<List<Geofence>> getGeofences({String? vehicleId}) async {
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      try {
+        final dynamic res = await _api.get<dynamic>('/vehicles/$vehicleId/geofences');
+        final List<Map<String, dynamic>> list = asMapList(res);
+        if (list.isNotEmpty) {
+          return list
+              .map(Geofence.fromJson)
+              .where((Geofence g) => g.id.isNotEmpty)
+              .toList(growable: false);
+        }
+      } catch (_) {}
+    }
+
     if (!BackendCapabilities.geofences) return const <Geofence>[];
 
     final dynamic res = await _api.get<dynamic>('/admin/geofences');
-    return asMapList(res)
+    final List<Geofence> all = asMapList(res)
         .map(Geofence.fromJson)
         .where((Geofence g) => g.id.isNotEmpty)
         .toList(growable: false);
+
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      final List<Geofence> filtered = all
+          .where((Geofence g) => g.vehicleIds.contains(vehicleId))
+          .toList(growable: false);
+      return filtered.isNotEmpty ? filtered : all;
+    }
+    return all;
   }
 
-  Future<Geofence> create(Geofence geofence) async {
+  Future<Geofence> create(Geofence geofence, {String? vehicleId}) async {
+    final String? vId = vehicleId ?? (geofence.vehicleIds.isNotEmpty ? geofence.vehicleIds.first : null);
+    if (vId != null && vId.isNotEmpty) {
+      try {
+        final dynamic res = await _api.post<dynamic>(
+          '/vehicles/$vId/geofences',
+          body: geofence.toCreateJson(),
+        );
+        final dynamic data = (res is Map && res['data'] != null) ? res['data'] : res;
+        if (data is Map && data.isNotEmpty) {
+          return Geofence.fromJson(Map<String, dynamic>.from(data));
+        }
+      } catch (_) {}
+    }
+
     if (!BackendCapabilities.geofences) {
       throw const ApiException(
         message: 'Geofencing is not enabled on your account yet.',
@@ -47,7 +82,16 @@ class GeofenceRepository {
     return created;
   }
 
-  Future<Geofence> update(String id, Map<String, dynamic> changes) async {
+  Future<Geofence> update(String id, Map<String, dynamic> changes, {String? vehicleId}) async {
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      try {
+        final dynamic res = await _api.put<dynamic>('/vehicles/$vehicleId/geofences/$id', body: changes);
+        final dynamic data = (res is Map && res['data'] != null) ? res['data'] : res;
+        if (data is Map && data.isNotEmpty) {
+          return Geofence.fromJson(Map<String, dynamic>.from(data));
+        }
+      } catch (_) {}
+    }
     final dynamic res = await _api.put<dynamic>('/admin/geofences/$id', body: changes);
     final dynamic data = (res is Map && res['data'] != null) ? res['data'] : res;
     return Geofence.fromJson(
@@ -57,5 +101,12 @@ class GeofenceRepository {
     );
   }
 
-  Future<void> delete(String id) => _api.delete<dynamic>('/admin/geofences/$id');
+  Future<void> delete(String id, {String? vehicleId}) async {
+    if (vehicleId != null && vehicleId.isNotEmpty) {
+      try {
+        await _api.delete<dynamic>('/vehicles/$vehicleId/geofences/$id');
+      } catch (_) {}
+    }
+    await _api.delete<dynamic>('/admin/geofences/$id');
+  }
 }

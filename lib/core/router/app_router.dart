@@ -14,6 +14,7 @@ import '../../features/live_map/live_map_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/reports/report_detail_screen.dart';
 import '../../features/reports/reports_hub_screen.dart';
+import '../../features/reports/screens/primary_engine_on_screen.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/routes/routes_screen.dart';
@@ -149,13 +150,28 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             routes: <RouteBase>[
               GoRoute(
                 path: '/reports',
-                builder: (BuildContext c, GoRouterState s) =>
-                    ReportsHubScreen(
-                  initialVehicleId: s.uri.queryParameters['vehicle'],
-                ),
-                routes: <RouteBase>[
-                  // Report details moved to top-level to avoid shell routing conflicts
-                ],
+                builder: (BuildContext c, GoRouterState s) {
+                  final String? typeRaw = s.uri.queryParameters['type'];
+                  ReportType? matchedType;
+                  if (typeRaw != null && typeRaw.isNotEmpty) {
+                    matchedType = ReportType.values.where(
+                      (ReportType t) =>
+                          t.name.toLowerCase() == typeRaw.toLowerCase() ||
+                          t.name.toLowerCase() ==
+                              typeRaw.replaceAll('-', '').toLowerCase(),
+                    ).firstOrNull;
+                  }
+                  return ReportsHubScreen(
+                    initialVehicleId: s.uri.queryParameters['vehicle'] ??
+                        s.uri.queryParameters['vehicleId'],
+                    initialType: matchedType,
+                    initialFromGeofenceId: s.uri.queryParameters['from'] ??
+                        s.uri.queryParameters['fromGeofenceId'],
+                    initialToGeofenceId: s.uri.queryParameters['to'] ??
+                        s.uri.queryParameters['toGeofenceId'],
+                    initialMode: s.uri.queryParameters['mode'],
+                  );
+                },
               ),
             ],
           ),
@@ -223,7 +239,25 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             builder: (BuildContext c, GoRouterState s) =>
                 VehicleSettingsScreen(vehicleId: s.pathParameters['id'] ?? ''),
           ),
+          GoRoute(
+            path: 'geofences',
+            builder: (BuildContext c, GoRouterState s) =>
+                GeofencesScreen(vehicleId: s.pathParameters['id']),
+          ),
+          GoRoute(
+            path: 'engine-on',
+            builder: (BuildContext c, GoRouterState s) =>
+                PrimaryEngineOnScreen(vehicleId: s.pathParameters['id']),
+          ),
         ],
+      ),
+      GoRoute(
+        path: '/engine-on',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => PrimaryEngineOnScreen(
+          vehicleId: s.uri.queryParameters['vehicle'] ??
+              s.uri.queryParameters['vehicleId'],
+        ),
       ),
       GoRoute(
         path: '/alerts',
@@ -237,7 +271,8 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/geofences',
         parentNavigatorKey: _rootKey,
-        builder: (BuildContext c, GoRouterState s) => const GeofencesScreen(),
+        builder: (BuildContext c, GoRouterState s) =>
+            GeofencesScreen(vehicleId: s.uri.queryParameters['vehicleId']),
       ),
       GoRoute(
         path: '/renewals',
@@ -255,12 +290,20 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         builder: (BuildContext c, GoRouterState s) {
           final String raw = s.pathParameters['type'] ?? '';
           final ReportType type = ReportType.values.firstWhere(
-            (ReportType t) => t.name == raw,
+            (ReportType t) =>
+                t.name.toLowerCase() == raw.toLowerCase() ||
+                t.name.toLowerCase() == raw.replaceAll('-', '').toLowerCase(),
             orElse: () => ReportType.trip,
           );
           return ReportDetailScreen(
             type: type,
-            initialVehicleId: s.uri.queryParameters['vehicle'],
+            initialVehicleId: s.uri.queryParameters['vehicle'] ??
+                s.uri.queryParameters['vehicleId'],
+            initialFromGeofenceId: s.uri.queryParameters['from'] ??
+                s.uri.queryParameters['fromGeofenceId'],
+            initialToGeofenceId: s.uri.queryParameters['to'] ??
+                s.uri.queryParameters['toGeofenceId'],
+            initialMode: s.uri.queryParameters['mode'],
           );
         },
       ),

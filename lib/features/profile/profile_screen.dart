@@ -9,13 +9,10 @@ import '../../core/config/backend_capabilities.dart';
 import '../../core/realtime/socket_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/theme/app_typography.dart';
 import '../../data/models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
-import '../../shared/widgets/glass_card.dart';
-import 'account_deletion_sheet.dart';
 import 'edit_profile_sheet.dart';
 import 'legal_document_sheet.dart';
 import 'notification_preferences_sheet.dart';
@@ -113,13 +110,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _SettingsGroup(
             title: 'FLEET',
             children: <Widget>[
-              if (BackendCapabilities.geofences)
-                _SettingsTile(
-                  icon: Icons.fence_rounded,
-                  title: 'Geofences',
-                  subtitle: 'Zones and entry/exit alerts',
-                  onTap: () => context.push('/geofences'),
-                ),
               _SettingsTile(
                 icon: Icons.add_road_rounded,
                 title: 'Route Management',

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../data/models/json_utils.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/report_models.dart';
 import '../../../providers/fleet_provider.dart';
+import '../../../providers/safety_parking_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../providers/live_map_providers.dart';
@@ -101,8 +103,8 @@ List<TripSegment> _buildSegments(List<TrackPoint> route, List<ReportRow> stoppag
     segments.add(StopSegment(
       stopStart,
       stopEnd,
-      (stop.raw['start_lat'] as num).toDouble(),
-      (stop.raw['start_lng'] as num).toDouble(),
+      toDouble(stop.raw['start_lat']) ?? 0.0,
+      toDouble(stop.raw['start_lng']) ?? 0.0,
       i + 1,
       title: 'Stop ${i + 1}',
     ));
@@ -795,8 +797,8 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
         iconBg = const Color(0xFFEF4444);
         textCol = const Color(0xFFEF4444);
         statusTitle = sinceTime != null
-            ? 'Offline Since $timeStr ($durationStr)'
-            : 'Offline';
+            ? 'No Data Since $timeStr ($durationStr)'
+            : 'No Data';
       case VehicleStatus.noData:
         icon = Icons.sensors_off_rounded;
         iconBg = const Color(0xFF94A3B8);
@@ -818,42 +820,103 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Vehicle Status',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Vehicle Status',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
                 ),
-              ),
-              Material(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: Tooltip(
-                  message: 'Refresh vehicle data',
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _handleRefresh,
-                    child: Padding(
-                      padding: const EdgeInsets.all(7.0),
-                      child: RotationTransition(
-                        turns: _animController,
-                        child: Icon(
-                          Icons.refresh_rounded,
-                          size: 19,
-                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Safety Parking Arm/Disarm Quick Button
+                    Material(
+                      color: vehicle.isSafetyParkActive
+                          ? const Color(0xFFDC2626)
+                          : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () async {
+                          final bool target = !vehicle.isSafetyParkActive;
+                          if (target) {
+                            await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
+                          } else {
+                            await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  target
+                                      ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
+                                      : 'Safety Parking Disarmed.',
+                                ),
+                                backgroundColor: target ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                vehicle.isSafetyParkActive
+                                    ? Icons.security_rounded
+                                    : Icons.shield_outlined,
+                                size: 14,
+                                color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                vehicle.isSafetyParkActive ? 'ARMED' : 'SAFE PARK',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Material(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: Tooltip(
+                        message: 'Refresh vehicle data',
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _handleRefresh,
+                          child: Padding(
+                            padding: const EdgeInsets.all(7.0),
+                            child: RotationTransition(
+                              turns: _animController,
+                              child: Icon(
+                                Icons.refresh_rounded,
+                                size: 19,
+                                color: isDark ? Colors.white70 : const Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),

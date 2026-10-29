@@ -32,8 +32,8 @@ class TrackPoint extends Equatable {
     if ((lat == null || lng == null) && json['coordinates'] is List) {
       final List<dynamic> c = json['coordinates'] as List<dynamic>;
       if (c.length >= 2) {
-        lng = (c[0] as num?)?.toDouble();
-        lat = (c[1] as num?)?.toDouble();
+        lng = toDouble(c[0]);
+        lat = toDouble(c[1]);
       }
     }
 

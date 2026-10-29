@@ -77,6 +77,7 @@ class SocketService {
     'positions',
     'alert:new',
     'geofence:event',
+    'vehicle:safety_park',
     'vehicle:status',
     'vehicle:state',
     'data:update',

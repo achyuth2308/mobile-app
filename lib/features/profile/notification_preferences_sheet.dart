@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_colors.dart';
+import '../../core/config/app_config.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/theme/app_typography.dart';
-import '../../data/models/vehicle.dart';
+import '../../data/models/json_utils.dart';
 import '../../providers/core_providers.dart';
-import '../../providers/fleet_provider.dart';
+import '../../shared/widgets/duration_alert_card.dart';
 
 class NotificationPreferencesSheet extends ConsumerWidget {
   const NotificationPreferencesSheet({super.key});
@@ -171,38 +170,83 @@ class _ThresholdsSection extends ConsumerStatefulWidget {
 }
 
 class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
-  String? _selectedVehicleId;
   double _speedLimit = 80.0;
-  double _idleDuration = 10.0;
-  double _stoppageDuration = 10.0;
+  double _idleDuration = 60.0;
+  double _parkingDuration = 60.0;
+  double _movingDuration = 60.0;
+  double _noDataThreshold = 1.0;
+  late TextEditingController _idleController;
+  late TextEditingController _parkingController;
+  late TextEditingController _movingController;
   bool _isSavingThresholds = false;
 
-  void _loadVehicleThresholds(Vehicle vehicle) {
-    final Map<String, dynamic> metadata = (vehicle.raw['metadata'] as Map<String, dynamic>?) ?? {};
-    setState(() {
-      _selectedVehicleId = vehicle.id;
-      _speedLimit = (metadata['overSpeedLimit'] as num?)?.toDouble() ??
-          (metadata['speedLimit'] as num?)?.toDouble() ??
-          80.0;
-      _idleDuration = (metadata['idleDurationAlert'] as num?)?.toDouble() ?? 10.0;
-      _stoppageDuration = (metadata['stoppageThreshold'] as num?)?.toDouble() ?? 10.0;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _noDataThreshold = AppConfig.noDataThresholdHours;
+    _idleController = TextEditingController(text: '${_idleDuration.round()}');
+    _parkingController = TextEditingController(text: '${_parkingDuration.round()}');
+    _movingController = TextEditingController(text: '${_movingDuration.round()}');
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccountThresholds());
   }
 
-  Future<void> _saveVehicleThresholds() async {
-    if (_selectedVehicleId == null) return;
+  @override
+  void dispose() {
+    _idleController.dispose();
+    _parkingController.dispose();
+    _movingController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAccountThresholds() async {
+    try {
+      final double localThresh = ref.read(noDataThresholdProvider);
+      if (mounted) setState(() => _noDataThreshold = localThresh);
+
+      final Map<String, dynamic>? remote =
+          await ref.read(alertRepositoryProvider).getPreferences();
+      if (remote != null && mounted) {
+        setState(() {
+          if (remote['speed_limit'] != null) {
+            _speedLimit = toDouble(remote['speed_limit']) ?? _speedLimit;
+          }
+          if (remote['idle_duration_mins'] != null) {
+            _idleDuration = toDouble(remote['idle_duration_mins']) ?? _idleDuration;
+            _idleController.text = '${_idleDuration.round()}';
+          }
+          if (remote['parking_duration_mins'] != null) {
+            _parkingDuration = toDouble(remote['parking_duration_mins']) ?? _parkingDuration;
+            _parkingController.text = '${_parkingDuration.round()}';
+          }
+          if (remote['moving_duration_mins'] != null) {
+            _movingDuration = toDouble(remote['moving_duration_mins']) ?? _movingDuration;
+            _movingController.text = '${_movingDuration.round()}';
+          }
+          if (remote['nodata_threshold_hours'] != null) {
+            _noDataThreshold = toDouble(remote['nodata_threshold_hours']) ?? _noDataThreshold;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveAccountThresholds() async {
     setState(() => _isSavingThresholds = true);
     try {
-      await ref.read(fleetProvider.notifier).updateSettings(
-            _selectedVehicleId!,
-            overSpeedLimit: _speedLimit,
-            idleDurationAlert: _idleDuration,
-            stoppageThreshold: _stoppageDuration,
-          );
+      final Map<String, dynamic> userPrefs = <String, dynamic>{
+        'speed_limit': _speedLimit,
+        'idle_duration_mins': _idleDuration,
+        'parking_duration_mins': _parkingDuration,
+        'moving_duration_mins': _movingDuration,
+        'nodata_threshold_hours': _noDataThreshold,
+      };
+      await ref.read(alertRepositoryProvider).updatePreferences(userPrefs);
+      await ref.read(noDataThresholdProvider.notifier).setThreshold(_noDataThreshold);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Vehicle thresholds updated successfully!'),
+            content: Text('Account alert thresholds saved & applied to all vehicles!'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: Color(0xFF2E7D32),
             duration: Duration(seconds: 2),
@@ -226,22 +270,6 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
-
-    if (vehicles.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    if (_selectedVehicleId == null && vehicles.isNotEmpty) {
-      final first = vehicles.first;
-      _selectedVehicleId = first.id;
-      final Map<String, dynamic> metadata = (first.raw['metadata'] as Map<String, dynamic>?) ?? {};
-      _speedLimit = (metadata['overSpeedLimit'] as num?)?.toDouble() ??
-          (metadata['speedLimit'] as num?)?.toDouble() ??
-          80.0;
-      _idleDuration = (metadata['idleDurationAlert'] as num?)?.toDouble() ?? 10.0;
-      _stoppageDuration = (metadata['stoppageThreshold'] as num?)?.toDouble() ?? 10.0;
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,46 +288,33 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
         ),
         const SizedBox(height: Gap.xs),
         Text(
-          'Configure overspeed limit, idle duration, and stoppage alert thresholds.',
+          'Account-wide thresholds governing overspeed limit, idle duration, parking, and moving alerts across all your vehicles.',
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: Gap.md),
 
-        // Vehicle Selector Dropdown
+        // Account-wide Badge Banner
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(12),
+            color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.3)),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedVehicleId,
-              isExpanded: true,
-              items: vehicles.map((v) {
-                return DropdownMenuItem<String>(
-                  value: v.id,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.directions_car_rounded, size: 18),
-                      const SizedBox(width: Gap.sm),
-                      Expanded(
-                        child: Text(
-                          v.displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                        ),
-                      ),
-                    ],
+          child: Row(
+            children: [
+              const Icon(Icons.verified_user_rounded, color: Color(0xFF2563EB), size: 18),
+              const SizedBox(width: Gap.sm),
+              Expanded(
+                child: Text(
+                  'User-Wise (Configures All Vehicles)',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: const Color(0xFF2563EB),
+                    fontWeight: FontWeight.w700,
                   ),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val == null) return;
-                final found = vehicles.firstWhere((v) => v.id == val);
-                _loadVehicleThresholds(found);
-              },
-            ),
+                ),
+              ),
+            ],
           ),
         ),
 
@@ -323,37 +338,106 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
 
         const SizedBox(height: Gap.md),
 
-        // Idle duration threshold slider
-        _buildSliderTile(
-          title: 'Idle Time Threshold',
-          valueText: '${_idleDuration.round()} mins',
-          icon: Icons.hourglass_empty_rounded,
-          color: const Color(0xFF9C27B0),
-          slider: Slider(
-            value: _idleDuration,
-            min: 5,
-            max: 60,
-            divisions: 55,
-            activeColor: const Color(0xFF9C27B0),
-            onChanged: (v) => setState(() => _idleDuration = v),
-          ),
+        // ── Parking Alert Duration Card ──
+        DurationAlertCard(
+          title: 'Parking',
+          subtitle: 'Alert triggers when vehicle is parked beyond duration',
+          icon: Icons.local_parking_rounded,
+          iconColor: const Color(0xFF2563EB),
+          badgeColor: const Color(0xFF2563EB),
+          controller: _parkingController,
+          duration: _parkingDuration,
+          onDurationChanged: (double v) => setState(() => _parkingDuration = v),
         ),
 
         const SizedBox(height: Gap.md),
 
-        // Stoppage duration threshold slider
-        _buildSliderTile(
-          title: 'Stoppage Time Threshold',
-          valueText: '${_stoppageDuration.round()} mins',
-          icon: Icons.pause_circle_filled_rounded,
-          color: const Color(0xFFE91E63),
-          slider: Slider(
-            value: _stoppageDuration,
-            min: 5,
-            max: 60,
-            divisions: 55,
-            activeColor: const Color(0xFFE91E63),
-            onChanged: (v) => setState(() => _stoppageDuration = v),
+        // ── Moving (After Stoppage) Alert Duration Card ──
+        DurationAlertCard(
+          title: 'Moving (After Stoppage)',
+          subtitle: 'Alert triggers when vehicle starts moving after stoppage',
+          icon: Icons.directions_car_rounded,
+          iconColor: const Color(0xFF0D9488),
+          badgeColor: const Color(0xFF0D9488),
+          controller: _movingController,
+          duration: _movingDuration,
+          onDurationChanged: (double v) => setState(() => _movingDuration = v),
+        ),
+
+        const SizedBox(height: Gap.md),
+
+        // ── Idle Duration Card ──
+        DurationAlertCard(
+          title: 'Idle Duration',
+          subtitle: 'Alert triggers when vehicle engine is ON but stationary',
+          icon: Icons.hourglass_empty_rounded,
+          iconColor: const Color(0xFF9C27B0),
+          badgeColor: const Color(0xFF9C27B0),
+          controller: _idleController,
+          duration: _idleDuration,
+          onDurationChanged: (double v) => setState(() => _idleDuration = v),
+        ),
+
+        const SizedBox(height: Gap.md),
+
+        // ── No Data Rule (Inactivity Threshold) ──
+        Container(
+          padding: const EdgeInsets.all(Gap.md),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.cloud_off_rounded, size: 18, color: Color(0xFF0EA5E9)),
+                  const SizedBox(width: Gap.xs),
+                  const Text('No Data Rule (Inactivity Threshold)',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_noDataThreshold.toInt()} hr${_noDataThreshold == 1.0 ? '' : 's'}',
+                      style: const TextStyle(color: Color(0xFF0EA5E9), fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: Gap.xs),
+              Text(
+                'Keep vehicle in same state (Running, Idle, Parked) for this duration before marking as No Data.',
+                style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+              ),
+              const SizedBox(height: Gap.sm),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: AppConfig.noDataThresholdOptions.map((double h) {
+                  final bool isSelected = _noDataThreshold == h;
+                  final String label = h == 1.0 ? '1 hr (Default)' : '${h.toInt()} hrs';
+                  return ChoiceChip(
+                    label: Text(label),
+                    selected: isSelected,
+                    selectedColor: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+                    labelStyle: TextStyle(
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected ? const Color(0xFF0EA5E9) : null,
+                      fontSize: 12,
+                    ),
+                    onSelected: (bool selected) {
+                      if (selected) setState(() => _noDataThreshold = h);
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
           ),
         ),
 
@@ -362,7 +446,7 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
         Align(
           alignment: Alignment.centerRight,
           child: OutlinedButton.icon(
-            onPressed: _isSavingThresholds ? null : _saveVehicleThresholds,
+            onPressed: _isSavingThresholds ? null : _saveAccountThresholds,
             icon: _isSavingThresholds
                 ? const SizedBox(
                     width: 14,
@@ -370,7 +454,7 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.check_rounded, size: 16),
-            label: Text(_isSavingThresholds ? 'Saving...' : 'Apply Thresholds to Vehicle'),
+            label: Text(_isSavingThresholds ? 'Saving...' : 'Apply Thresholds to All Vehicles'),
           ),
         ),
       ],
@@ -403,7 +487,7 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
+                  color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(

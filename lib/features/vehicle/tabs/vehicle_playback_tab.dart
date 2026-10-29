@@ -269,7 +269,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool autoPlay = false}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -389,13 +389,16 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         await _fitRoute();
         // Allow time for map tiles to load at the new camera bounds 
         // before removing the loading overlay.
-        await Future.delayed(const Duration(milliseconds: 800));
+        await Future.delayed(const Duration(milliseconds: 600));
       }
 
       if (mounted) {
         setState(() {
           _loading = false;
         });
+        if (autoPlay && cleanPoints.isNotEmpty) {
+          _togglePlay();
+        }
       }
     } catch (e, stack) {
       debugPrint('Error in _load: $e\n$stack');
@@ -1435,10 +1438,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                 child: FilledButton.icon(
                   onPressed: () {
                     setState(() => _isInitialized = true);
-                    _load();
+                    _load(autoPlay: true);
                   },
                   icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                  label: const Text('Load History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  label: const Text('Play History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                   style: FilledButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 0,
@@ -2369,7 +2372,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
-            width: _isExpanded ? MediaQuery.of(context).size.width - 32 : 180,
+            width: _isExpanded ? MediaQuery.of(context).size.width - 32 : 220,
             decoration: BoxDecoration(
               color: isDarkMap ? Colors.black.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(32),

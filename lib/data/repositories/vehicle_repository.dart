@@ -87,8 +87,8 @@ class VehicleRepository {
       for (final dynamic e in res) {
         if (e is List && e.length >= 2) {
           raw.add(TrackPoint(
-            latitude: (e[0] as num).toDouble(),
-            longitude: (e[1] as num).toDouble(),
+            latitude: toDouble(e[0]) ?? 0,
+            longitude: toDouble(e[1]) ?? 0,
             timestamp: DateTime.now(),
           ));
         }
@@ -138,14 +138,26 @@ class VehicleRepository {
   Future<void> updateSettings(String vehicleId, {
     double? overSpeedLimit,
     double? overspeedDurationAlert,
-    double? idleDurationAlert, double? stoppageThreshold, Map<String, bool>? alertConfig,
+    double? idleDurationAlert,
+    double? stoppageThreshold,
+    double? parkingDurationAlert,
+    double? movingDurationAlert,
+    Map<String, bool>? alertConfig,
+    bool? safetyPark,
   }) async {
     final Map<String, dynamic> body = <String, dynamic>{};
     if (overSpeedLimit != null) body['overSpeedLimit'] = overSpeedLimit;
     if (overspeedDurationAlert != null) body['overspeedDurationAlert'] = overspeedDurationAlert;
     if (idleDurationAlert != null) body['idleDurationAlert'] = idleDurationAlert;
-    if (stoppageThreshold != null) body['stoppageThreshold'] = stoppageThreshold;
+    if (parkingDurationAlert != null) {
+      body['parkingDurationAlert'] = parkingDurationAlert;
+      body['stoppageThreshold'] = parkingDurationAlert;
+    } else if (stoppageThreshold != null) {
+      body['stoppageThreshold'] = stoppageThreshold;
+    }
+    if (movingDurationAlert != null) body['movingDurationAlert'] = movingDurationAlert;
     if (alertConfig != null) body['alertConfig'] = alertConfig;
+    if (safetyPark != null) body['safetyPark'] = safetyPark ? 'YES' : 'NO';
 
     if (body.isEmpty) return;
 

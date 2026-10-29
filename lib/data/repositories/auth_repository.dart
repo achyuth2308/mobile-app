@@ -1,6 +1,7 @@
 import '../../core/config/backend_capabilities.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/notifications/push_service.dart';
 import '../../core/storage/secure_store.dart';
 import '../models/json_utils.dart';
 import '../models/user.dart';
@@ -159,6 +160,9 @@ class AuthRepository {
       await _api.post<dynamic>('/auth/logout');
     } on ApiException {/* offline logout must still work */}
     await _store.clearSession();
+    try {
+      await PushService.clearLocalAlerts();
+    } catch (_) {}
   }
 
   // ── Profile ──────────────────────────────────────────────────────

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/formatters.dart';
@@ -23,7 +22,7 @@ class TelemetryGrid extends StatelessWidget {
         label: 'Speed',
         value: '${vehicle.speed.round()}',
         unit: 'km/h',
-        color: vehicle.isOverspeeding ? AppColors.danger : null,
+        color: vehicle.isOverspeeding ? const Color(0xFFEF4444) : const Color(0xFF0284C7),
         subtitle: vehicle.speedLimit != null
             ? 'Limit ${vehicle.speedLimit!.round()}'
             : null,
@@ -34,13 +33,7 @@ class TelemetryGrid extends StatelessWidget {
             : Icons.power_off_rounded,
         label: 'Ignition',
         value: vehicle.ignition ? 'ON' : 'OFF',
-        color: vehicle.ignition ? AppColors.moving : AppColors.offline,
-      ),
-      _Cell(
-        icon: Icons.explore_rounded,
-        label: 'Heading',
-        value: Fmt.heading(vehicle.heading),
-        unit: '${vehicle.heading.round()}°',
+        color: vehicle.ignition ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
       ),
       if (vehicle.odometer != null)
         _Cell(
@@ -48,6 +41,7 @@ class TelemetryGrid extends StatelessWidget {
           label: 'Odometer',
           value: vehicle.odometer!.toStringAsFixed(0),
           unit: 'km',
+          color: const Color(0xFF6366F1),
         ),
       if (vehicle.todayDistanceKm != null)
         _Cell(
@@ -55,14 +49,22 @@ class TelemetryGrid extends StatelessWidget {
           label: 'Today',
           value: vehicle.todayDistanceKm!.toStringAsFixed(1),
           unit: 'km',
+          color: const Color(0xFF8B5CF6),
         ),
+      _Cell(
+        icon: Icons.explore_rounded,
+        label: 'Heading',
+        value: Fmt.heading(vehicle.heading),
+        unit: '${vehicle.heading.round()}°',
+        color: const Color(0xFF0D9488),
+      ),
       if (vehicle.fuelLevel != null)
         _Cell(
           icon: Icons.local_gas_station_rounded,
           label: 'Fuel',
           value: vehicle.fuelLevel!.round().toString(),
           unit: vehicle.fuelLevel! > 100 ? 'L' : '%',
-          color: vehicle.fuelLevel! < 15 ? AppColors.danger : null,
+          color: vehicle.fuelLevel! < 15 ? const Color(0xFFEF4444) : const Color(0xFFF97316),
         ),
       if (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0)
         _Cell(
@@ -70,7 +72,7 @@ class TelemetryGrid extends StatelessWidget {
           label: 'Battery',
           value: vehicle.batteryLevel!.toStringAsFixed(1),
           unit: 'V',
-          color: vehicle.batteryLevel! < 11.5 ? AppColors.danger : null,
+          color: vehicle.batteryLevel! < 11.5 ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
         ),
       if (vehicle.gsmSignal != null)
         _Cell(
@@ -78,14 +80,14 @@ class TelemetryGrid extends StatelessWidget {
           label: 'GSM',
           value: '${vehicle.gsmSignal}',
           unit: vehicle.gsmSignal! > 5 ? '%' : '/5',
-          color: vehicle.gsmSignal! <= (vehicle.gsmSignal! > 5 ? 20 : 1) ? AppColors.idle : null,
+          color: const Color(0xFFEC4899),
         ),
       if (vehicle.satellites != null)
         _Cell(
           icon: Icons.satellite_alt_rounded,
           label: 'Satellites',
           value: '${vehicle.satellites}',
-          color: vehicle.satellites! < 4 ? AppColors.idle : null,
+          color: const Color(0xFF2563EB),
         ),
     ];
 
@@ -93,7 +95,7 @@ class TelemetryGrid extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: Gap.md),
+          padding: const EdgeInsets.only(left: 2, bottom: Gap.sm),
           child: Text(
             'LIVE TELEMETRY',
             style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
@@ -104,9 +106,9 @@ class TelemetryGrid extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: cells.length,
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 115,
-            mainAxisSpacing: Gap.sm,
-            crossAxisSpacing: Gap.sm,
+            maxCrossAxisExtent: 88,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
             childAspectRatio: 0.98,
           ),
           itemBuilder: (BuildContext context, int i) =>
@@ -144,25 +146,56 @@ class _TelemetryCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color accent = cell.color ?? theme.colorScheme.onSurface;
+    final Color accent = cell.color ?? const Color(0xFF0284C7);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: Gap.md),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
-        borderRadius: Corners.rLg,
+        color: accent.withValues(alpha: isDark ? 0.14 : 0.08),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.16),
+          color: accent.withValues(alpha: isDark ? 0.35 : 0.22),
+          width: 1.2,
         ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Icon(
-            cell.icon,
-            size: 17,
-            color: cell.color ?? theme.colorScheme.onSurfaceVariant,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  cell.icon,
+                  size: 13,
+                  color: accent,
+                ),
+              ),
+              if (cell.unit != null)
+                Text(
+                  cell.unit!,
+                  style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+            ],
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,39 +204,25 @@ class _TelemetryCell extends StatelessWidget {
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      cell.value,
-                      style: AppTypography.metric(size: 21, color: accent)
-                          .copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    if (cell.unit != null) ...<Widget>[
-                      const SizedBox(width: 2),
-                      Text(
-                        cell.unit!,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ],
+                child: Text(
+                  cell.value,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF1E2432),
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 cell.subtitle ?? cell.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontSize: 9.5,
-                  letterSpacing: 0.1,
-                  color: theme.colorScheme.onSurfaceVariant,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : const Color(0xFF64748B),
                 ),
               ),
             ],

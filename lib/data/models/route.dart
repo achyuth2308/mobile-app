@@ -62,8 +62,8 @@ class AppRoute extends Equatable {
               Map<String, dynamic>.from(item), <String>['lng', 'lon', 'longitude']);
           if (lat != null && lng != null) pts.add(LatLng(lat, lng));
         } else if (item is List && item.length >= 2) {
-          final double? a = (item[0] as num?)?.toDouble();
-          final double? b = (item[1] as num?)?.toDouble();
+          final double? a = toDouble(item[0]);
+          final double? b = toDouble(item[1]);
           if (a != null && b != null) {
             // Heuristic: |value| > 90 must be longitude
             pts.add(a.abs() > 90 ? LatLng(b, a) : LatLng(a, b));

@@ -7,6 +7,7 @@ import '../../core/utils/share_helper.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/safety_parking_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../alerts/alerts_screen.dart';
 import 'tabs/vehicle_info_tab.dart';
@@ -102,32 +103,80 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
           children: [
             Icon(Icons.circle, size: 10, color: statusColor),
             const SizedBox(width: 8),
-            Text(
-              vehicle.displayName.toUpperCase(),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+            Expanded(
+              child: Text(
+                vehicle.displayName.toUpperCase(),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined, size: 20),
-            tooltip: 'Share Location via WhatsApp',
-            onPressed: () => _shareLocation(vehicle),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined, size: 20),
+                    tooltip: 'Share Location via WhatsApp',
+                    onPressed: () => _shareLocation(vehicle),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      vehicle.isSafetyParkActive
+                          ? Icons.security_rounded
+                          : Icons.shield_outlined,
+                      size: 20,
+                      color: vehicle.isSafetyParkActive ? const Color(0xFFDC2626) : null,
+                    ),
+                    tooltip: vehicle.isSafetyParkActive
+                        ? 'Safety Parking ARMED (Tap to Disarm)'
+                        : 'Arm Safety Parking (Theft Siren)',
+                    onPressed: () async {
+                      final bool target = !vehicle.isSafetyParkActive;
+                      if (target) {
+                        await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
+                      } else {
+                        await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
+                      }
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              target
+                                  ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
+                                  : 'Safety Parking Disarmed.',
+                            ),
+                            backgroundColor: target ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, size: 20),
+                    tooltip: 'Vehicle Settings',
+                    onPressed: () => context.push('/vehicle/${widget.vehicleId}/settings'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.my_location_rounded, size: 20),
+                    tooltip: 'Focus on Map',
+                    onPressed: () => context.push('/vehicle-map?focus=${widget.vehicleId}'),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 20),
-            tooltip: 'Vehicle Settings',
-            onPressed: () => context.push('/vehicle/${widget.vehicleId}/settings'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.my_location_rounded, size: 20),
-            tooltip: 'Focus on Map',
-            onPressed: () => context.push('/vehicle-map?focus=${widget.vehicleId}'),
-          ),
-          const SizedBox(width: 4),
         ],
         bottom: TabBar(
           controller: _tabController,
