@@ -229,7 +229,12 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
   void _handleNotificationTap(Map<String, dynamic> data) {
     if (!mounted) return;
     final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? '').toString().toLowerCase();
-    if (type == 'safety_park' || type == 'theft_alarm' || type == 'theft') {
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        type == 'safety_park' ||
+        type == 'theft_alarm' ||
+        type == 'theft';
+    if (isTheft) {
       ref.read(safetyParkingProvider.notifier).handleAlertJson(data);
     }
     final String route = routeForNotification(data);
@@ -242,7 +247,12 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
 
   void _handleForegroundMessage(Map<String, dynamic> data) {
     final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? '').toString().toLowerCase();
-    if (type == 'safety_park' || type == 'theft_alarm' || type == 'theft') {
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        type == 'safety_park' ||
+        type == 'theft_alarm' ||
+        type == 'theft';
+    if (isTheft) {
       ref.read(safetyParkingProvider.notifier).handleAlertJson(data);
     }
     // A push may indicate state we have not seen yet.

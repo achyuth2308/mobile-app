@@ -71,12 +71,17 @@ class SafetyParkingNotifier extends StateNotifier<SafetyParkingState> {
 
   void handleAlertJson(Map<String, dynamic> data) {
     final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? '').toString().toLowerCase();
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        type == 'safety_park' ||
+        type == 'theft_alarm' ||
+        type == 'theft';
 
-    if (type == 'safety_park' || type == 'theft_alarm' || type == 'theft') {
+    if (isTheft) {
       final String vId = (data['vehicleId'] ?? data['vehicle_id'] ?? '').toString();
-      final String vName = (data['vehicleName'] ?? data['vehicle_name'] ?? 'Vehicle').toString();
-      final String plate = (data['plate'] ?? data['registrationNumber'] ?? '').toString();
-      final String text = (data['text'] ?? data['message'] ?? data['alertText'] ??
+      final String vName = (data['vehicleName'] ?? data['vehicle_name'] ?? data['plate'] ?? 'Vehicle').toString();
+      final String plate = (data['plate'] ?? data['registrationNumber'] ?? data['vehicleNumber'] ?? '').toString();
+      final String text = (data['body'] ?? data['text'] ?? data['message'] ?? data['alertText'] ??
               'Vehicle moved or Engine turned ON while Safety Parking was ACTIVE!')
           .toString();
 
@@ -94,7 +99,7 @@ class SafetyParkingNotifier extends StateNotifier<SafetyParkingState> {
       );
 
       SirenService.instance.start(
-        title: 'THEFT ALARM: $vName ($plate)',
+        title: (data['title'] ?? 'THEFT ALARM: $vName ($plate)').toString(),
         message: text,
       );
     }
@@ -105,9 +110,15 @@ class SafetyParkingNotifier extends StateNotifier<SafetyParkingState> {
   }
 
   Future<void> disarm(String vehicleId) async {
-    await _ref.read(fleetProvider.notifier).updateSettings(vehicleId, safetyPark: false);
     if (state.activeAlarm?.vehicleId == vehicleId) {
       dismissAlarm();
+    }
+    try {
+      await _ref.read(fleetProvider.notifier).updateSettings(vehicleId, safetyPark: false);
+    } catch (_) {
+      try {
+        await _ref.read(vehicleRepositoryProvider).updateSettings(vehicleId, safetyPark: false);
+      } catch (_) {}
     }
   }
 
@@ -127,7 +138,11 @@ class SafetyParkingNotifier extends StateNotifier<SafetyParkingState> {
     if (vId != null && vId.isNotEmpty) {
       try {
         await _ref.read(fleetProvider.notifier).updateSettings(vId, safetyPark: false);
-      } catch (_) {}
+      } catch (_) {
+        try {
+          await _ref.read(vehicleRepositoryProvider).updateSettings(vId, safetyPark: false);
+        } catch (_) {}
+      }
     }
   }
 

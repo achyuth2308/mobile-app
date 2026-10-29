@@ -333,10 +333,10 @@ class _SafetyParkingTheftOverlayState extends ConsumerState<SafetyParkingTheftOv
                                 size: 15,
                               ),
                               label: Text(
-                                safetyState.isSirenSounding ? 'Silence' : 'Dismiss',
+                                safetyState.isSirenSounding ? 'Mute / Stop Siren' : 'Dismiss Alert',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontSize: 11,
                                 ),
                               ),
                             ),

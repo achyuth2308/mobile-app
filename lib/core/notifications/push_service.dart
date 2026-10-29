@@ -80,19 +80,21 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         break;
     }
 
-    if (!enabled) return;
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
+    if (!isTheft && !enabled) return;
 
     final _NotificationContent content = _buildNotificationContent(data, message.notification, type);
 
-    final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical =
         <String>['sos', 'panic', 'power_cut', 'crash', 'tow'].contains(type);
 
     final String channelId = isTheft
-        ? 'fueltracks_theft_v4'
+        ? 'theft_alarm_channel'
         : (isCritical ? 'fueltracks_critical_v4' : 'fueltracks_alerts_v4');
     final String channelName = isTheft
-        ? 'Theft Alarms'
+        ? 'Theft Alarm (Safety Parking)'
         : (isCritical ? 'Critical Fleet Alerts' : 'Fleet Alerts');
 
     final FlutterLocalNotificationsPlugin local =
@@ -100,13 +102,24 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
 
     // Ensure the channel exists before showing, otherwise Android drops the notification
     // if it was never created or the app data was cleared.
-    final AndroidNotificationChannel channel = AndroidNotificationChannel(
-      channelId,
-      channelName,
-      importance: Importance.max,
-      enableVibration: true,
-      playSound: true,
-    );
+    final AndroidNotificationChannel channel = isTheft
+        ? const AndroidNotificationChannel(
+            'theft_alarm_channel',
+            'Theft Alarm (Safety Parking)',
+            description: 'Emergency siren alerts when vehicle theft is detected.',
+            importance: Importance.max,
+            playSound: true,
+            sound: RawResourceAndroidNotificationSound('police_siren'),
+            audioAttributesUsage: AudioAttributesUsage.alarm,
+            enableVibration: true,
+          )
+        : AndroidNotificationChannel(
+            channelId,
+            channelName,
+            importance: Importance.max,
+            enableVibration: true,
+            playSound: true,
+          );
     await local
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
@@ -128,19 +141,28 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         android: AndroidNotificationDetails(
           channelId,
           channelName,
+          channelDescription: isTheft
+              ? 'Emergency siren alerts when vehicle theft is detected.'
+              : channel.description,
           importance: Importance.max,
-          priority: (isTheft || isCritical) ? Priority.max : Priority.high,
-          fullScreenIntent: true, // Forces popup
-          color: const Color(0xFF4F6BFF),
+          priority: Priority.high,
+          fullScreenIntent: true, // Forces popup / screen wakeup on lock screen
+          sound: isTheft ? const RawResourceAndroidNotificationSound('police_siren') : null,
+          audioAttributesUsage: isTheft ? AudioAttributesUsage.alarm : AudioAttributesUsage.notification,
+          category: isTheft ? AndroidNotificationCategory.alarm : (isCritical ? AndroidNotificationCategory.alarm : AndroidNotificationCategory.status),
+          playSound: true,
+          enableVibration: true,
+          color: isTheft ? const Color(0xFFDC2626) : const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(content.body),
         ),
         iOS: DarwinNotificationDetails(
+          sound: isTheft ? 'police_siren.wav' : null,
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
           interruptionLevel: (isTheft || isCritical)
-              ? InterruptionLevel.timeSensitive
+              ? InterruptionLevel.critical
               : InterruptionLevel.active,
         ),
       ),
@@ -283,12 +305,14 @@ class PushService {
 
   static const AndroidNotificationChannel _theftChannel =
       AndroidNotificationChannel(
-    'fueltracks_theft_v4',
-    'Theft Alarms',
-    description: 'Alerts when unauthorized vehicle movement is detected.',
+    'theft_alarm_channel',
+    'Theft Alarm (Safety Parking)',
+    description: 'Emergency siren alerts when vehicle theft is detected.',
     importance: Importance.max,
-    enableVibration: true,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('police_siren'),
+    audioAttributesUsage: AudioAttributesUsage.alarm,
+    enableVibration: true,
   );
 
   static const AndroidNotificationChannel _generalChannel =
@@ -435,7 +459,11 @@ class PushService {
     final Map<String, dynamic> data = _dataOf(message);
     final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase();
 
-    if (!_isNotificationEnabled(type)) {
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
+
+    if (!isTheft && !_isNotificationEnabled(type)) {
       debugPrint('[push] notification disabled for type $type, ignoring');
       return;
     }
@@ -445,7 +473,6 @@ class PushService {
     final RemoteNotification? n = message.notification;
     final _NotificationContent content = _buildNotificationContent(data, n, type);
 
-    final bool isTheft = <String>['theft', 'theft_alarm', 'safety_park', 'tamper'].contains(type);
     final bool isCritical = <String>['sos', 'panic', 'power_cut', 'crash', 'tow']
         .contains(type);
 
@@ -464,18 +491,24 @@ class PushService {
           channel.name,
           channelDescription: channel.description,
           importance: channel.importance,
-          priority: (isTheft || isCritical) ? Priority.max : Priority.high,
+          priority: Priority.high,
           fullScreenIntent: true,
-          color: const Color(0xFF4F6BFF),
+          sound: isTheft ? const RawResourceAndroidNotificationSound('police_siren') : null,
+          audioAttributesUsage: isTheft ? AudioAttributesUsage.alarm : AudioAttributesUsage.notification,
+          category: isTheft ? AndroidNotificationCategory.alarm : (isCritical ? AndroidNotificationCategory.alarm : AndroidNotificationCategory.status),
+          playSound: true,
+          enableVibration: true,
+          color: isTheft ? const Color(0xFFDC2626) : const Color(0xFF4F6BFF),
           icon: '@drawable/ic_notification',
           styleInformation: BigTextStyleInformation(content.body),
         ),
         iOS: DarwinNotificationDetails(
+          sound: isTheft ? 'police_siren.wav' : null,
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
           interruptionLevel: (isTheft || isCritical)
-              ? InterruptionLevel.timeSensitive
+              ? InterruptionLevel.critical
               : InterruptionLevel.active,
         ),
       ),
