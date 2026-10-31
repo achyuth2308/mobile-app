@@ -27,6 +27,20 @@ const List<ReportTabMeta> kReportTabs = <ReportTabMeta>[
     bg: Color(0xFFF3E8FF),
   ),
   ReportTabMeta(
+    type: ReportType.dailyTrip,
+    title: 'Full Day Trips',
+    icon: Icons.route_rounded,
+    color: Color(0xFF10B981),
+    bg: Color(0xFFD1FAE5),
+  ),
+  ReportTabMeta(
+    type: ReportType.ignition,
+    title: 'Engine On / Off',
+    icon: Icons.power_settings_new_rounded,
+    color: Color(0xFFF59E0B),
+    bg: Color(0xFFFEF3C7),
+  ),
+  ReportTabMeta(
     type: ReportType.distance,
     title: 'Day Wise Distance Report',
     icon: Icons.trending_up_rounded,

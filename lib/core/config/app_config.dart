@@ -71,8 +71,16 @@ class AppConfig {
   /// map at 60fps even when hundreds of `fleet:update` frames arrive.
   static const Duration mapThrottle = Duration(milliseconds: 200);
 
-  /// A vehicle is considered "offline" if its last packet is older than this.
-  static const Duration offlineThreshold = Duration(minutes: 10);
+  // ── No Data Rule ────────────────────────────────────────────────
+  /// Dynamic No Data Rule threshold in hours. Defaults to 1.0 hr (matching web dashboard).
+  /// Vehicles remain in their exact same state (Moving, Idle, Parked) until this duration elapses.
+  static double noDataThresholdHours = 1.0;
+
+  static const List<double> noDataThresholdOptions = <double>[1.0, 3.0, 6.0, 12.0, 24.0];
+
+  /// A vehicle is considered "offline" (No Data) if its last packet is older than this.
+  static Duration get offlineThreshold =>
+      Duration(minutes: (noDataThresholdHours * 60).round());
 
   /// Idle = ignition ON but speed ~0 for longer than this.
   static const Duration idleThreshold = Duration(minutes: 5);

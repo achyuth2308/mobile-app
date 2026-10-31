@@ -217,3 +217,35 @@ List<Map<String, dynamic>> asMapList(dynamic value) {
   }
   return <Map<String, dynamic>>[];
 }
+
+/// Safely coerces any dynamic value (num, String, int, double) to a double, or null.
+double? toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) {
+    return double.tryParse(value.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+  }
+  return null;
+}
+
+/// Safely coerces any dynamic value to an int, or null.
+int? toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toInt();
+  if (value is String) {
+    return int.tryParse(value.replaceAll(RegExp(r'[^0-9\-]'), '')) ??
+        double.tryParse(value.replaceAll(RegExp(r'[^0-9.\-]'), ''))?.round();
+  }
+  return null;
+}
+
+/// Safely coerces any dynamic value to a num, or null.
+num? toNum(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value;
+  if (value is String) {
+    return num.tryParse(value.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+  }
+  return null;
+}
+

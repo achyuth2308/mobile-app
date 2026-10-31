@@ -48,17 +48,24 @@ class AlertRepository {
     List<FleetAlert> apiAlerts = const <FleetAlert>[];
     final String url = vehicleId != null ? '/vehicles/$vehicleId/alerts' : '/alerts';
     try {
-      final dynamic res = await _api.get<dynamic>(
-        url,
-        query: <String, dynamic>{
-          'page': page,
-          'limit': limit,
-          if (type != null) 'alertType': type,
-          if (type != null) 'type': type,
-          if (start != null) 'startDate': start.toUtc().toIso8601String(),
-          if (end != null) 'endDate': end.toUtc().toIso8601String(),
-        },
-      );
+      dynamic res;
+      try {
+        res = await _api.get<dynamic>(
+          url,
+          query: <String, dynamic>{
+            'page': page,
+            'limit': limit,
+            if (vehicleId != null) 'vehicleId': vehicleId,
+            if (type != null) 'alertType': type,
+            if (type != null) 'type': type,
+            if (start != null) 'startDate': start.toUtc().toIso8601String(),
+            if (end != null) 'endDate': end.toUtc().toIso8601String(),
+          },
+        );
+      } catch (_) {
+        // Fallback: try clean request without extra query params
+        res = await _api.get<dynamic>(url);
+      }
 
       apiAlerts = asMapList(res)
           .map(FleetAlert.fromJson)
@@ -78,6 +85,9 @@ class AlertRepository {
     final Map<String, FleetAlert> byId = <String, FleetAlert>{};
     for (final FleetAlert a in localAlerts) {
       if (vehicleId == null || a.vehicleId == vehicleId) {
+        if (vehicleId == null && vehicleIds != null && vehicleIds.isNotEmpty && a.vehicleId != null && a.vehicleId!.isNotEmpty) {
+          if (!vehicleIds.contains(a.vehicleId)) continue;
+        }
         byId[a.id] = a;
       }
     }
@@ -92,8 +102,30 @@ class AlertRepository {
       return tB.compareTo(tA);
     });
 
-    if (merged.isNotEmpty || vehicleId != null) {
-      return merged;
+    // Intelligent debouncing: prevent duplicate bursts of overspeed / parking alerts
+    // for the same vehicle occurring within 3 minutes of each other
+    final List<FleetAlert> debounced = <FleetAlert>[];
+    for (final FleetAlert a in merged) {
+      final bool isDuplicate = debounced.any((FleetAlert existing) {
+        if (existing.vehicleId != null &&
+            existing.vehicleId!.isNotEmpty &&
+            existing.vehicleId == a.vehicleId &&
+            existing.type == a.type) {
+          final DateTime? tExisting = existing.createdAt;
+          final DateTime? tA = a.createdAt;
+          if (tExisting != null && tA != null) {
+            return tExisting.difference(tA).inSeconds.abs() < 180; // 3 minutes
+          }
+        }
+        return false;
+      });
+      if (!isDuplicate) {
+        debounced.add(a);
+      }
+    }
+
+    if (debounced.isNotEmpty || vehicleId != null) {
+      return debounced;
     }
 
     // Fallback: If /alerts returned empty and vehicleId is null (Fleet mode),
@@ -138,25 +170,20 @@ class AlertRepository {
   }
 
   Future<int> getUnreadCount({List<String>? vehicleIds}) async {
-    final DateTime? lastReadTime = _store.getLastAlertsReadTime();
-
-    // If server provides unread count AND we haven't marked everything read locally
-    if (BackendCapabilities.alertsHistory && lastReadTime == null) {
-      try {
-        final dynamic res = await _api.get<dynamic>('/alerts/unread-count');
-        if (res is Map<String, dynamic>) {
-          return asInt(res, <String>['count', 'unread', 'total']);
-        }
-        if (res is num) return res.toInt();
-      } on ApiException {/* optional */}
-    }
-
-    // Otherwise compute accurate unread count from recent alerts
+    // Compute accurate unread count from recent alerts
     final List<FleetAlert> recent = await getAlerts(
       limit: 50,
       vehicleIds: vehicleIds,
     );
     return recent.where((FleetAlert a) => !a.isRead).length;
+  }
+
+  Future<int> getUnreadOverspeedCount({List<String>? vehicleIds}) async {
+    final List<FleetAlert> recent = await getAlerts(
+      limit: 50,
+      vehicleIds: vehicleIds,
+    );
+    return recent.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
   }
 
   Future<void> markAsRead(String alertId) async {
@@ -183,7 +210,7 @@ class AlertRepository {
     return null;
   }
 
-  Future<void> updatePreferences(Map<String, bool> preferences) async {
+  Future<void> updatePreferences(Map<String, dynamic> preferences) async {
     try {
       await _api.put<dynamic>('/alerts/preferences', body: <String, dynamic>{
         'preferences': preferences,

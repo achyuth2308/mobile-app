@@ -209,6 +209,120 @@ class ReportExportService {
         }
         break;
 
+      case ReportType.geofenceTransit:
+        tableData.add(<dynamic>[
+          'Vehicle',
+          'Plate',
+          'Trip Type',
+          'Origin Geofence',
+          'Departure Time',
+          'Destination Geofence',
+          'Arrival Time',
+          'Duration',
+          'Distance (km)',
+          'Avg Speed (km/h)',
+          'Max Speed (km/h)',
+        ]);
+        for (final ReportRow r in rows) {
+          tableData.add(<dynamic>[
+            r.vehicleName ?? '-',
+            r.plate ?? '-',
+            r.tripLabel ?? 'Corridor Trip',
+            r.fromGeofenceName ?? 'Location A',
+            Fmt.dateTimeWeb(r.departureTime ?? r.startTime),
+            r.toGeofenceName ?? 'Location B',
+            Fmt.dateTimeWeb(r.arrivalTime ?? r.endTime),
+            r.durationFormatted ?? Fmt.durationWeb(r.durationSecVal),
+            r.distanceTravelled?.toStringAsFixed(2) ?? '0.00',
+            r.avgSpeedVal?.toStringAsFixed(0) ?? '-',
+            r.maxSpeedVal?.toStringAsFixed(0) ?? '-',
+          ]);
+        }
+        break;
+
+      case ReportType.geofenceSinglePlace:
+        tableData.add(<dynamic>[
+          'Vehicle',
+          'Plate',
+          'Place / Geofence',
+          'Entry Time',
+          'Exit Time',
+          'Duration Inside',
+          'Idle Time Inside',
+          'Max Speed Inside (km/h)',
+        ]);
+        for (final ReportRow r in rows) {
+          tableData.add(<dynamic>[
+            r.vehicleName ?? '-',
+            r.plate ?? '-',
+            r.geofenceName ?? '-',
+            Fmt.dateTimeWeb(r.entryTime ?? r.startTime),
+            r.exitTime != null ? Fmt.dateTimeWeb(r.exitTime) : 'Inside / Active',
+            r.durationFormatted ?? Fmt.durationWeb(r.durationSecVal),
+            r.idleSecondsInside != null && r.idleSecondsInside! > 0
+                ? Fmt.durationWeb(r.idleSecondsInside)
+                : '0m',
+            r.maxSpeedVal?.toStringAsFixed(0) ?? '-',
+          ]);
+        }
+        break;
+
+      case ReportType.dailyTrip:
+        tableData.add(<dynamic>[
+          'Date',
+          'Vehicle',
+          'Plate',
+          'Start Time',
+          'Start Location (Lat,Lng)',
+          'End Time',
+          'End Location (Lat,Lng)',
+          'Total Distance (KM)',
+          'Driving Time (HH:MM:SS)',
+          'Stoppage Time (HH:MM:SS)',
+          'Total Span (HH:MM:SS)',
+          'Stops Count',
+          'Legs Count',
+        ]);
+        for (final ReportRow r in rows) {
+          tableData.add(<dynamic>[
+            Fmt.dateWeb(r.date ?? r.startTime),
+            r.vehicleName ?? '-',
+            r.plate ?? '-',
+            Fmt.dateTimeWeb(r.startTime),
+            '${r.startLat ?? ''}, ${r.startLng ?? ''}',
+            Fmt.dateTimeWeb(r.endTime),
+            '${r.endLat ?? ''}, ${r.endLng ?? ''}',
+            (r.totalDistanceVal ?? 0.0).toStringAsFixed(2),
+            Fmt.durationWeb(r.drivingSeconds),
+            Fmt.durationWeb(r.stoppedSeconds),
+            Fmt.durationWeb(r.totalSpanSeconds),
+            r.stopsCount,
+            r.legsCount,
+          ]);
+        }
+        break;
+
+      case ReportType.ignition:
+        tableData.add(<dynamic>[
+          'Vehicle',
+          'Plate',
+          'Event Status',
+          'Event Time',
+          'Latitude',
+          'Longitude',
+        ]);
+        for (final ReportRow r in rows) {
+          tableData.add(<dynamic>[
+            r.vehicleName ?? '-',
+            r.plate ?? '-',
+            (r.eventType ?? 'ON').toUpperCase(),
+            Fmt.dateTimeWeb(r.deviceTime ?? r.startTime),
+            r.latitude ?? '',
+            r.longitude ?? '',
+          ]);
+        }
+        break;
+
       default:
         if (rows.isNotEmpty) {
           final List<String> headers = rows.first.cells.keys.toList();

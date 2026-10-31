@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'package:dio/dio.dart';
+import '../../data/models/json_utils.dart';
 
 class _GeocodeTask {
   _GeocodeTask(this.key, this.lat, this.lon, this.completer);
@@ -370,8 +371,8 @@ class Geocoder {
             final Map<String, dynamic> item = r as Map<String, dynamic>;
             final dynamic geom = item['geometry'];
             final dynamic loc = geom is Map ? geom['location'] : null;
-            final double lat = (loc?['lat'] as num?)?.toDouble() ?? 0.0;
-            final double lng = (loc?['lng'] as num?)?.toDouble() ?? 0.0;
+            final double lat = toDouble(loc?['lat']) ?? 0.0;
+            final double lng = toDouble(loc?['lng']) ?? 0.0;
             final String fullAddress = item['formatted_address']?.toString() ?? '';
             final String name = cleanPlaceName(fullAddress.isNotEmpty ? fullAddress : q);
             return GeocodeSearchResult(

@@ -10,6 +10,7 @@ import '../../core/utils/vehicle_icons.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
+import '../../providers/safety_parking_provider.dart';
 import '../../shared/widgets/app_states.dart';
 import '../../shared/widgets/live_address.dart';
 
@@ -85,28 +86,43 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           children: [
             Icon(Icons.circle, size: 10, color: statusColor),
             const SizedBox(width: 8),
-            Text(
-              vehicle.displayName.toUpperCase(),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+            Expanded(
+              child: Text(
+                vehicle.displayName.toUpperCase(),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined, size: 20),
-            tooltip: 'Share Location',
-            onPressed: () => ShareHelper.shareVehicleLocation(vehicle),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined, size: 20),
+                    tooltip: 'Share Location',
+                    onPressed: () => ShareHelper.shareVehicleLocation(vehicle),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, size: 20),
+                    tooltip: 'Vehicle Settings',
+                    onPressed: () =>
+                        context.push('/vehicle/${widget.vehicleId}/settings'),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 20),
-            tooltip: 'Vehicle Settings',
-            onPressed: () =>
-                context.push('/vehicle/${widget.vehicleId}/settings'),
-          ),
-          const SizedBox(width: 4),
         ],
       ),
       body: ListView(
@@ -153,10 +169,14 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                vehicle.displayName.toUpperCase(),
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                              Flexible(
+                                child: Text(
+                                  vehicle.displayName.toUpperCase(),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -244,7 +264,112 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             ),
           ),
 
-          const SizedBox(height: Gap.xl),
+          const SizedBox(height: Gap.md),
+
+          // ── Safety Parking Quick Control Banner ───────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: vehicle.isSafetyParkActive
+                  ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+                  : (isDark ? const Color(0xFF1E2238) : Colors.white),
+              borderRadius: Corners.rLg,
+              border: Border.all(
+                color: vehicle.isSafetyParkActive
+                    ? const Color(0xFFDC2626)
+                    : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                width: vehicle.isSafetyParkActive ? 1.5 : 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: (vehicle.isSafetyParkActive ? const Color(0xFFDC2626) : Colors.black)
+                      .withValues(alpha: vehicle.isSafetyParkActive ? 0.15 : 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: vehicle.isSafetyParkActive
+                        ? const Color(0xFFDC2626)
+                        : (isDark ? Colors.white12 : const Color(0xFFF1F5F9)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    vehicle.isSafetyParkActive ? Icons.security_rounded : Icons.shield_outlined,
+                    color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Safety Parking',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: vehicle.isSafetyParkActive
+                                  ? const Color(0xFFDC2626)
+                                  : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              vehicle.isSafetyParkActive ? 'ARMED' : 'DISARMED',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        vehicle.isSafetyParkActive
+                            ? 'Siren triggers if moved or ignition turns ON'
+                            : 'Tap to arm anti-theft parking guard',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: vehicle.isSafetyParkActive
+                              ? const Color(0xFFDC2626)
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: vehicle.isSafetyParkActive,
+                  activeColor: const Color(0xFFDC2626),
+                  onChanged: (bool val) async {
+                    if (val) {
+                      await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
+                    } else {
+                      await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: Gap.lg),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: Gap.md),
             child: Text(
@@ -289,6 +414,15 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           ),
 
           _MenuItemCard(
+            title: 'Geofences',
+            subtitle: 'Virtual boundaries, entry/exit zones & alerts',
+            icon: Icons.fence_rounded,
+            accentColor: const Color(0xFF10B981), // Emerald
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/geofences'),
+          ),
+
+          _MenuItemCard(
             title: 'Vehicle Info & Specs',
             subtitle: 'Hardware details, IMEI, driver assignment & docs',
             icon: Icons.info_outline_rounded,
@@ -303,6 +437,15 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             icon: Icons.assessment_rounded,
             accentColor: const Color(0xFF8B5CF6), // Purple
             onTap: () => context.go('/reports?vehicle=${widget.vehicleId}'),
+          ),
+
+          _MenuItemCard(
+            title: 'Primary Engine On',
+            subtitle: 'Engine ON/OFF events, total duration & nearest locations',
+            icon: Icons.power_settings_new_rounded,
+            accentColor: const Color(0xFFF59E0B), // Amber
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/engine-on'),
           ),
 
           _MenuItemCard(

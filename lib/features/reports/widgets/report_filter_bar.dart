@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/formatters.dart';
+import '../../../data/models/geofence.dart';
 import '../../../data/models/report_models.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../providers/fleet_provider.dart';
@@ -20,6 +21,15 @@ class ReportFilterBar extends ConsumerWidget {
     required this.isLoading,
     this.requiresVehicle = false,
     this.onTypeChanged,
+    this.transitMode,
+    this.onTransitModeChanged,
+    this.fromGeofenceId,
+    this.onFromGeofenceChanged,
+    this.toGeofenceId,
+    this.onToGeofenceChanged,
+    this.singleGeofenceId,
+    this.onSingleGeofenceChanged,
+    this.geofences = const <Geofence>[],
     super.key,
   });
 
@@ -33,6 +43,15 @@ class ReportFilterBar extends ConsumerWidget {
   final bool isLoading;
   final bool requiresVehicle;
   final ValueChanged<ReportType>? onTypeChanged;
+  final String? transitMode;
+  final ValueChanged<String>? onTransitModeChanged;
+  final String? fromGeofenceId;
+  final ValueChanged<String?>? onFromGeofenceChanged;
+  final String? toGeofenceId;
+  final ValueChanged<String?>? onToGeofenceChanged;
+  final String? singleGeofenceId;
+  final ValueChanged<String?>? onSingleGeofenceChanged;
+  final List<Geofence> geofences;
 
   LinearGradient _getGradient(ReportType type) {
     switch (type) {
@@ -78,6 +97,30 @@ class ReportFilterBar extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
+      case ReportType.geofenceTransit:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFF14B8A6), Color(0xFF0D9488)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case ReportType.geofenceSinglePlace:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFF818CF8), Color(0xFF6366F1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case ReportType.dailyTrip:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFF34D399), Color(0xFF10B981)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case ReportType.ignition:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFFFBBF24), Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
       case ReportType.individual:
       default:
         return const LinearGradient(
@@ -104,6 +147,14 @@ class ReportFilterBar extends ConsumerWidget {
         return const Color(0xFF16A34A);
       case ReportType.fuelConsolidated:
         return const Color(0xFFEA580C);
+      case ReportType.geofenceTransit:
+        return const Color(0xFF0D9488);
+      case ReportType.geofenceSinglePlace:
+        return const Color(0xFF6366F1);
+      case ReportType.dailyTrip:
+        return const Color(0xFF10B981);
+      case ReportType.ignition:
+        return const Color(0xFFD97706);
       case ReportType.individual:
       default:
         return const Color(0xFF2563EB);
@@ -248,6 +299,214 @@ class ReportFilterBar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // Geofence Transit Mode Selector (All | One-Way | Two-Way | Round Trip)
+          if (type == ReportType.geofenceTransit) ...<Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Row(
+                  children: <Widget>[
+                    Icon(Icons.sync_alt_rounded, size: 14, color: Color(0xFF0D9488)),
+                    SizedBox(width: 6),
+                    Text(
+                      'CORRIDOR TRANSIT MODE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: <Widget>[
+                      _buildChip(
+                        context: context,
+                        label: 'All Trips',
+                        selected: (transitMode ?? 'all') == 'all',
+                        onTap: () => onTransitModeChanged?.call('all'),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildChip(
+                        context: context,
+                        label: 'One-Way (A ➔ B)',
+                        selected: transitMode == 'single_way',
+                        onTap: () => onTransitModeChanged?.call('single_way'),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildChip(
+                        context: context,
+                        label: 'Two-Way (A ⇄ B)',
+                        selected: transitMode == 'two_way',
+                        onTap: () => onTransitModeChanged?.call('two_way'),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildChip(
+                        context: context,
+                        label: 'Round Trip (A ➔ A)',
+                        selected: transitMode == 'same_location',
+                        onTap: () => onTransitModeChanged?.call('same_location'),
+                      ),
+                    ],
+                  ),
+                ),
+                if (geofences.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      // From Geofence
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              'ORIGIN (FROM)',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF64748B),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String?>(
+                                  isExpanded: true,
+                                  value: fromGeofenceId,
+                                  hint: const Text('All Places', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                  items: <DropdownMenuItem<String?>>[
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('All Places', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    ),
+                                    ...geofences.map((g) => DropdownMenuItem<String?>(
+                                      value: g.id,
+                                      child: Text(g.name, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                                    )),
+                                  ],
+                                  onChanged: onFromGeofenceChanged,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // To Geofence
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              'DESTINATION (TO)',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF64748B),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String?>(
+                                  isExpanded: true,
+                                  value: toGeofenceId,
+                                  hint: const Text('All Places', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                  items: <DropdownMenuItem<String?>>[
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('All Places', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    ),
+                                    ...geofences.map((g) => DropdownMenuItem<String?>(
+                                      value: g.id,
+                                      child: Text(g.name, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                                    )),
+                                  ],
+                                  onChanged: onToGeofenceChanged,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 14),
+              ],
+            ),
+          ],
+
+          // Single Place Activity Selector
+          if (type == ReportType.geofenceSinglePlace && geofences.isNotEmpty) ...<Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Row(
+                  children: <Widget>[
+                    Icon(Icons.fmd_good_rounded, size: 14, color: Color(0xFF6366F1)),
+                    SizedBox(width: 6),
+                    Text(
+                      'SELECT GEOFENCE / PLACE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      isExpanded: true,
+                      value: singleGeofenceId,
+                      hint: const Text('All Geofences & Places', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                      items: <DropdownMenuItem<String?>>[
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All Geofences & Places', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                        ...geofences.map((g) => DropdownMenuItem<String?>(
+                          value: g.id,
+                          child: Text(g.name, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                        )),
+                      ],
+                      onChanged: onSingleGeofenceChanged,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ],
           if (isTrip && onTypeChanged != null) ...<Widget>[
             Row(
               children: <Widget>[

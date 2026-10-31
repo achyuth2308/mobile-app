@@ -9,6 +9,7 @@ class AppMarker {
   final double width;
   final double height;
   final VoidCallback? onTap;
+  final double? hue;
 
   const AppMarker({
     required this.id,
@@ -18,6 +19,7 @@ class AppMarker {
     this.width = 40,
     this.height = 40,
     this.onTap,
+    this.hue,
   });
 }
 

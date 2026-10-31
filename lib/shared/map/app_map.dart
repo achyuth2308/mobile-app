@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
@@ -7,7 +6,6 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'app_map_models.dart';
 import 'app_map_controller.dart';
 import '../../core/config/app_config.dart';
-import '../../core/theme/map_styles.dart';
 
 class _FmAppMapController implements AppMapController {
   final fm.MapController _controller;
@@ -237,8 +235,9 @@ class _AppMapState extends State<AppMap> {
           markerId: gm.MarkerId(m.id),
           position: gm.LatLng(m.position.latitude, m.position.longitude),
           onTap: m.onTap,
-          // Since we can't synchronously convert widgets to bitmaps, use default marker for now.
-          icon: gm.BitmapDescriptor.defaultMarker,
+          icon: m.hue != null
+              ? gm.BitmapDescriptor.defaultMarkerWithHue(m.hue!)
+              : gm.BitmapDescriptor.defaultMarker,
         );
       }).toSet(),
       polylines: widget.polylines.map((p) {

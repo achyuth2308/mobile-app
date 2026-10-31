@@ -20,6 +20,7 @@ class _VehicleSettingsSheetState extends ConsumerState<VehicleSettingsSheet> {
   late double _speedLimit;
   late double _overspeedDuration;
   late double _idleDuration;
+  late bool _safetyPark;
 
   bool _isSaving = false;
 
@@ -27,9 +28,10 @@ class _VehicleSettingsSheetState extends ConsumerState<VehicleSettingsSheet> {
   void initState() {
     super.initState();
     final Vehicle? vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
-    _speedLimit = vehicle?.speedLimit ?? 60.0;
+    _speedLimit = vehicle?.speedLimit ?? 80.0;
     _overspeedDuration = vehicle?.overspeedDurationAlert ?? 3.0;
-    _idleDuration = vehicle?.idleDurationAlert ?? 10.0;
+    _idleDuration = vehicle?.idleDurationAlert ?? 60.0;
+    _safetyPark = vehicle?.isSafetyParkActive ?? false;
   }
 
   Future<void> _save() async {
@@ -40,6 +42,7 @@ class _VehicleSettingsSheetState extends ConsumerState<VehicleSettingsSheet> {
             overSpeedLimit: _speedLimit,
             overspeedDurationAlert: _overspeedDuration,
             idleDurationAlert: _idleDuration,
+            safetyPark: _safetyPark,
           );
       if (mounted) {
         Navigator.of(context).pop();
@@ -99,7 +102,63 @@ class _VehicleSettingsSheetState extends ConsumerState<VehicleSettingsSheet> {
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),
-              const SizedBox(height: Gap.xl),
+              const SizedBox(height: Gap.md),
+
+              // ── Safety Parking (Theft Alarm) ──────────────────────────
+              Container(
+                padding: const EdgeInsets.all(Gap.md),
+                decoration: BoxDecoration(
+                  color: _safetyPark
+                      ? const Color(0xFFFEF2F2)
+                      : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: Corners.rLg,
+                  border: Border.all(
+                    color: _safetyPark ? const Color(0xFFDC2626) : scheme.outlineVariant,
+                    width: _safetyPark ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      _safetyPark ? Icons.security_rounded : Icons.shield_outlined,
+                      color: _safetyPark ? const Color(0xFFDC2626) : scheme.onSurfaceVariant,
+                      size: 24,
+                    ),
+                    const SizedBox(width: Gap.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'Safety Parking (Theft Alarm)',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: _safetyPark ? const Color(0xFFDC2626) : null,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _safetyPark
+                                ? 'ARMED: Siren sounds if moved or turned ON'
+                                : 'Tap to arm anti-theft parking guard',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _safetyPark ? const Color(0xFF991B1B) : scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _safetyPark,
+                      activeColor: const Color(0xFFDC2626),
+                      onChanged: (bool val) => setState(() => _safetyPark = val),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: Gap.lg),
 
               // ── Overspeed Limit ──────────────────────────────────────────
               _SectionHeader(
@@ -159,10 +218,10 @@ class _VehicleSettingsSheetState extends ConsumerState<VehicleSettingsSheet> {
                 value: '${_idleDuration.round()} mins',
               ),
               Slider(
-                value: _idleDuration,
+                value: _idleDuration.clamp(5, 180),
                 min: 5,
-                max: 60,
-                divisions: 55,
+                max: 180,
+                divisions: 35,
                 label: '${_idleDuration.round()} mins',
                 activeColor: AppColors.brand,
                 onChanged: (double v) => setState(() => _idleDuration = v),

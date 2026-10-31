@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/models/geofence.dart';
 import '../../data/models/report_models.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/core_providers.dart';
@@ -17,11 +18,17 @@ class ReportDetailScreen extends ConsumerStatefulWidget {
   const ReportDetailScreen({
     this.type = ReportType.trip,
     this.initialVehicleId,
+    this.initialFromGeofenceId,
+    this.initialToGeofenceId,
+    this.initialMode,
     super.key,
   });
 
   final ReportType type;
   final String? initialVehicleId;
+  final String? initialFromGeofenceId;
+  final String? initialToGeofenceId;
+  final String? initialMode;
 
   @override
   ConsumerState<ReportDetailScreen> createState() => _ReportDetailScreenState();
@@ -32,6 +39,11 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   late DateTime _startDate;
   late DateTime _endDate;
   String? _vehicleId;
+  String _transitMode = 'all';
+  String? _fromGeofenceId;
+  String? _toGeofenceId;
+  String? _singleGeofenceId;
+  List<Geofence> _geofences = const <Geofence>[];
 
   ReportResult? _result;
   bool _loading = false;
@@ -50,10 +62,15 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     super.initState();
     _currentType = widget.type;
     _vehicleId = widget.initialVehicleId;
+    _transitMode = widget.initialMode ?? 'all';
+    _fromGeofenceId = widget.initialFromGeofenceId;
+    _toGeofenceId = widget.initialToGeofenceId;
 
     final DateTime now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
     _endDate = now;
+
+    _loadGeofences();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_currentType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
@@ -64,6 +81,18 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       }
       _run();
     });
+  }
+
+  Future<void> _loadGeofences() async {
+    try {
+      final List<Geofence> fences =
+          await ref.read(geofenceRepositoryProvider).getGeofences();
+      if (mounted) {
+        setState(() {
+          _geofences = fences;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -125,6 +154,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             start: _startDate,
             end: _endDate,
             vehicleId: _vehicleId,
+            mode: _transitMode,
+            fromGeofenceId: _fromGeofenceId,
+            toGeofenceId: _toGeofenceId,
+            geofenceId: _singleGeofenceId,
           );
 
       if (!mounted) return;
@@ -325,6 +358,27 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                   });
                   _run();
                 },
+                transitMode: _transitMode,
+                onTransitModeChanged: (String m) {
+                  setState(() => _transitMode = m);
+                  _run();
+                },
+                fromGeofenceId: _fromGeofenceId,
+                onFromGeofenceChanged: (String? id) {
+                  setState(() => _fromGeofenceId = id);
+                  _run();
+                },
+                toGeofenceId: _toGeofenceId,
+                onToGeofenceChanged: (String? id) {
+                  setState(() => _toGeofenceId = id);
+                  _run();
+                },
+                singleGeofenceId: _singleGeofenceId,
+                onSingleGeofenceChanged: (String? id) {
+                  setState(() => _singleGeofenceId = id);
+                  _run();
+                },
+                geofences: _geofences,
               ),
 
               const SizedBox(height: 8),
@@ -753,6 +807,26 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           startDate: _startDate,
           endDate: _endDate,
           vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.geofenceTransit:
+        return GeofenceTransitReportTable(
+          rows: res.rows,
+          showVehicle: showVehicle,
+        );
+      case ReportType.geofenceSinglePlace:
+        return GeofenceSinglePlaceReportTable(
+          rows: res.rows,
+          showVehicle: showVehicle,
+        );
+      case ReportType.dailyTrip:
+        return DailyTripReportTable(
+          rows: res.rows,
+          showVehicle: showVehicle,
+        );
+      case ReportType.ignition:
+        return IgnitionReportTable(
+          rows: res.rows,
+          showVehicle: showVehicle,
         );
       default:
         return GenericReportTable(result: res);

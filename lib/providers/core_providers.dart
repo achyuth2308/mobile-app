@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/config/app_config.dart';
 import '../core/connectivity/connectivity_service.dart';
 import '../core/network/api_client.dart';
 import '../core/payments/payment_service.dart';
@@ -13,6 +14,7 @@ import '../data/repositories/billing_repository.dart';
 import '../data/repositories/geofence_repository.dart';
 import '../data/repositories/report_repository.dart';
 import '../data/repositories/vehicle_repository.dart';
+import 'fleet_provider.dart';
 
 /// Overridden in `main()` once `SecureStore.create()` resolves.
 final Provider<SecureStore> secureStoreProvider = Provider<SecureStore>(
@@ -285,4 +287,42 @@ final NotifierProvider<NotificationPreferencesNotifier, NotificationPreferences>
     NotifierProvider<NotificationPreferencesNotifier, NotificationPreferences>(
   NotificationPreferencesNotifier.new,
 );
+
+// ── No Data Rule Provider ─────────────────────────────────────────────
+class NoDataThresholdNotifier extends StateNotifier<double> {
+  NoDataThresholdNotifier(this._ref) : super(AppConfig.noDataThresholdHours) {
+    _init();
+  }
+
+  final Ref _ref;
+
+  void _init() {
+    try {
+      final double stored = _ref.read(secureStoreProvider).nodataThresholdHours;
+      AppConfig.noDataThresholdHours = stored;
+      state = stored;
+    } catch (_) {}
+  }
+
+  Future<void> setThreshold(double hours) async {
+    final double val = hours <= 0 ? 1.0 : hours;
+    AppConfig.noDataThresholdHours = val;
+    state = val;
+    await _ref.read(secureStoreProvider).setNodataThresholdHours(val);
+
+    try {
+      await _ref.read(alertRepositoryProvider).updatePreferences(<String, dynamic>{
+        'nodata_threshold_hours': val,
+      });
+    } catch (_) {}
+
+    _ref.read(fleetProvider.notifier).refreshVehicleStatuses();
+  }
+}
+
+final StateNotifierProvider<NoDataThresholdNotifier, double> noDataThresholdProvider =
+    StateNotifierProvider<NoDataThresholdNotifier, double>(
+  (Ref ref) => NoDataThresholdNotifier(ref),
+);
+
 

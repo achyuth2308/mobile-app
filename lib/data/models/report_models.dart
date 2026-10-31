@@ -16,6 +16,9 @@ enum ReportType {
   fuelConsolidated,
   individual,
   manualTrip,
+  geofenceTransit,
+  geofenceSinglePlace,
+  dailyTrip,
 }
 
 extension ReportTypeX on ReportType {
@@ -32,6 +35,9 @@ extension ReportTypeX on ReportType {
         ReportType.fuelConsolidated => '/reports/consolidated',
         ReportType.individual => '/reports/individual',
         ReportType.manualTrip => '/trips',
+        ReportType.geofenceTransit => '/reports/geofence-transit',
+        ReportType.geofenceSinglePlace => '/reports/geofence-single-place',
+        ReportType.dailyTrip => '/reports/daily-trip',
       };
 
   String get label => switch (this) {
@@ -39,7 +45,7 @@ extension ReportTypeX on ReportType {
         ReportType.distance => 'Day Wise Distance Report',
         ReportType.activity => 'Activity Report',
         ReportType.routeHistory => 'Route History',
-        ReportType.ignition => 'Ignition Report',
+        ReportType.ignition => 'Engine On Report',
         ReportType.overspeeding => 'Overspeeding',
         ReportType.stoppages => 'Stoppage Report',
         ReportType.idle => 'Idle Report',
@@ -47,6 +53,9 @@ extension ReportTypeX on ReportType {
         ReportType.fuelConsolidated => 'Fuel Consolidated',
         ReportType.individual => 'Individual Summary',
         ReportType.manualTrip => 'Manual Trips',
+        ReportType.geofenceTransit => 'Geofence Transit',
+        ReportType.geofenceSinglePlace => 'Single Place Activity',
+        ReportType.dailyTrip => 'Full Day Trips',
       };
 
   String get blurb => switch (this) {
@@ -54,7 +63,7 @@ extension ReportTypeX on ReportType {
         ReportType.distance => 'Distance travelled per day and per vehicle',
         ReportType.activity => 'Movement, idling and parking timeline',
         ReportType.routeHistory => 'Full GPS breadcrumb trail on a map',
-        ReportType.ignition => 'Engine on and off events with locations',
+        ReportType.ignition => 'Engine on and off events with timestamps and locations',
         ReportType.overspeeding => 'Every breach of the configured speed limit',
         ReportType.stoppages => 'Where and how long vehicles stayed parked',
         ReportType.idle => 'Engine running while stationary — wasted fuel',
@@ -62,6 +71,9 @@ extension ReportTypeX on ReportType {
         ReportType.fuelConsolidated => 'Whole-fleet fuel consumption, refuels, thefts and mileage',
         ReportType.individual => 'Deep-dive summary for one vehicle',
         ReportType.manualTrip => 'Pre-planned and manually tracked trips',
+        ReportType.geofenceTransit => 'Corridor transit trips between geofences (One-Way, Two-Way & Round Trip)',
+        ReportType.geofenceSinglePlace => 'Vehicle entry, exit, duration & idle time at a specific place',
+        ReportType.dailyTrip => 'Consolidates the complete day\'s journey from initial departure to final arrival',
       };
 
   /// A single vehicle must be chosen before running these.
@@ -109,9 +121,9 @@ class ReportRow extends Equatable {
   String? get driverPhone => asStringOrNull(raw, <String>['driver_phone', 'driverPhone', 'driverMobileNumber', 'mobile']);
   String? get status => asStringOrNull(raw, <String>['status', 'state']);
   
-  DateTime? get startTime => asDate(raw, <String>['start_time', 'startTime', 'device_time', 'timestamp']) ?? timestamp;
+  DateTime? get startTime => asDate(raw, <String>['start_time', 'startTime', 'device_time', 'timestamp', 'time']) ?? timestamp;
   DateTime? get endTime => asDate(raw, <String>['end_time', 'endTime']);
-  DateTime? get date => asDate(raw, <String>['date', 'start_time', 'startTime']) ?? timestamp;
+  DateTime? get date => asDate(raw, <String>['date', 'start_time', 'startTime', 'time']) ?? timestamp;
 
   double? get startLat => asDoubleOrNull(raw, <String>['start_lat', 'startLat', 'lat', 'latitude']) ?? latitude;
   double? get startLng => asDoubleOrNull(raw, <String>['start_lng', 'startLng', 'lng', 'lon', 'longitude']) ?? longitude;
@@ -145,11 +157,34 @@ class ReportRow extends Equatable {
   double? get distanceTravelled => asDoubleOrNull(raw, <String>['distance_travelled', 'distanceTravelled', 'distance', 'distanceKm']) ?? distanceKm;
   int get pointCount => asInt(raw, <String>['point_count', 'pointCount', 'pointsLogged']);
 
-  double? get maxSpeedVal => asDoubleOrNull(raw, <String>['max_speed', 'maxSpeed', 'speed']) ?? speed;
+  double? get maxSpeedVal => asDoubleOrNull(raw, <String>['max_speed', 'maxSpeed', 'speed', 'topSpeed']) ?? speed;
   double? get avgSpeedVal => asDoubleOrNull(raw, <String>['avg_speed', 'avgSpeed']);
-  int? get durationSecVal => asDoubleOrNull(raw, <String>['duration_seconds', 'durationSeconds', 'duration'])?.round() ?? durationSeconds;
+  int? get durationSecVal {
+    final double? dur = asDoubleOrNull(raw, <String>['duration_seconds', 'durationSeconds', 'duration']);
+    if (dur != null) return dur.round();
+    final double? ms = asDoubleOrNull(raw, <String>['durationMs', 'duration_ms']);
+    if (ms != null && ms > 0) return (ms / 1000).round();
+    return durationSeconds;
+  }
 
-  int? get runningSeconds => asDoubleOrNull(raw, <String>['running_seconds', 'runningSeconds', 'runningTime'])?.round();
+  int? get runningSeconds {
+    final double? sec = asDoubleOrNull(raw, <String>[
+      'running_seconds',
+      'runningSeconds',
+      'runningTime',
+      'driving_seconds',
+      'drivingSeconds',
+      'drivingTime',
+    ]);
+    if (sec != null && sec > 0) return sec.round();
+    final double? ms = asDoubleOrNull(raw, <String>[
+      'totalRunningMs',
+      'runningMs',
+      'running_ms',
+    ]);
+    if (ms != null && ms > 0) return (ms / 1000).round();
+    return null;
+  }
   int? get movingSeconds {
     final int? runSec = runningSeconds;
     if (runSec != null && runSec > 0) return runSec;
@@ -168,38 +203,98 @@ class ReportRow extends Equatable {
       ])?.round();
 
   int? get stoppedSeconds {
+    // 1. Direct explicit keys from backend
     final int? s = asDoubleOrNull(raw, <String>[
       'stopped_seconds',
       'stoppedSeconds',
-      'stoppedTime',
-      'stopped_time',
-      'stopping_time',
-      'stoppingTime',
+      'stoppage_seconds',
+      'stoppageSeconds',
       'stopping_seconds',
       'stoppingSeconds',
-      'stoppage_time',
-      'stoppageTime',
+      'stop_seconds',
+      'stopSeconds',
+      'stoppage_time_seconds',
+      'stoppageTimeSeconds',
+      'stopped_duration',
+      'stoppedDuration',
       'stoppage_duration',
       'stoppageDuration',
       'stoppages_duration',
+      'stopping_duration',
+      'stoppingDuration',
+      'stop_duration',
+      'stopDuration',
+      'stopped_time',
+      'stoppedTime',
+      'stoppage_time',
+      'stoppageTime',
+      'stopping_time',
+      'stoppingTime',
+      'stop_time',
+      'stopTime',
       'parking_time',
       'parkingTime',
+      'parking_seconds',
+      'parkingSeconds',
+      'parking_duration',
+      'parkingDuration',
     ])?.round();
     if (s != null && s > 0) return s;
-    final int? dur = asDoubleOrNull(raw, <String>[
-      'duration_seconds',
-      'durationSeconds',
-      'duration',
-      'total_duration',
-      'totalDuration',
-      'total_time',
-      'totalTime',
-    ])?.round();
-    if (dur != null && dur > 0) {
-      final int rem = dur - (runningSeconds ?? 0) - (idleSeconds ?? 0);
+
+    // 2. Compute from intermediate legs if present (sum of stoppage gaps between trips)
+    if (legs.isNotEmpty) {
+      int legGaps = 0;
+      for (int i = 0; i < legs.length - 1; i++) {
+        final DateTime? cEnd = asDate(legs[i], <String>['end_time', 'endTime']);
+        final DateTime? nStart = asDate(legs[i + 1], <String>['start_time', 'startTime']);
+        if (cEnd != null && nStart != null) {
+          final int gap = nStart.difference(cEnd).inSeconds;
+          if (gap > 0) legGaps += gap;
+        }
+      }
+      final DateTime? firstLegStart = asDate(legs.first, <String>['start_time', 'startTime']);
+      final DateTime? lastLegEnd = asDate(legs.last, <String>['end_time', 'endTime']);
+      if (startTime != null && firstLegStart != null) {
+        final int initialGap = firstLegStart.difference(startTime!).inSeconds;
+        if (initialGap > 0) legGaps += initialGap;
+      }
+      if (endTime != null && lastLegEnd != null) {
+        final int finalGap = endTime!.difference(lastLegEnd).inSeconds;
+        if (finalGap > 0) legGaps += finalGap;
+      }
+      if (legGaps > 0) return legGaps;
+    }
+
+    // 3. Fallback: calculate from total span / total duration minus driving/running time
+    final int? totalSpan = totalSpanSeconds ??
+        asDoubleOrNull(raw, <String>[
+          'total_span_seconds',
+          'totalSpanSeconds',
+          'total_duration',
+          'totalDuration',
+          'total_time',
+          'totalTime',
+          'duration_seconds',
+          'durationSeconds',
+          'duration',
+        ])?.round() ??
+        (startTime != null && endTime != null
+            ? endTime!.difference(startTime!).inSeconds.abs()
+            : null);
+
+    final int effectiveDriving = drivingSeconds ?? runningSeconds ?? movingSeconds ?? 0;
+    final int effectiveIdle = idleSeconds ?? 0;
+
+    if (totalSpan != null && totalSpan > 0 && effectiveDriving > 0) {
+      final int rem = totalSpan - effectiveDriving - effectiveIdle;
       if (rem > 0) return rem;
     }
-    return s;
+
+    if (totalSpan != null && totalSpan > 0 && effectiveDriving == 0 && (stopsCount > 0 || pointCount > 0)) {
+      return totalSpan;
+    }
+
+    return s != null && s > 0 ? s : null;
   }
 
   int? get totalSeconds {
@@ -210,12 +305,24 @@ class ReportRow extends Equatable {
       'totalSeconds',
       'total_duration',
       'totalDuration',
+      'total_span_seconds',
+      'totalSpanSeconds',
       'duration_seconds',
       'durationSeconds',
       'duration',
     ])?.round();
     if (dur != null && dur > 0) return dur;
-    final int run = runningSeconds ?? 0;
+    final double? ms = asDoubleOrNull(raw, <String>[
+      'totalRunningMs',
+      'durationMs',
+      'duration_ms',
+    ]);
+    if (ms != null && ms > 0) return (ms / 1000).round();
+    if (startTime != null && endTime != null) {
+      final int diff = endTime!.difference(startTime!).inSeconds.abs();
+      if (diff > 0) return diff;
+    }
+    final int run = runningSeconds ?? drivingSeconds ?? 0;
     final int idle = idleSeconds ?? 0;
     final int stop = stoppedSeconds ?? 0;
     final int sum = run + idle + stop;
@@ -241,6 +348,62 @@ class ReportRow extends Equatable {
   double? get lph => asDoubleOrNull(raw, <String>['lph', 'litresPerHour', 'avg_fuel_consumption_hourly']);
   String? get fromLocation => asStringOrNull(raw, <String>['startAddress', 'start_address', 'fromLocation', 'from_location', 'origin']);
   String? get toLocation => asStringOrNull(raw, <String>['endAddress', 'end_address', 'toLocation', 'to_location', 'destination']);
+
+  // Geofence Transit & Single Place fields
+  String? get tripLabel => asStringOrNull(raw, <String>['trip_label', 'tripLabel', 'trip_type', 'tripType', 'mode']);
+  String? get fromGeofenceName => asStringOrNull(raw, <String>['from_geofence_name', 'fromGeofenceName', 'from_location', 'fromLocation', 'from_geofence', 'start_place', 'from']);
+  String? get toGeofenceName => asStringOrNull(raw, <String>['to_geofence_name', 'toGeofenceName', 'to_location', 'toLocation', 'to_geofence', 'end_place', 'to']);
+  String? get fromGeofenceId => asStringOrNull(raw, <String>['from_geofence_id', 'fromGeofenceId', 'fromGeofence']);
+  String? get toGeofenceId => asStringOrNull(raw, <String>['to_geofence_id', 'toGeofenceId', 'toGeofence']);
+  String? get geofenceName => asStringOrNull(raw, <String>['geofence_name', 'geofenceName', 'place_name', 'placeName', 'geofence', 'zone']);
+  String? get geofenceIdVal => asStringOrNull(raw, <String>['geofence_id', 'geofenceId']);
+  DateTime? get departureTime => asDate(raw, <String>['departure_time', 'departureTime', 'start_time', 'startTime']);
+  DateTime? get arrivalTime => asDate(raw, <String>['arrival_time', 'arrivalTime', 'end_time', 'endTime']);
+  DateTime? get entryTime => asDate(raw, <String>['entry_time', 'entryTime', 'in_time', 'inTime']);
+  DateTime? get exitTime => asDate(raw, <String>['exit_time', 'exitTime', 'out_time', 'outTime']);
+  String? get durationFormatted => asStringOrNull(raw, <String>['duration_formatted', 'durationFormatted', 'formatted_duration']);
+  int? get idleSecondsInside => asDoubleOrNull(raw, <String>['idle_seconds_inside', 'idleSecondsInside', 'idle_inside', 'idle_seconds'])?.round();
+
+  // Full Day Trips getters
+  double? get totalDistanceVal => asDoubleOrNull(raw, <String>['total_distance', 'totalDistance', 'distance', 'distanceKm', 'distance_travelled']) ?? distanceKm;
+  int? get drivingSeconds => asDoubleOrNull(raw, <String>['driving_seconds', 'drivingSeconds', 'running_seconds', 'runningSeconds'])?.round() ?? runningSeconds;
+  int? get totalSpanSeconds {
+    final int? span = asDoubleOrNull(raw, <String>[
+      'total_span_seconds',
+      'totalSpanSeconds',
+      'total_span',
+      'totalSpan',
+      'total_duration',
+      'totalDuration',
+      'duration_seconds',
+      'durationSeconds',
+      'duration',
+    ])?.round();
+    if (span != null && span > 0) return span;
+    if (startTime != null && endTime != null) {
+      final int diff = endTime!.difference(startTime!).inSeconds.abs();
+      if (diff > 0) return diff;
+    }
+    return totalSeconds;
+  }
+  int get stopsCount => asInt(raw, <String>['stops_count', 'stopsCount', 'stops', 'stoppage_count', 'total_stops']);
+  int get legsCount => asInt(raw, <String>['legs_count', 'legsCount', 'legs', 'trips_count']);
+  List<Map<String, dynamic>> get legs {
+    final dynamic l = raw['legs'];
+    if (l is List) return asMapList(l);
+    return const <Map<String, dynamic>>[];
+  }
+
+  // Ignition / Engine On getters
+  String? get eventType => asStringOrNull(raw, <String>['event_type', 'eventType', 'type', 'state', 'status', 'ignition']);
+  DateTime? get deviceTime => asDate(raw, <String>['device_time', 'deviceTime', 'timestamp', 'date', 'time']) ?? timestamp;
+  bool get isEngineOn {
+    final String? t = eventType?.toUpperCase();
+    if (t == 'ON' || t == 'TRUE' || t == '1') return true;
+    final dynamic rawIg = raw['ignition'];
+    if (rawIg == true || rawIg == 'true' || rawIg == 1) return true;
+    return false;
+  }
 
   int _extractCount(List<String> keys) {
     for (final String k in keys) {
@@ -326,14 +489,14 @@ class ReportRow extends Equatable {
         'vehicle_name', 'vehicleName', 'vehicleNumber', 'registrationNumber', 'vehicle', 'name',
       ]),
       timestamp: asDate(json, <String>[
-        'timestamp', 'date', 'time', 'start_time', 'startTime', 'createdAt', 'eventTime',
+        'timestamp', 'date', 'time', 'start_time', 'startTime', 'createdAt', 'eventTime', 'departure_time', 'entry_time',
       ]),
       distanceKm:
-          asDoubleOrNull(json, <String>['distance', 'distance_travelled', 'distanceKm', 'totalDistance']),
+          asDoubleOrNull(json, <String>['distance', 'distance_travelled', 'distanceKm', 'totalDistance', 'distance_km']),
       durationSeconds:
           asDoubleOrNull(json, <String>['duration_seconds', 'duration', 'durationSeconds', 'totalDuration'])
               ?.round(),
-      speed: asDoubleOrNull(json, <String>['speed', 'max_speed', 'maxSpeed', 'avgSpeed']),
+      speed: asDoubleOrNull(json, <String>['speed', 'max_speed', 'maxSpeed', 'avgSpeed', 'max_speed_kmh', 'avg_speed_kmh']),
       address: asStringOrNull(json, <String>['address', 'location', 'place', 'startAddress']),
       latitude: asDoubleOrNull(json, <String>['latitude', 'lat', 'start_lat', 'startLat']),
       longitude: asDoubleOrNull(json, <String>['longitude', 'lng', 'lon', 'start_lng', 'startLng']),
@@ -403,19 +566,38 @@ class ReportSummary extends Equatable {
   final double maxSpeed;
   final double avgSpeed;
 
-  factory ReportSummary.fromJson(Map<String, dynamic> json) => ReportSummary(
-        totalDistanceKm: asDouble(
-            json, <String>['totalDistance', 'distance', 'totalDistanceKm']),
-        totalTrips: asInt(json, <String>['totalTrips', 'trips', 'tripCount']),
-        totalDurationSeconds:
-            asInt(json, <String>['totalDuration', 'duration', 'runningTime']),
-        idleSeconds: asInt(json, <String>['idleDuration', 'idleTime', 'totalIdle']),
-        stoppageCount: asInt(json, <String>['stoppages', 'stopCount', 'totalStops']),
-        overspeedCount:
-            asInt(json, <String>['overspeedCount', 'overspeeding', 'violations']),
-        maxSpeed: asDouble(json, <String>['maxSpeed', 'topSpeed']),
-        avgSpeed: asDouble(json, <String>['avgSpeed', 'averageSpeed']),
-      );
+  factory ReportSummary.fromJson(Map<String, dynamic> json) {
+    int totalDur = asInt(json, <String>[
+      'totalDuration',
+      'duration',
+      'runningTime',
+      'total_duration',
+      'total_time',
+      'duration_seconds',
+    ]);
+    if (totalDur <= 0) {
+      final double? ms = asDoubleOrNull(json, <String>[
+        'totalRunningMs',
+        'durationMs',
+        'duration_ms',
+        'runningMs',
+      ]);
+      if (ms != null && ms > 0) totalDur = (ms / 1000).round();
+    }
+
+    return ReportSummary(
+      totalDistanceKm: asDouble(
+          json, <String>['totalDistance', 'distance', 'totalDistanceKm']),
+      totalTrips: asInt(json, <String>['totalTrips', 'trips', 'tripCount']),
+      totalDurationSeconds: totalDur,
+      idleSeconds: asInt(json, <String>['idleDuration', 'idleTime', 'totalIdle']),
+      stoppageCount: asInt(json, <String>['stoppages', 'stopCount', 'totalStops']),
+      overspeedCount:
+          asInt(json, <String>['overspeedCount', 'overspeeding', 'violations']),
+      maxSpeed: asDouble(json, <String>['maxSpeed', 'topSpeed']),
+      avgSpeed: asDouble(json, <String>['avgSpeed', 'averageSpeed']),
+    );
+  }
 
   /// Fallback: derive totals client-side when the API returns only rows.
   factory ReportSummary.fromRows(List<ReportRow> rows) {
@@ -480,8 +662,146 @@ class ReportResult extends Equatable {
         raw = asMapList(dataObj);
       } else if (dataObj is Map<dynamic, dynamic> || dataObj is Map<String, dynamic>) {
         final Map<String, dynamic> dataMap = Map<String, dynamic>.from(dataObj as Map);
-        // Check for Individual report payload with nested vehicle, activity, summary
-        if (dataMap.containsKey('vehicle') ||
+        // Check for Ignition report payload with intervals, events, summary
+        if (dataMap.containsKey('intervals') || dataMap.containsKey('events')) {
+          final Map<String, dynamic> vInfo = asMap(dataMap, <String>['vehicleInfo', 'vehicle']);
+          final String vName = vInfo['name']?.toString() ?? vInfo['plate']?.toString() ?? '-';
+          final String vPlate = vInfo['plate']?.toString() ?? vInfo['registrationNumber']?.toString() ?? vName;
+          final String vId = vInfo['id']?.toString() ?? '';
+
+          final dynamic summaryObj = dataMap['summary'];
+          int totalDurSec = 0;
+          double totalDist = 0.0;
+          double maxSpd = 0.0;
+          int eventCount = 0;
+
+          if (summaryObj is Map) {
+            final Map<String, dynamic> sMap = Map<String, dynamic>.from(summaryObj);
+            final int totalRunningMs = asInt(sMap, <String>['totalRunningMs', 'runningMs', 'durationMs']);
+            totalDurSec = totalRunningMs > 0 ? (totalRunningMs / 1000).round() : 0;
+            totalDist = asDouble(sMap, <String>['totalDistance', 'distance']);
+            maxSpd = asDouble(sMap, <String>['topSpeed', 'maxSpeed']);
+            eventCount = asInt(sMap, <String>['totalEvents', 'eventsCount']);
+          }
+
+          final dynamic intervalsObj = dataMap['intervals'];
+          final dynamic eventsObj = dataMap['events'];
+          final List<Map<String, dynamic>> rawIntervals =
+              intervalsObj is List ? asMapList(intervalsObj) : <Map<String, dynamic>>[];
+          final List<Map<String, dynamic>> rawEvents =
+              eventsObj is List ? asMapList(eventsObj) : <Map<String, dynamic>>[];
+
+          final bool isLastOngoing = rawEvents.isNotEmpty &&
+              rawEvents.last['status']?.toString().toUpperCase() == 'ON';
+
+          if (rawIntervals.isNotEmpty) {
+            for (int i = 0; i < rawIntervals.length; i++) {
+              final Map<String, dynamic> interval = rawIntervals[i];
+              final bool isOngoing = (i == rawIntervals.length - 1) && isLastOngoing;
+              final int durMs = asInt(interval, <String>['durationMs', 'duration_ms']);
+              final int durSec = durMs > 0 ? (durMs / 1000).round() : totalDurSec;
+
+              raw.add(<String, dynamic>{
+                'vehicle_id': vId,
+                'vehicle_name': vName,
+                'plate': vPlate,
+                'start_time': interval['startTime'] ?? interval['start_time'],
+                'end_time': isOngoing ? null : (interval['endTime'] ?? interval['end_time']),
+                'time': interval['startTime'] ?? interval['start_time'],
+                'device_time': interval['startTime'] ?? interval['start_time'],
+                'duration_seconds': durSec,
+                'duration': durSec,
+                'duration_ms': durMs,
+                'durationMs': durMs,
+                'start_lat': interval['startLat'] ?? interval['start_lat'],
+                'start_lng': interval['startLng'] ?? interval['start_lng'],
+                'end_lat': interval['endLat'] ?? interval['end_lat'],
+                'end_lng': interval['endLng'] ?? interval['end_lng'],
+                'latitude': interval['startLat'] ?? interval['start_lat'],
+                'longitude': interval['startLng'] ?? interval['start_lng'],
+                'status': interval['status'] ?? 'ON',
+                'event_type': interval['status'] ?? 'ON',
+                'is_ongoing': isOngoing,
+                'ignition': true,
+              });
+            }
+          } else if (rawEvents.isNotEmpty) {
+            final List<Map<String, dynamic>> evList = List<Map<String, dynamic>>.from(rawEvents);
+            if (evList.isNotEmpty && evList.first['status']?.toString().toUpperCase() == 'OFF') {
+              evList.removeAt(0);
+            }
+            int idx = 0;
+            while (idx < evList.length) {
+              final Map<String, dynamic> ev = evList[idx];
+              final bool isEvOn = ev['status']?.toString().toUpperCase() == 'ON';
+              if (isEvOn && idx + 1 < evList.length && evList[idx + 1]['status']?.toString().toUpperCase() == 'OFF') {
+                final Map<String, dynamic> nextEv = evList[idx + 1];
+                final int durMs = asInt(nextEv, <String>['durationMs', 'duration_ms']);
+                final int durSec = durMs > 0 ? (durMs / 1000).round() : 0;
+                raw.add(<String, dynamic>{
+                  'vehicle_id': vId,
+                  'vehicle_name': vName,
+                  'plate': vPlate,
+                  'start_time': ev['time'] ?? ev['device_time'],
+                  'end_time': nextEv['time'] ?? nextEv['device_time'],
+                  'time': ev['time'] ?? ev['device_time'],
+                  'device_time': ev['time'] ?? ev['device_time'],
+                  'duration_seconds': durSec,
+                  'duration': durSec,
+                  'duration_ms': durMs,
+                  'durationMs': durMs,
+                  'start_lat': ev['lat'] ?? ev['latitude'],
+                  'start_lng': ev['lng'] ?? ev['longitude'],
+                  'end_lat': nextEv['lat'] ?? nextEv['latitude'],
+                  'end_lng': nextEv['lng'] ?? nextEv['longitude'],
+                  'latitude': ev['lat'] ?? ev['latitude'],
+                  'longitude': ev['lng'] ?? ev['longitude'],
+                  'status': 'ON',
+                  'event_type': 'ON',
+                  'is_ongoing': false,
+                  'ignition': true,
+                });
+                idx += 2;
+              } else {
+                final int durMs = asInt(ev, <String>['durationMs', 'duration_ms']);
+                final int durSec = durMs > 0 ? (durMs / 1000).round() : totalDurSec;
+                raw.add(<String, dynamic>{
+                  'vehicle_id': vId,
+                  'vehicle_name': vName,
+                  'plate': vPlate,
+                  'start_time': ev['time'] ?? ev['device_time'],
+                  'end_time': null,
+                  'time': ev['time'] ?? ev['device_time'],
+                  'device_time': ev['time'] ?? ev['device_time'],
+                  'duration_seconds': durSec,
+                  'duration': durSec,
+                  'duration_ms': durMs,
+                  'durationMs': durMs,
+                  'start_lat': ev['lat'] ?? ev['latitude'],
+                  'start_lng': ev['lng'] ?? ev['longitude'],
+                  'latitude': ev['lat'] ?? ev['latitude'],
+                  'longitude': ev['lng'] ?? ev['longitude'],
+                  'status': ev['status'] ?? 'ON',
+                  'event_type': ev['status'] ?? 'ON',
+                  'is_ongoing': true,
+                  'ignition': true,
+                });
+                idx += 1;
+              }
+            }
+          }
+
+          if (totalDurSec == 0 && raw.isNotEmpty) {
+            totalDurSec = raw.fold<int>(0, (int sum, Map<String, dynamic> r) => sum + (asInt(r, <String>['duration_seconds']) ));
+          }
+
+          summary = ReportSummary(
+            totalDurationSeconds: totalDurSec,
+            totalDistanceKm: totalDist,
+            maxSpeed: maxSpd,
+            totalTrips: eventCount > 0 ? eventCount : raw.length,
+          );
+        } else if (dataMap.containsKey('vehicle') ||
             dataMap.containsKey('activity') ||
             dataMap.containsKey('summary')) {
           final Map<String, dynamic> v = asMap(dataMap, <String>['vehicle']);
@@ -510,9 +830,11 @@ class ReportResult extends Equatable {
         raw = asMapList(payload);
       }
 
-      final Map<String, dynamic> s =
-          asMap(payload, <String>['summary', 'totals', 'aggregate', 'stats']);
-      summary = s.isNotEmpty ? ReportSummary.fromJson(s) : ReportSummary.fromJson(payload);
+      if (summary.isEmpty) {
+        final Map<String, dynamic> s =
+            asMap(payload, <String>['summary', 'totals', 'aggregate', 'stats']);
+        summary = s.isNotEmpty ? ReportSummary.fromJson(s) : ReportSummary.fromJson(payload);
+      }
     } else if (payload is List) {
       raw = asMapList(payload);
     }

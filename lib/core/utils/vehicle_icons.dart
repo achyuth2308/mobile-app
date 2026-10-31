@@ -21,7 +21,7 @@ class VehicleIcons {
       };
 
   static IconData forAlert(String type) => switch (type.toLowerCase().trim()) {
-        'overspeed' || 'overspeeding' => Icons.speed_rounded,
+        'overspeed' || 'overspeeding' || 'continuous_overspeed' => Icons.speed_rounded,
         'geofence' || 'geofence_enter' || 'geofenceenter' => Icons.login_rounded,
         'geofence_exit' || 'geofenceexit' => Icons.logout_rounded,
         'ignition_on' => Icons.power_settings_new_rounded,
@@ -29,7 +29,8 @@ class VehicleIcons {
         'trip_started' || 'trip_start' || 'trip_begin' || 'start_trip' => Icons.navigation_rounded,
         'trip_ended' || 'trip_end' || 'trip_completed' => Icons.flag_rounded,
         'sos' || 'panic' => Icons.sos_rounded,
-        'power_cut' => Icons.power_off_outlined,
+        'main_battery_disconnected' || 'power_cut' || 'power_disconnected' => Icons.power_off_rounded,
+        'main_battery_connected' => Icons.battery_charging_full_rounded,
         'low_battery' => Icons.battery_alert_rounded,
         'harsh_braking' => Icons.warning_amber_rounded,
         'harsh_acceleration' => Icons.rocket_launch_rounded,

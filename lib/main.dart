@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
+import 'core/config/app_config.dart';
 import 'core/crashlytics/crash_reporter.dart';
 import 'core/notifications/push_service.dart';
 import 'core/router/app_router.dart';
@@ -18,7 +19,9 @@ import 'providers/auth_provider.dart';
 import 'providers/core_providers.dart';
 import 'providers/fleet_provider.dart';
 import 'providers/lifecycle_provider.dart';
+import 'providers/safety_parking_provider.dart';
 import 'shared/widgets/connectivity_banner.dart';
+import 'shared/widgets/safety_parking_theft_overlay.dart';
 
 Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +58,7 @@ Future<void> main() async {
   }
 
   final SecureStore store = await SecureStore.create();
+  AppConfig.noDataThresholdHours = store.nodataThresholdHours;
 
   // ── Flutter framework errors ─────────────────────────────────────────────
   // FlutterError.onError captures errors thrown inside the Flutter widget
@@ -180,7 +184,7 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
             'tow' ||
             'power_cut' =>
               prefs.sos,
-            'theft' || 'theft_alarm' || 'tamper' => prefs.theft,
+            'theft' || 'theft_alarm' || 'safety_park' || 'tamper' => prefs.theft,
             'overspeed' || 'overspeeding' => prefs.overspeed,
             'geofence_enter' ||
             'geofenceenter' ||
@@ -224,6 +228,15 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
 
   void _handleNotificationTap(Map<String, dynamic> data) {
     if (!mounted) return;
+    final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? '').toString().toLowerCase();
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        type == 'safety_park' ||
+        type == 'theft_alarm' ||
+        type == 'theft';
+    if (isTheft) {
+      ref.read(safetyParkingProvider.notifier).handleAlertJson(data);
+    }
     final String route = routeForNotification(data);
     try {
       ref.read(routerProvider).go(route);
@@ -233,6 +246,15 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
   }
 
   void _handleForegroundMessage(Map<String, dynamic> data) {
+    final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? '').toString().toLowerCase();
+    final bool isTheft = data['isTheft'] == 'true' ||
+        data['isTheft'] == true ||
+        type == 'safety_park' ||
+        type == 'theft_alarm' ||
+        type == 'theft';
+    if (isTheft) {
+      ref.read(safetyParkingProvider.notifier).handleAlertJson(data);
+    }
     // A push may indicate state we have not seen yet.
     if (ref.read(authProvider).isAuthenticated) {
       unawaited(ref.read(fleetProvider.notifier).load(silent: true));
@@ -268,10 +290,12 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
         return AppLifecycleObserver(
           child: ConnectivityReconnector(
             child: ConnectivityBanner(
-              child: MediaQuery.withClampedTextScaling(
-                minScaleFactor: 0.85,
-                maxScaleFactor: 1.35,
-                child: child ?? const SizedBox.shrink(),
+              child: SafetyParkingTheftOverlay(
+                child: MediaQuery.withClampedTextScaling(
+                  minScaleFactor: 0.85,
+                  maxScaleFactor: 1.35,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),

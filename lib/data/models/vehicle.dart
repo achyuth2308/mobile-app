@@ -12,7 +12,7 @@ extension VehicleStatusX on VehicleStatus {
   String get key => name;
 
   String get label => switch (this) {
-        VehicleStatus.moving => 'Running',
+        VehicleStatus.moving => 'Moving',
         VehicleStatus.idle => 'Idle',
         VehicleStatus.stopped => 'Parking',
         VehicleStatus.offline => 'No Data',
@@ -169,6 +169,64 @@ class Vehicle extends Equatable {
       longitude != null &&
       !(latitude == 0 && longitude == 0);
 
+  /// True if Safety Parking (Theft Alarm) is armed for this vehicle.
+  bool get isSafetyParkActive {
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      final dynamic sp = meta['safetyPark'] ?? meta['safety_park'];
+      return sp == 'YES' || sp == true;
+    }
+    final dynamic sp = raw['safetyPark'] ?? raw['safety_park'];
+    return sp == 'YES' || sp == true;
+  }
+
+  /// Returns a copy of this vehicle with Safety Parking updated.
+  Vehicle withSafetyPark(bool armed) {
+    final Map<String, dynamic> newRaw = Map<String, dynamic>.from(raw);
+    final Map<String, dynamic> newMeta = (newRaw['metadata'] is Map)
+        ? Map<String, dynamic>.from(newRaw['metadata'] as Map)
+        : <String, dynamic>{};
+    newMeta['safetyPark'] = armed ? 'YES' : 'NO';
+    newRaw['metadata'] = newMeta;
+    newRaw['safetyPark'] = armed ? 'YES' : 'NO';
+
+    return Vehicle(
+      id: id,
+      name: name,
+      registrationNumber: registrationNumber,
+      imei: imei,
+      deviceId: deviceId,
+      orgId: orgId,
+      type: type,
+      driverName: driverName,
+      driverPhone: driverPhone,
+      latitude: latitude,
+      longitude: longitude,
+      speed: speed,
+      heading: heading,
+      ignition: ignition,
+      isMoving: isMoving,
+      odometer: odometer,
+      fuelLevel: fuelLevel,
+      batteryLevel: batteryLevel,
+      gsmSignal: gsmSignal,
+      satellites: satellites,
+      address: address,
+      lastPacketAt: lastPacketAt,
+      statusChangedAt: statusChangedAt,
+      expiryDate: expiryDate,
+      speedLimit: speedLimit,
+      overspeedDurationAlert: overspeedDurationAlert,
+      idleDurationAlert: idleDurationAlert,
+      todayDistanceKm: todayDistanceKm,
+      isActive: isActive,
+      rawStatus: rawStatus,
+      raw: newRaw,
+      isImmobilized: isImmobilized,
+      isOnline: isOnline,
+    );
+  }
+
   /// True for bike / scooter / motorcycle type vehicles.
   /// Two-wheelers typically power their GPS tracker off the bike battery,
   /// so when the bike stops the device goes offline immediately. We treat
@@ -197,20 +255,16 @@ class Vehicle extends Equatable {
       return VehicleStatus.noData;
     }
 
-    // 1. If the server explicitly says it's offline:
-    // EXCEPTION: Two-wheelers power their GPS tracker off the bike battery.
-    // When the ignition cuts off the device immediately goes silent and the
-    // server marks it offline. That is NORMAL parking behaviour, not a fault.
-    // So for two-wheelers we always show Stopped (Parking) instead of Offline.
-    if (!isOnline) {
-      if (isTwoWheeler) return VehicleStatus.stopped;
-      return VehicleStatus.offline;
-    }
-
-    // 2. Stale packet fallback — haven't heard from device in >10 minutes.
-    // EXCEPTION: Same two-wheeler parking logic as above.
     final Duration? age = sinceLastPacket;
-    if (age == null || age > AppConfig.offlineThreshold) {
+
+    // ── NO DATA RULE ─────────────────────────────────────────────
+    // When telemetry is NOT coming from the device, keep the vehicle
+    // in its exact SAME STATE (Moving, Idle, Parked) until the elapsed
+    // time exceeds the user's selected threshold (default: 1 hr, or 3h/6h/12h/24h).
+    //
+    // Only after the threshold duration has fully elapsed without any
+    // packets arriving from the device, transition to 'offline' (No Data).
+    if (age != null && age > AppConfig.offlineThreshold) {
       if (isTwoWheeler) return VehicleStatus.stopped;
       return VehicleStatus.offline;
     }
@@ -325,8 +379,8 @@ class Vehicle extends Equatable {
     if ((lat == null || lng == null) && src['coordinates'] is List) {
       final List<dynamic> c = src['coordinates'] as List<dynamic>;
       if (c.length >= 2) {
-        lng = (c[0] as num?)?.toDouble();
-        lat = (c[1] as num?)?.toDouble();
+        lng = toDouble(c[0]);
+        lat = toDouble(c[1]);
       }
     }
     if (lat == null || lng == null) {
@@ -515,12 +569,33 @@ class Vehicle extends Equatable {
         }
         return val;
       }(),
-      fuelLevel:
-          asDoubleOrNull(src, <String>['fuel', 'fuelLevel', 'fuelPercent', 'current_fuel', 'currentFuel']) ??
-              asDoubleOrNull(
-                  srcAttrs, <String>['fuel', 'fuelLevel', 'fuelPercent', 'current_fuel', 'currentFuel']) ??
-              asDoubleOrNull(json, <String>['fuel', 'fuelLevel', 'current_fuel', 'currentFuel']) ??
-              asDoubleOrNull(jsonAttrs, <String>['fuel', 'fuelLevel', 'current_fuel', 'currentFuel']),
+      fuelLevel: () {
+        const List<String> fuelKeys = <String>[
+          'fuel',
+          'fuelLevel',
+          'fuel_level',
+          'fuelPercent',
+          'fuel_percent',
+          'current_fuel',
+          'currentFuel',
+          'current_fuel_level',
+          'currentFuelLevel',
+          'fuel_litres',
+          'fuelLitres',
+          'fuel_liters',
+          'fuelLiters',
+          'litres',
+          'liters',
+          'fuel_qty',
+          'fuelQty',
+        ];
+        return asDoubleOrNull(src, fuelKeys) ??
+            asDoubleOrNull(srcAttrs, fuelKeys) ??
+            asDoubleOrNull(json, fuelKeys) ??
+            asDoubleOrNull(jsonAttrs, fuelKeys) ??
+            asDoubleOrNull(device, fuelKeys) ??
+            asDoubleOrNull(deviceAttrs, fuelKeys);
+      }(),
       batteryLevel:
           asDoubleOrNull(src, <String>['current_voltage', 'voltage', 'external_voltage']) ??
               asDoubleOrNull(

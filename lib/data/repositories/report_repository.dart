@@ -24,15 +24,23 @@ class ReportRepository {
     required DateTime end,
     String? vehicleId,
     List<String>? vehicleIds,
+    String? mode,
+    String? fromGeofenceId,
+    String? toGeofenceId,
+    String? geofenceId,
     CancelToken? cancelToken,
   }) async {
-    // For consolidated: always call the backend fleet-wide (it returns ALL vehicles in one query).
+    // For consolidated and geofence endpoints: backend handles fleet-wide in one query.
     // Per-vehicle parallel calls would only return 1 row each, causing missing vehicles.
     final bool isFleetWideParallel = vehicleId == null &&
         type != ReportType.consolidated &&
         type != ReportType.fuelConsolidated &&
         type != ReportType.individual &&
-        type != ReportType.routeHistory;
+        type != ReportType.routeHistory &&
+        type != ReportType.geofenceTransit &&
+        type != ReportType.geofenceSinglePlace &&
+        type != ReportType.dailyTrip &&
+        type != ReportType.ignition;
 
     final List<Vehicle> vehicles = _ref.read(fleetProvider).vehicles;
 
@@ -110,11 +118,21 @@ class ReportRepository {
       vehicleId: vehicleId,
       vehicle: vehicle,
       vehicleIds: vehicleIds,
+      mode: mode,
+      fromGeofenceId: fromGeofenceId,
+      toGeofenceId: toGeofenceId,
+      geofenceId: geofenceId,
       cancelToken: cancelToken,
     );
 
     // Fallback: only for non-consolidated report types
-    if (type != ReportType.consolidated && type != ReportType.fuelConsolidated && type != ReportType.individual &&
+    if (type != ReportType.consolidated &&
+        type != ReportType.fuelConsolidated &&
+        type != ReportType.individual &&
+        type != ReportType.geofenceTransit &&
+        type != ReportType.geofenceSinglePlace &&
+        type != ReportType.dailyTrip &&
+        type != ReportType.ignition &&
         vehicleId == null && singleRes.rows.isEmpty && vehicles.isNotEmpty) {
       final List<ReportResult> results = (await Future.wait(
         vehicles.map((Vehicle v) async {
@@ -383,6 +401,10 @@ class ReportRepository {
     String? vehicleId,
     Vehicle? vehicle,
     List<String>? vehicleIds,
+    String? mode,
+    String? fromGeofenceId,
+    String? toGeofenceId,
+    String? geofenceId,
     CancelToken? cancelToken,
   }) async {
     // Special handling for manual trips: merge remote + local stored trips
@@ -469,6 +491,41 @@ class ReportRepository {
       );
     }
 
+    // Dedicated Ignition Report endpoint matches webapp (/api/vehicles/:id/ignition-report)
+    if (type == ReportType.ignition) {
+      final List<Vehicle> fleetVehicles = _ref.read(fleetProvider).vehicles;
+      final String? targetId = vehicleId ??
+          vehicle?.id ??
+          (fleetVehicles.isNotEmpty ? fleetVehicles.first.id : null);
+
+      if (targetId != null && targetId.isNotEmpty) {
+        final String sDate =
+            '${start.year.toString().padLeft(4, '0')}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}T${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}:${start.second.toString().padLeft(2, '0')}';
+        final String eDate =
+            '${end.year.toString().padLeft(4, '0')}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}T${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}:${end.second.toString().padLeft(2, '0')}';
+
+        try {
+          final dynamic apiRes = await _api.get<dynamic>(
+            '/vehicles/$targetId/ignition-report',
+            query: <String, dynamic>{
+              'startDate': sDate,
+              'endDate': eDate,
+            },
+            cancelToken: cancelToken,
+          );
+
+          if (apiRes != null) {
+            final ReportResult parsed = ReportResult.parse(apiRes);
+            if (parsed.rows.isNotEmpty || !parsed.summary.isEmpty) {
+              return parsed;
+            }
+          }
+        } catch (e) {
+          debugPrint('Vehicles ignition-report failed, falling back to /reports/ignition: $e');
+        }
+      }
+    }
+
     final dynamic res = await _api.get<dynamic>(
       type.path,
       query: <String, dynamic>{
@@ -480,6 +537,13 @@ class ReportRepository {
         if (vehicleIds != null && vehicleIds.isNotEmpty)
           'vehicleIds': vehicleIds.join(','),
         if (type == ReportType.idle) 'onlyIdle': true,
+        if (mode != null && mode.isNotEmpty && mode != 'all') 'mode': mode,
+        if (fromGeofenceId != null && fromGeofenceId.isNotEmpty)
+          'fromGeofenceId': fromGeofenceId,
+        if (toGeofenceId != null && toGeofenceId.isNotEmpty)
+          'toGeofenceId': toGeofenceId,
+        if (geofenceId != null && geofenceId.isNotEmpty)
+          'geofenceId': geofenceId,
       },
       cancelToken: cancelToken,
     );
