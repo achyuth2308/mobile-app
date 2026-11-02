@@ -48,11 +48,11 @@ class AppColors {
 
   // ── Fleet status semantics ───────────────────────────────────────
   /// Ignition on, speed > 0 — actively driving.
-  static const Color moving = Color(0xFF22C55E);
+  static const Color moving = Color(0xFF10B981);
   static const Color movingSoft = Color(0xFF16351F);
 
   /// Ignition on, speed ≈ 0 — engine burning fuel while parked.
-  static const Color idle = Color(0xFFF59E0B);
+  static const Color idle = Color(0xFFEAB308);
   static const Color idleSoft = Color(0xFF3A2A0A);
 
   /// Ignition off but reporting — parked (Gray).
@@ -64,7 +64,7 @@ class AppColors {
   static const Color offlineSoft = Color(0xFF3B1122);
 
   /// No telemetry or GPS data ever received / unavailable — (Slate Gray).
-  static const Color noData = Color(0xFF94A3B8);
+  static const Color noData = Color(0xFFBE123C);
   static const Color noDataSoft = Color(0xFF1E293B);
 
   /// Alerts / overspeed / SOS.
