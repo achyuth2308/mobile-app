@@ -40,7 +40,7 @@ class VehicleCard extends ConsumerWidget {
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
     final Widget content = Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(12.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -49,12 +49,12 @@ class VehicleCard extends ConsumerWidget {
             children: [
               // LEFT COLUMN: Image & Name
               SizedBox(
-                width: 90,
+                width: 82,
                 child: Column(
                   children: [
                     Image.asset(
                       'assets/images/vehicles/${vehicle.displayType}.png',
-                      height: 60,
+                      height: 44,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Icon(
                         VehicleIcons.forType(vehicle.displayType),
@@ -62,7 +62,7 @@ class VehicleCard extends ConsumerWidget {
                         color: statusColor.withOpacity(0.5),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 5),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -89,24 +89,33 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                          horizontal: 8, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.grey.shade800
-                            : const Color(0xFFF0F2F5),
+                        color: statusColor.withValues(
+                          alpha: isDark ? 0.20 : 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: statusColor.withValues(
+                            alpha: isDark ? 0.45 : 0.28,
+                          ),
+                          width: 1.0,
+                        ),
                       ),
                       child: Text(
                         vehicle.status.label,
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
                           color: isDark
-                              ? Colors.grey.shade300
-                              : const Color(0xFF5E657D),
+                              ? Color.lerp(statusColor, Colors.white, 0.25)
+                              : (statusColor == AppColors.idle
+                                  ? const Color(0xFFB45309)
+                                  : statusColor),
                         ),
                       ),
                     ),
@@ -114,7 +123,7 @@ class VehicleCard extends ConsumerWidget {
                 ),
               ),
 
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
               // RIGHT COLUMN: Metrics Grid
               Expanded(
@@ -155,7 +164,7 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
                     // Metrics Grid (3x2 or 2x3 depending on screen size)
                     Row(
@@ -350,13 +359,13 @@ class VehicleCard extends ConsumerWidget {
             ],
           ),
           if (!minimal) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 7),
             _LiveStatusStrip(vehicle: vehicle),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Divider(
                 height: 1,
                 color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
-            const SizedBox(height: 12),
+            const SizedBox(height: 7),
 
             // BOTTOM ROW: Address
             Row(
@@ -368,7 +377,7 @@ class VehicleCard extends ConsumerWidget {
                 Expanded(
                   child: LiveAddress(
                     vehicle: vehicle,
-                    max: 9999,
+                    max: 1,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color:
                           isDark ? Colors.grey.shade400 : Colors.grey.shade700,
@@ -478,7 +487,7 @@ class VehicleCard extends ConsumerWidget {
     };
 
     return Container(
-      margin: EdgeInsets.only(bottom: dense ? Gap.md : Gap.lg),
+      margin: EdgeInsets.only(bottom: dense ? Gap.xs : Gap.sm),
       decoration: BoxDecoration(
         color: isDark ? AppColors.night3 : Colors.white,
         borderRadius: Corners.rLg,
@@ -617,7 +626,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
 
     if (v.status == VehicleStatus.noData || since == null) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(8),
@@ -646,7 +655,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
     final String durStr = Fmt.statusDuration(since);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
@@ -732,9 +741,9 @@ class _MetricItem extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         Padding(
-          padding: EdgeInsets.only(left: icon != null ? 17 : 14),
+          padding: EdgeInsets.only(left: icon != null ? 15 : 12),
           child: Text(
             label,
             style: TextStyle(

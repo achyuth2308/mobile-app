@@ -37,7 +37,7 @@ void main() {
       expect(find.text('OFFLINE'), findsOneWidget);
 
       // Verify center hub
-      expect(find.text('TOTAL FLEET'), findsOneWidget);
+      expect(find.text('TOTAL'), findsOneWidget);
       expect(find.textContaining('online'), findsOneWidget);
     });
 

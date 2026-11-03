@@ -657,21 +657,62 @@ final ProviderFamily<Vehicle?, String> vehicleByIdProvider =
 final StateProvider<String> fleetSearchProvider =
     StateProvider<String>((Ref ref) => '');
 
+enum FleetSortOption {
+  statusDefault,
+  speedDesc,
+  nameAsc,
+  batteryDesc,
+}
+
 final StateProvider<VehicleStatus?> fleetFilterProvider =
     StateProvider<VehicleStatus?>((Ref ref) => null);
+
+final StateProvider<String?> fleetTypeFilterProvider =
+    StateProvider<String?>((Ref ref) => null);
+
+final StateProvider<FleetSortOption> fleetSortProvider =
+    StateProvider<FleetSortOption>((Ref ref) => FleetSortOption.statusDefault);
+
+final StateProvider<bool> fleetAlertsOnlyProvider =
+    StateProvider<bool>((Ref ref) => false);
 
 final Provider<List<Vehicle>> filteredVehiclesProvider =
     Provider<List<Vehicle>>((Ref ref) {
   final List<Vehicle> all = ref.watch(fleetProvider).vehicles;
   final String query = ref.watch(fleetSearchProvider).trim().toLowerCase();
   final VehicleStatus? filter = ref.watch(fleetFilterProvider);
+  final String? typeFilter = ref.watch(fleetTypeFilterProvider);
+  final bool alertsOnly = ref.watch(fleetAlertsOnlyProvider);
+  final FleetSortOption sortOption = ref.watch(fleetSortProvider);
 
-  return all.where((Vehicle v) {
+  final List<Vehicle> list = all.where((Vehicle v) {
     if (filter != null && v.status != filter) return false;
+    if (typeFilter != null) {
+      final String t = v.displayType.toLowerCase();
+      if (typeFilter == 'other') {
+        if (t == 'truck' || t == 'car' || t == 'bike') return false;
+      } else if (!t.contains(typeFilter)) {
+        return false;
+      }
+    }
+    if (alertsOnly && !v.isOverspeeding) return false;
     if (query.isEmpty) return true;
     return v.displayName.toLowerCase().contains(query) ||
         v.name.toLowerCase().contains(query) ||
         v.imei.toLowerCase().contains(query) ||
         (v.driverName ?? '').toLowerCase().contains(query);
-  }).toList(growable: false);
+  }).toList();
+
+  switch (sortOption) {
+    case FleetSortOption.speedDesc:
+      list.sort((a, b) => b.speed.compareTo(a.speed));
+    case FleetSortOption.nameAsc:
+      list.sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+    case FleetSortOption.batteryDesc:
+      list.sort((a, b) => (b.batteryLevel ?? 0).compareTo(a.batteryLevel ?? 0));
+    case FleetSortOption.statusDefault:
+      break;
+  }
+
+  return list;
 });

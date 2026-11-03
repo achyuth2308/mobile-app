@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/vehicle.dart';
@@ -37,6 +38,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     final FleetState fleet = ref.watch(fleetProvider);
     final int alertCount = ref.watch(unreadAlertsCountProvider);
     final List<Vehicle> vehicles = ref.watch(filteredVehiclesProvider);
@@ -55,7 +57,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // ── Header ─────────────────────────────────────────────
             SliverAppBar(
               pinned: true,
-              expandedHeight: 90 + MediaQuery.paddingOf(context).top,
+              toolbarHeight: 88,
+              expandedHeight: 88 + MediaQuery.paddingOf(context).top,
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.lg,
@@ -63,28 +66,65 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 background: SafeArea(
                   child: Padding(
                     padding:
-                        const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, 100.0, 0),
+                        const EdgeInsets.fromLTRB(Gap.lg, 12.0, 110.0, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Text(
-                          _greeting(name),
-                          maxLines: 2,
-                          softWrap: true,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            fontSize: 18,
-                            height: 1.25,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              _timeGreeting(),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Text('👋', style: TextStyle(fontSize: 13)),
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          Fmt.date(DateTime.now()),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          (name ?? '').trim().isNotEmpty
+                              ? (name ?? '').trim()
+                              : 'Operator',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.4,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            height: 1.2,
                           ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 11,
+                              color: isDark
+                                  ? const Color(0xFF64748B)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              Fmt.date(DateTime.now()),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -92,101 +132,154 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
               actions: <Widget>[
-                IconButton(
-                  tooltip: 'Alerts',
-                  icon: Badge(
-                    isLabelVisible: alertCount > 0,
-                    backgroundColor: const Color(0xFFEF4444),
-                    textColor: Colors.white,
-                    textStyle: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    label: Text(alertCount > 99 ? '99+' : '$alertCount'),
-                    child: const Icon(Icons.notifications_outlined),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Direct Bell Icon (No card, bold rounded bell)
+                      IconButton(
+                        tooltip: 'Alerts',
+                        onPressed: () => context.push('/alerts'),
+                        icon: Badge(
+                          isLabelVisible: alertCount > 0,
+                          backgroundColor: const Color(0xFFEF4444),
+                          textColor: Colors.white,
+                          textStyle: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          label: Text(alertCount > 99 ? '99+' : '$alertCount'),
+                          child: Icon(
+                            alertCount > 0
+                                ? Icons.notifications_active_rounded
+                                : Icons.notifications_rounded,
+                            size: 24,
+                            color: isDark
+                                ? const Color(0xFFFBBF24) // Radiant Gold
+                                : const Color(0xFFD97706), // Rich Metallic Gold
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+
+                      // Direct Person Icon (No letter avatar, no card box)
+                      IconButton(
+                        tooltip: 'Profile',
+                        onPressed: () => context.push('/profile-settings'),
+                        icon: Icon(
+                          Icons.person_rounded,
+                          size: 26,
+                          color: isDark ? const Color(0xFF818CF8) : AppColors.brand,
+                        ),
+                      ),
+                      const SizedBox(width: Gap.md),
+                    ],
                   ),
-                  onPressed: () => context.push('/alerts'),
                 ),
-                const SizedBox(width: Gap.xs),
-                IconButton(
-                  tooltip: 'Profile & Settings',
-                  icon: const Icon(Icons.account_circle_outlined),
-                  onPressed: () => context.push('/profile-settings'),
-                ),
-                const SizedBox(width: Gap.xs),
               ],
             ),
 
             // ── Overview ─────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.xs, Gap.lg, 0),
+                padding: const EdgeInsets.fromLTRB(Gap.lg, 0, Gap.lg, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     const OfflineNotice(),
                     // ── Search Bar directly above Total Fleet card ───────
                     Container(
-                      margin: const EdgeInsets.only(top: Gap.xs, bottom: Gap.md),
+                      margin: const EdgeInsets.only(top: 2, bottom: Gap.sm),
+                      padding: const EdgeInsets.fromLTRB(7, 5, 14, 5),
                       decoration: BoxDecoration(
-                        color: theme.brightness == Brightness.dark
-                            ? theme.colorScheme.surfaceContainerHigh
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        color: isDark ? const Color(0xFF162036) : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: theme.brightness == Brightness.dark
-                              ? theme.colorScheme.outlineVariant.withValues(alpha: 0.4)
-                              : const Color(0xFFE2E8F0),
-                          width: 1.2,
+                          color: isDark
+                              ? AppColors.brand.withValues(alpha: 0.38)
+                              : AppColors.brand.withValues(alpha: 0.28),
+                          width: 1.5,
                         ),
                         boxShadow: <BoxShadow>[
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
+                            color: AppColors.brand.withValues(alpha: isDark ? 0.25 : 0.08),
+                            blurRadius: 14,
+                            spreadRadius: 1,
+                            offset: const Offset(0, 4),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.035),
+                            blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-                      child: TextField(
-                        controller: _search,
-                        textInputAction: TextInputAction.search,
-                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: 'Search plate, name, driver or IMEI',
-                          hintStyle: TextStyle(
-                            fontSize: 13,
-                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      child: Row(
+                        children: [
+                          // Left Highlighted Search Icon Badge
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.brand.withValues(alpha: isDark ? 0.24 : 0.10),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.search_rounded,
+                              size: 20,
+                              color: AppColors.brand,
+                            ),
                           ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            size: 20,
-                            color: theme.colorScheme.primary,
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: Gap.md,
-                            vertical: 12,
-                          ),
-                          suffixIcon: _search.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.clear_rounded, size: 18),
-                                  onPressed: () {
-                                    _search.clear();
-                                    ref.read(fleetSearchProvider.notifier).state = '';
-                                    setState(() {});
-                                  },
+                          const SizedBox(width: 8),
+
+                          // Search Text Field
+                          Expanded(
+                            child: TextField(
+                              controller: _search,
+                              textInputAction: TextInputAction.search,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search plate, name, driver or IMEI...',
+                                hintStyle: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
                                 ),
-                        ),
-                        onChanged: (String v) {
-                          ref.read(fleetSearchProvider.notifier).state = v;
-                          setState(() {});
-                        },
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                suffixIcon: _search.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        icon: const Icon(Icons.clear_rounded, size: 18),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                        onPressed: () {
+                                          _search.clear();
+                                          ref.read(fleetSearchProvider.notifier).state = '';
+                                          setState(() {});
+                                        },
+                                      ),
+                              ),
+                              onChanged: (String v) {
+                                ref.read(fleetSearchProvider.notifier).state = v;
+                                setState(() {});
+                              },
+                            ),
+                          ),
+
+                          ],
                       ),
                     ),
                     const FleetOverviewCard()
@@ -309,13 +402,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  String _greeting(String? name) {
+  String _timeGreeting() {
     final int hour = DateTime.now().hour;
-    final String part = hour < 12
+    return hour < 12
         ? 'Good morning'
         : hour < 17
             ? 'Good afternoon'
             : 'Good evening';
+  }
+
+  String _greeting(String? name) {
+    final String part = _timeGreeting();
     final String clean = (name ?? '').trim();
     return clean.isEmpty ? part : '$part,\n$clean';
   }

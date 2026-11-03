@@ -133,7 +133,7 @@ class _FleetInfographicWheelState extends ConsumerState<FleetInfographicWheel>
         // Base coordinate size for the wheel
         const double baseSize = 350.0;
         final double availableWidth = constraints.maxWidth;
-        final double scale = (availableWidth / baseSize).clamp(0.75, 1.05);
+        final double scale = ((availableWidth - 16) / baseSize).clamp(0.75, 0.95);
         final double wheelSize = baseSize * scale;
 
         return Center(
@@ -315,36 +315,30 @@ class _PetalPainter extends CustomPainter {
     canvas.drawPath(path, shadowPaint);
     canvas.restore();
 
-    // 2. Interior Body Fill: Opaque base + soft rich colored tint
-    final Paint baseFillPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = isDark ? const Color(0xFF1E293B) : Colors.white;
-    canvas.drawPath(path, baseFillPaint);
+    // 2. Interior Body Fill: Dark rich saturated color inside
+    final Color darkInner1 = Color.lerp(color, const Color(0xFF0F172A), 0.15)!;
+    final Color darkInner2 = Color.lerp(color, Colors.black, 0.40)!;
 
     final Paint colorFillPaint = Paint()
       ..style = PaintingStyle.fill
       ..shader = RadialGradient(
-        center: const Alignment(0.0, -0.45),
-        radius: 0.85,
-        colors: isDark
-            ? <Color>[
-                color.withValues(alpha: isSelected ? 0.36 : 0.22),
-                color.withValues(alpha: isSelected ? 0.20 : 0.10),
-              ]
-            : <Color>[
-                color.withValues(alpha: isSelected ? 0.30 : 0.20),
-                color.withValues(alpha: isSelected ? 0.16 : 0.08),
-              ],
+        center: const Alignment(0.0, -0.40),
+        radius: 0.90,
+        colors: <Color>[
+          darkInner1,
+          darkInner2,
+        ],
       ).createShader(Rect.fromCircle(center: center, radius: 175));
     canvas.drawPath(path, colorFillPaint);
 
-    // 3. Solid, Bold, Vibrant Outer Rim (Single clean stroke, no doubling)
+    // 3. Outside Light Line Rim
+    final Color lightLineColor = Color.lerp(color, Colors.white, 0.72)!;
     final Paint rimPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isSelected ? 6.2 : 5.2
+      ..strokeWidth = isSelected ? 3.5 : 2.4
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..color = color;
+      ..color = isSelected ? Colors.white : lightLineColor;
 
     canvas.drawPath(path, rimPaint);
   }
@@ -468,15 +462,15 @@ class _PetalContent extends ConsumerWidget {
             (isDimmed ? 0.35 : 1.0) * animValue.clamp(0.0, 1.0);
 
         return Positioned(
-          left: posX - 43,
-          top: posY - 40,
+          left: posX - 45,
+          top: posY - 43,
           child: Transform.scale(
             scale: scale,
             child: Opacity(
               opacity: opacity,
               child: SizedBox(
-                width: 86,
-                height: 80,
+                width: 90,
+                height: 86,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -528,7 +522,7 @@ class _PetalContent extends ConsumerWidget {
                             fontSize: 9.0,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.6,
-                            color: config.color,
+                            color: Color.lerp(config.color, Colors.white, 0.88)!,
                           ),
                         ),
 
@@ -543,13 +537,11 @@ class _PetalContent extends ConsumerWidget {
                           builder: (BuildContext _, double val, Widget? __) {
                             return Text(
                               '${val.round()}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                height: 1.1,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                height: 1.02,
                                 fontWeight: FontWeight.w900,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF1E2432),
+                                color: Colors.white,
                               ),
                             );
                           },
@@ -565,16 +557,33 @@ class _PetalContent extends ConsumerWidget {
                             config.color,
                           )
                         else
-                          Text(
-                            config.count == 1 ? 'vehicle' : 'vehicles',
-                            style: TextStyle(
-                              fontSize: 8.0,
-                              height: 1.0,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? const Color(0xFF94A3B8)
-                                  : const Color(0xFF64748B),
-                            ),
+                          Builder(
+                            builder: (BuildContext ctx) {
+                              final FleetStats stats =
+                                  ref.watch(fleetStatsProvider);
+                              final int pct = stats.total > 0
+                                  ? ((config.count / stats.total) * 100).round()
+                                  : 0;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.20),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  '$pct%',
+                                  style: const TextStyle(
+                                    fontSize: 8.5,
+                                    height: 1.0,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                       ],
                     ),
@@ -657,15 +666,15 @@ class _PetalContent extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.0),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(5),
             border: Border.all(
-              color: color.withValues(alpha: 0.8),
+              color: Colors.white,
               width: 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: isDark ? 0.3 : 0.15),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 3,
                 offset: const Offset(0, 1),
               ),
@@ -760,18 +769,31 @@ class _CenterHub extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const SizedBox(height: 1),
-              Text(
-                'TOTAL FLEET',
-                style: TextStyle(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                  color: isDark
-                      ? const Color(0xFF94A3B8)
-                      : const Color(0xFF64748B),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.speed_rounded,
+                    size: 11,
+                    color: isDark
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'TOTAL',
+                    style: TextStyle(
+                      fontSize: 9.0,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                      color: isDark
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 2),
               TweenAnimationBuilder<double>(
                 tween: Tween<double>(begin: 0, end: stats.total.toDouble()),
                 duration: const Duration(milliseconds: 800),
@@ -780,14 +802,15 @@ class _CenterHub extends StatelessWidget {
                   return Text(
                     '${countVal.round()}',
                     style: TextStyle(
-                      fontSize: 27,
+                      fontSize: 30,
                       fontWeight: FontWeight.w900,
-                      height: 1.05,
+                      height: 1.02,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   );
                 },
               ),
+              const SizedBox(height: 1),
               Text(
                 stats.total == 1 ? 'vehicle' : 'vehicles',
                 style: TextStyle(
@@ -798,7 +821,7 @@ class _CenterHub extends StatelessWidget {
                       : const Color(0xFF64748B),
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 4),
 
               // 5 Colored Dots (Exact detail from center circle in reference!)
               Row(
