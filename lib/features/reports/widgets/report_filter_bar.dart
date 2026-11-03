@@ -165,7 +165,10 @@ class ReportFilterBar extends ConsumerWidget {
     final DateTime now = DateTime.now();
     final DateTime todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0);
 
-    if (s.year == todayStart.year && s.month == todayStart.month && s.day == todayStart.day) {
+    if (type != ReportType.dailyTrip &&
+        s.year == todayStart.year &&
+        s.month == todayStart.month &&
+        s.day == todayStart.day) {
       return DatePreset.today;
     }
 
@@ -274,7 +277,7 @@ class ReportFilterBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
-    final bool isTrip = type == ReportType.trip || type == ReportType.manualTrip;
+    final bool isTrip = type == ReportType.trip;
     final String dateText = isTrip
         ? '${Fmt.dateTimeFilter(startDate)}   →   ${Fmt.dateTimeFilter(endDate)}'
         : '${Fmt.dateWeb(startDate)}   →   ${Fmt.dateWeb(endDate)}';
@@ -507,206 +510,148 @@ class ReportFilterBar extends ConsumerWidget {
               ],
             ),
           ],
-          if (isTrip && onTypeChanged != null) ...<Widget>[
-            Row(
+
+
+          // Vehicle Selection
+          () {
+            final String? cleanId = vehicleId?.trim().toLowerCase();
+            final Vehicle? selectedV = vehicleId != null
+                ? vehicles.where((Vehicle v) =>
+                    v.id == vehicleId ||
+                    v.id.toLowerCase() == cleanId ||
+                    v.registrationNumber.toLowerCase() == cleanId).firstOrNull
+                : null;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => onTypeChanged!(ReportType.trip),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                      decoration: BoxDecoration(
-                        color: type == ReportType.trip
-                            ? const Color(0xFF6366F1)
-                            : const Color(0xFFF8FAFC),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          bottomLeft: Radius.circular(8),
-                        ),
-                        border: Border.all(
-                          color: type == ReportType.trip
-                              ? const Color(0xFF6366F1)
-                              : const Color(0xFFE2E8F0),
-                        ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      selectedV != null ? 'ACTIVE VEHICLE' : 'VEHICLE',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.5,
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Icon(
-                            Icons.electric_bolt_rounded,
-                            size: 14,
-                            color: type == ReportType.trip
-                                ? Colors.white
-                                : const Color(0xFF64748B),
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              'Automated',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: type == ReportType.trip
-                                    ? Colors.white
-                                    : const Color(0xFF334155),
+                    ),
+                    if (selectedV != null && vehicles.length > 1)
+                      InkWell(
+                        onTap: () => _showVehiclePickerModal(context, vehicles),
+                        borderRadius: BorderRadius.circular(4),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(Icons.swap_horiz_rounded, size: 14, color: Color(0xFF2563EB)),
+                              SizedBox(width: 4),
+                              Text(
+                                'Switch Vehicle',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF2563EB),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => onTypeChanged!(ReportType.manualTrip),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                      decoration: BoxDecoration(
-                        color: type == ReportType.manualTrip
-                            ? const Color(0xFF6366F1)
-                            : const Color(0xFFF8FAFC),
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(8),
-                          bottomRight: Radius.circular(8),
-                        ),
-                        border: Border.all(
-                          color: type == ReportType.manualTrip
-                              ? const Color(0xFF6366F1)
-                              : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Icon(
-                            Icons.edit_road_rounded,
-                            size: 14,
-                            color: type == ReportType.manualTrip
-                                ? Colors.white
-                                : const Color(0xFF64748B),
+                const SizedBox(height: 8),
+                if (selectedV != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _getAccentColor(type).withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _getAccentColor(type).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              'Manual',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: type == ReportType.manualTrip
-                                    ? Colors.white
-                                    : const Color(0xFF334155),
+                          child: Icon(Icons.directions_car_rounded,
+                              size: 18, color: _getAccentColor(type)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                selectedV.displayName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
+                              if (selectedV.registrationNumber.isNotEmpty &&
+                                  selectedV.registrationNumber != selectedV.displayName) ...<Widget>[
+                                const SizedBox(height: 2),
+                                Text(
+                                  selectedV.registrationNumber,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (vehicles.length > 1)
+                          OutlinedButton.icon(
+                            onPressed: () => _showVehiclePickerModal(context, vehicles),
+                            icon: const Icon(Icons.swap_horiz_rounded, size: 14),
+                            label: const Text('Change',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2563EB),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
                             ),
                           ),
-                        ],
-                      ),
+                      ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Inline Vehicle Picker
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  const Text(
-                    'VEHICLE',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF64748B),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => _showVehiclePickerModal(context, vehicles),
-                    borderRadius: BorderRadius.circular(4),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(Icons.search_rounded, size: 14, color: Color(0xFF2563EB)),
-                          SizedBox(width: 4),
-                          Text(
-                            'Search & Select',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF2563EB),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  if (!requiresVehicle)
-                    _buildChip(
-                      context: context,
-                      label: 'All Vehicles',
-                      selected: vehicleId == null,
-                      onTap: () => onVehicleChanged(null),
-                    ),
-                  ...() {
-                    if (vehicles.length <= 6) {
-                      return vehicles.map((Vehicle v) => _buildChip(
-                            context: context,
-                            label: v.displayName,
-                            selected: vehicleId == v.id,
-                            onTap: () => onVehicleChanged(v.id),
-                          ));
-                    }
-                    final List<Vehicle> initial = vehicles.take(5).toList();
-                    final Vehicle? selectedV = vehicleId != null
-                        ? vehicles.where((v) => v.id == vehicleId).firstOrNull
-                        : null;
-                    final bool selectedInInitial = selectedV != null && initial.any((v) => v.id == selectedV.id);
-
-                    return <Widget>[
-                      ...initial.map((Vehicle v) => _buildChip(
-                            context: context,
-                            label: v.displayName,
-                            selected: vehicleId == v.id,
-                            onTap: () => onVehicleChanged(v.id),
-                          )),
-                      if (selectedV != null && !selectedInInitial)
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      if (!requiresVehicle)
                         _buildChip(
                           context: context,
-                          label: selectedV.displayName,
-                          selected: true,
-                          onTap: () => onVehicleChanged(selectedV.id),
+                          label: 'All Vehicles',
+                          selected: vehicleId == null,
+                          onTap: () => onVehicleChanged(null),
                         ),
                       _buildChip(
                         context: context,
-                        label: '+ Search / More (${vehicles.length})',
+                        label: 'Choose Vehicle...',
                         selected: false,
                         icon: Icons.search_rounded,
                         onTap: () => _showVehiclePickerModal(context, vehicles),
                       ),
-                    ];
-                  }(),
-                ],
-              ),
-            ],
-          ),
+                    ],
+                  ),
+              ],
+            );
+          }(),
           const SizedBox(height: 16),
 
           // Inline Date Preset Picker
@@ -727,12 +672,13 @@ class ReportFilterBar extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
-                  _buildChip(
-                    context: context,
-                    label: 'Today',
-                    selected: preset == DatePreset.today,
-                    onTap: () => _applyPreset(DatePreset.today, context),
-                  ),
+                  if (type != ReportType.dailyTrip)
+                    _buildChip(
+                      context: context,
+                      label: 'Today',
+                      selected: preset == DatePreset.today,
+                      onTap: () => _applyPreset(DatePreset.today, context),
+                    ),
                   _buildChip(
                     context: context,
                     label: 'Yesterday',
@@ -1017,7 +963,11 @@ class _VehiclePickerSheetState extends State<_VehiclePickerSheet> {
                 }
 
                 final Vehicle v = filtered[i - (widget.allowAll ? 1 : 0)];
-                final bool isSelected = widget.selectedId == v.id;
+                final String? selClean = widget.selectedId?.trim().toLowerCase();
+                final bool isSelected = widget.selectedId == v.id ||
+                    (selClean != null &&
+                        (v.id.toLowerCase() == selClean ||
+                            v.registrationNumber.toLowerCase() == selClean));
 
                 return ListTile(
                   leading: CircleAvatar(

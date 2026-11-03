@@ -13,7 +13,7 @@ class AddressCell extends StatefulWidget {
     this.lat,
     this.lng,
     this.fallback,
-    this.maxWidth = 240,
+    this.maxWidth = 300,
     super.key,
   });
 
@@ -45,29 +45,57 @@ class _AddressCellState extends State<AddressCell> {
   }
 
   void _resolve() {
-    if (widget.fallback != null && widget.fallback!.trim().isNotEmpty) {
-      _address = widget.fallback;
+    double? lat = widget.lat;
+    double? lng = widget.lng;
+
+    final String? fb = widget.fallback?.trim();
+    final bool isCoords = fb != null &&
+        RegExp(r'^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$').hasMatch(fb);
+
+    if (fb != null && fb.isNotEmpty && !isCoords && fb != 'Location unavailable') {
+      _address = fb;
       return;
     }
-    if (widget.lat != null && widget.lng != null) {
+
+    if ((lat == null || lng == null) && fb != null && isCoords) {
+      final List<String> parts = fb.split(',');
+      if (parts.length == 2) {
+        lat = double.tryParse(parts[0].trim());
+        lng = double.tryParse(parts[1].trim());
+      }
+    }
+
+    if (lat != null && lng != null && (lat != 0 || lng != 0)) {
+      final String? cached = Geocoder.getCachedAddress(lat, lng);
+      if (cached != null && !RegExp(r'^-?\d+\.\d+,\s*-?\d+\.\d+$').hasMatch(cached)) {
+        _address = cached;
+        return;
+      }
+
       _loading = true;
-      Geocoder.getAddress(widget.lat!, widget.lng!).then((String addr) {
+      Geocoder.getAddress(lat, lng).then((String addr) {
         if (mounted) {
           setState(() {
-            _address = addr;
+            if (addr.isNotEmpty && addr != 'Location unavailable') {
+              _address = addr;
+            } else if (fb != null && !isCoords && fb != 'Location unavailable') {
+              _address = fb;
+            } else {
+              _address = 'Location unavailable';
+            }
             _loading = false;
           });
         }
       }).catchError((_) {
         if (mounted) {
           setState(() {
-            _address = 'Location unavailable';
+            _address = (fb != null && !isCoords && fb != 'Location unavailable') ? fb : 'Location unavailable';
             _loading = false;
           });
         }
       });
     } else {
-      _address = 'Location unavailable';
+      _address = (fb != null && !isCoords && fb != 'Location unavailable') ? fb : 'Location unavailable';
     }
   }
 
@@ -91,6 +119,47 @@ class _AddressCellState extends State<AddressCell> {
       );
     }
 
+    final bool hasValidCoords = widget.lat != null &&
+        widget.lng != null &&
+        (widget.lat != 0 || widget.lng != 0);
+
+    final bool isUnavailable = _address == null || _address == 'Location unavailable';
+
+    if (isUnavailable && hasValidCoords) {
+      return InkWell(
+        onTap: () {
+          setState(() {
+            _loading = true;
+          });
+          _resolve();
+        },
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          width: containerWidth,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Flexible(
+                child: Text(
+                  '${widget.lat!.toStringAsFixed(4)}, ${widget.lng!.toStringAsFixed(4)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.refresh_rounded, size: 12, color: Color(0xFF2563EB)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: containerWidth,
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -102,8 +171,7 @@ class _AddressCellState extends State<AddressCell> {
           fontWeight: FontWeight.w500,
           height: 1.3,
         ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+        softWrap: true,
       ),
     );
   }
@@ -231,6 +299,45 @@ class TripReportTable extends StatelessWidget {
       itemCount: rows.length,
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = rows[index];
+
+        // Resolve effective start point and fallback address
+        double? startLat = r.startLat;
+        double? startLng = r.startLng;
+        String? startAddr = (r.fromLocation != null && r.fromLocation != 'Location unavailable')
+            ? r.fromLocation
+            : (r.address != null && r.address != 'Location unavailable' ? r.address : null);
+
+        // If start coordinates or address are not yet known, infer from adjacent trip
+        if ((startLat == null || startLng == null || (startLat == 0 && startLng == 0)) &&
+            (startAddr == null || startAddr.isEmpty || startAddr == 'Location unavailable')) {
+          // For newest-first lists, preceding trip is index + 1
+          if (index + 1 < rows.length) {
+            final ReportRow prev = rows[index + 1];
+            if (prev.endLat != null && prev.endLng != null && (prev.endLat != 0 || prev.endLng != 0)) {
+              startLat ??= prev.endLat;
+              startLng ??= prev.endLng;
+            }
+            if ((startAddr == null || startAddr == 'Location unavailable') &&
+                prev.toLocation != null &&
+                prev.toLocation != 'Location unavailable') {
+              startAddr = prev.toLocation;
+            }
+          }
+          // For oldest-first lists, preceding trip is index - 1
+          if ((startLat == null || startLng == null) && index > 0) {
+            final ReportRow prev = rows[index - 1];
+            if (prev.endLat != null && prev.endLng != null && (prev.endLat != 0 || prev.endLng != 0)) {
+              startLat ??= prev.endLat;
+              startLng ??= prev.endLng;
+            }
+            if ((startAddr == null || startAddr == 'Location unavailable') &&
+                prev.toLocation != null &&
+                prev.toLocation != 'Location unavailable') {
+              startAddr = prev.toLocation;
+            }
+          }
+        }
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 0,
@@ -313,14 +420,15 @@ class TripReportTable extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
 
+
                 // Timeline (Start & End)
                 _buildTimelineRow(
                   context: context,
                   isStart: true,
                   time: Fmt.dateTimeWeb(r.startTime),
-                  lat: r.startLat,
-                  lng: r.startLng,
-                  fallbackAddress: r.address,
+                  lat: startLat,
+                  lng: startLng,
+                  fallbackAddress: startAddr,
                 ),
                 const Padding(
                   padding: EdgeInsets.only(left: 7, top: 2, bottom: 2),
@@ -339,6 +447,7 @@ class TripReportTable extends StatelessWidget {
                   time: Fmt.dateTimeWeb(r.endTime),
                   lat: r.endLat,
                   lng: r.endLng,
+                  fallbackAddress: r.toLocation,
                 ),
                 
                 const SizedBox(height: 14),
@@ -346,8 +455,10 @@ class TripReportTable extends StatelessWidget {
                 const SizedBox(height: 10),
 
                 // Stats Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
                   children: <Widget>[
                     _buildStat(
                       label: 'DISTANCE',
@@ -524,8 +635,12 @@ class ManualTripReportTable extends StatelessWidget {
               final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
               final String tripName = r.raw['name']?.toString() ?? '-';
-              final String originStr = r.raw['origin']?.toString() ?? '';
-              final String destStr = r.raw['destination']?.toString() ?? '';
+              final String originStr = (r.fromLocation != null && r.fromLocation != 'Location unavailable')
+                  ? r.fromLocation!
+                  : (r.raw['origin']?.toString() ?? '');
+              final String destStr = (r.toLocation != null && r.toLocation != 'Location unavailable')
+                  ? r.toLocation!
+                  : (r.raw['destination']?.toString() ?? '');
               
               final String statusStr = (r.status ?? 'unknown').toUpperCase();
               Color statusColor = const Color(0xFF64748B);
@@ -830,8 +945,8 @@ class OverspeedingReportTable extends StatelessWidget {
                 child: Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 16,
-                  runSpacing: 6,
+                  spacing: 12,
+                  runSpacing: 8,
                   children: <Widget>[
                     Text(
                       'Vehicle : $vehicleName',
@@ -841,28 +956,42 @@ class OverspeedingReportTable extends StatelessWidget {
                         color: Color(0xFF1E293B),
                       ),
                     ),
-                    const Text(
-                      'Speed Limit : 60',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: const Text(
+                        'Speed Limit : 60',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFDC2626),
+                        ),
                       ),
                     ),
-                    Text(
-                      'Start Time : ${Fmt.dateWeb(startDate)} 00:00:00',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF334155),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Start Time : ${Fmt.dateWeb(startDate)} 00:00:00',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
                       ),
                     ),
-                    Text(
-                      'End Time : ${Fmt.dateWeb(endDate)} 23:59:59',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF334155),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'End Time : ${Fmt.dateWeb(endDate)} 23:59:59',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
                       ),
                     ),
                   ],
@@ -881,7 +1010,7 @@ class OverspeedingReportTable extends StatelessWidget {
                     2: FixedColumnWidth(180), // OverSpeed Duration (HH:MM:SS)
                     3: FixedColumnWidth(130), // Driver Name
                     4: FixedColumnWidth(160), // Driver Mobile Number
-                    5: FixedColumnWidth(240), // Nearest Location
+                    5: FixedColumnWidth(300), // Nearest Location
                     6: FixedColumnWidth(160), // Distance Covered(KMS)
                   },
                   children: <TableRow>[
@@ -945,7 +1074,7 @@ class OverspeedingReportTable extends StatelessWidget {
                               lat: r.startLat,
                               lng: r.startLng,
                               fallback: r.address,
-                              maxWidth: 230,
+                              maxWidth: 290,
                             ),
                           ),
                           TableDataCell(
@@ -1047,7 +1176,7 @@ class StoppageReportTable extends StatelessWidget {
                 child: Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 16,
+                  spacing: 12,
                   runSpacing: 6,
                   children: <Widget>[
                     Text(
@@ -1058,12 +1187,15 @@ class StoppageReportTable extends StatelessWidget {
                         color: Color(0xFF1E293B),
                       ),
                     ),
-                    Text(
-                      'From : ${Fmt.dateWeb(startDate)} 00:00:00 - To : ${Fmt.dateWeb(endDate)} 23:59:59',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF334155),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'From : ${Fmt.dateWeb(startDate)} 00:00:00 - To : ${Fmt.dateWeb(endDate)} 23:59:59',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
                       ),
                     ),
                   ],
@@ -1077,8 +1209,11 @@ class StoppageReportTable extends StatelessWidget {
                   color: Color(0xFFF8FAFC),
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                child: Wrap(
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
                   children: <Widget>[
                     _statBadge('Moving', Fmt.durationWeb(movingSec), const Color(0xFF10B981)),
                     _statBadge('Parked', Fmt.durationWeb(parkedSec), const Color(0xFFEA580C)),
@@ -1098,7 +1233,7 @@ class StoppageReportTable extends StatelessWidget {
                     1: FixedColumnWidth(180), // Start Time
                     2: FixedColumnWidth(180), // End Time
                     3: FixedColumnWidth(160), // Duration (HH:MM:SS)
-                    4: FixedColumnWidth(260), // Location Details
+                    4: FixedColumnWidth(300), // Location Details
                   },
                   children: <TableRow>[
                     const TableRow(
@@ -1159,7 +1294,7 @@ class StoppageReportTable extends StatelessWidget {
                               lat: r.startLat,
                               lng: r.startLng,
                               fallback: r.address,
-                              maxWidth: 250,
+                              maxWidth: 290,
                             ),
                           ),
                         ],
@@ -1176,18 +1311,44 @@ class StoppageReportTable extends StatelessWidget {
   }
 
   Widget _statBadge(String label, String value, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          '$label : ',
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
-        ),
-        Text(
-          value,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color, fontFamily: 'monospace'),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          Text(
+            '$label : ',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF475569),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1266,7 +1427,7 @@ class IdleReportTable extends StatelessWidget {
                 child: Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 16,
+                  spacing: 12,
                   runSpacing: 6,
                   children: <Widget>[
                     Text(
@@ -1277,12 +1438,15 @@ class IdleReportTable extends StatelessWidget {
                         color: Color(0xFF1E293B),
                       ),
                     ),
-                    Text(
-                      'From : ${Fmt.dateWeb(startDate)} 00:00:00 - To : ${Fmt.dateWeb(endDate)} 23:59:59',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF334155),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'From : ${Fmt.dateWeb(startDate)} 00:00:00 - To : ${Fmt.dateWeb(endDate)} 23:59:59',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
                       ),
                     ),
                   ],
@@ -1296,8 +1460,11 @@ class IdleReportTable extends StatelessWidget {
                   color: Color(0xFFF8FAFC),
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                child: Wrap(
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
                   children: <Widget>[
                     _statBadge('Moving', Fmt.durationWeb(movingSec), const Color(0xFF10B981)),
                     _statBadge('Parked', Fmt.durationWeb(parkedSec), const Color(0xFFEA580C)),
@@ -1317,7 +1484,7 @@ class IdleReportTable extends StatelessWidget {
                     1: FixedColumnWidth(180), // Start Time
                     2: FixedColumnWidth(180), // End Time
                     3: FixedColumnWidth(160), // Duration (HH:MM:SS)
-                    4: FixedColumnWidth(260), // Location Details
+                    4: FixedColumnWidth(300), // Location Details
                   },
                   children: <TableRow>[
                     const TableRow(
@@ -1378,7 +1545,7 @@ class IdleReportTable extends StatelessWidget {
                               lat: r.startLat,
                               lng: r.startLng,
                               fallback: r.address,
-                              maxWidth: 250,
+                              maxWidth: 290,
                             ),
                           ),
                         ],
@@ -1395,18 +1562,44 @@ class IdleReportTable extends StatelessWidget {
   }
 
   Widget _statBadge(String label, String value, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          '$label : ',
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
-        ),
-        Text(
-          value,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color, fontFamily: 'monospace'),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          Text(
+            '$label : ',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF475569),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1803,7 +1996,22 @@ class FuelConsolidatedReportTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (rows.isEmpty) {
+    final List<ReportRow> fuelRows = rows.where((ReportRow r) {
+      final bool hasFuelData = (r.startFuel != null && r.startFuel! > 0) ||
+          (r.endFuel != null && r.endFuel! > 0) ||
+          (r.consumption != null && r.consumption! > 0) ||
+          (r.filling != null && r.filling! > 0) ||
+          (r.theft != null && r.theft! > 0);
+      if (hasFuelData) return true;
+      final String? vId = r.vehicleId;
+      if (vId != null) {
+        final Vehicle? v = vehicles.where((Vehicle x) => x.id == vId).firstOrNull;
+        if (v != null && v.hasFuel) return true;
+      }
+      return false;
+    }).toList();
+
+    if (fuelRows.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -1820,9 +2028,9 @@ class FuelConsolidatedReportTable extends StatelessWidget {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: rows.length,
+      itemCount: fuelRows.length,
       itemBuilder: (BuildContext context, int index) {
-        final ReportRow r = rows[index];
+        final ReportRow r = fuelRows[index];
         final String? vId = r.vehicleId;
         final Vehicle? vehicle = vId != null
             ? vehicles.where((v) => v.id == vId).firstOrNull

@@ -53,7 +53,7 @@ extension ReportTypeX on ReportType {
         ReportType.fuelConsolidated => 'Fuel Consolidated',
         ReportType.individual => 'Individual Summary',
         ReportType.manualTrip => 'Manual Trips',
-        ReportType.geofenceTransit => 'Geofence Transit',
+        ReportType.geofenceTransit => 'Geofence Trips',
         ReportType.geofenceSinglePlace => 'Single Place Activity',
         ReportType.dailyTrip => 'Full Day Trips',
       };
@@ -76,9 +76,21 @@ extension ReportTypeX on ReportType {
         ReportType.dailyTrip => 'Consolidates the complete day\'s journey from initial departure to final arrival',
       };
 
-  /// A single vehicle must be chosen before running these.
+  /// A single vehicle must be chosen before running these operational reports.
   bool get requiresVehicle => switch (this) {
-        ReportType.routeHistory || ReportType.individual => true,
+        ReportType.trip ||
+        ReportType.dailyTrip ||
+        ReportType.manualTrip ||
+        ReportType.activity ||
+        ReportType.routeHistory ||
+        ReportType.ignition ||
+        ReportType.overspeeding ||
+        ReportType.stoppages ||
+        ReportType.idle ||
+        ReportType.individual ||
+        ReportType.geofenceTransit ||
+        ReportType.geofenceSinglePlace =>
+          true,
         _ => false,
       };
 }
@@ -114,8 +126,8 @@ class ReportRow extends Equatable {
   bool get hasLocation => latitude != null && longitude != null;
 
   // Safe typed accessors for specific tabular reports
-  String? get vehicleId => asStringOrNull(raw, <String>['vehicle_id', 'vehicleId', 'id']);
-  String? get plate => asStringOrNull(raw, <String>['plate', 'vehicleNumber', 'registrationNumber']);
+  String? get vehicleId => asStringOrNull(raw, <String>['vehicle_id', 'vehicleId', 'id', '_id', 'deviceId', 'device_id']);
+  String? get plate => asStringOrNull(raw, <String>['plate', 'plateNumber', 'vehicleNumber', 'registrationNumber', 'reg_no', 'regNo', 'vehicle_reg_no']);
   String? get orgName => asStringOrNull(raw, <String>['org_name', 'orgName', 'organization']);
   String? get driverName => asStringOrNull(raw, <String>['driver_name', 'driverName', 'driver']);
   String? get driverPhone => asStringOrNull(raw, <String>['driver_phone', 'driverPhone', 'driverMobileNumber', 'mobile']);
@@ -125,10 +137,140 @@ class ReportRow extends Equatable {
   DateTime? get endTime => asDate(raw, <String>['end_time', 'endTime']);
   DateTime? get date => asDate(raw, <String>['date', 'start_time', 'startTime', 'time']) ?? timestamp;
 
-  double? get startLat => asDoubleOrNull(raw, <String>['start_lat', 'startLat', 'lat', 'latitude']) ?? latitude;
-  double? get startLng => asDoubleOrNull(raw, <String>['start_lng', 'startLng', 'lng', 'lon', 'longitude']) ?? longitude;
-  double? get endLat => asDoubleOrNull(raw, <String>['end_lat', 'endLat']);
-  double? get endLng => asDoubleOrNull(raw, <String>['end_lng', 'endLng']);
+  static double? _extractCoordinate(
+    Map<String, dynamic> map,
+    List<String> keys,
+    List<String> parentKeys, {
+    required bool isLat,
+  }) {
+    // 1. Direct key search in map
+    final double? direct = asDoubleOrNull(map, keys);
+    if (direct != null && direct != 0.0) return direct;
+
+    // 2. Nested sub-maps (e.g. startLocation: {latitude: ..., longitude: ...})
+    final List<String> coordKeys = isLat
+        ? const <String>['latitude', 'lat', 'y', 'start_lat', 'startLat', 'end_lat', 'endLat']
+        : const <String>['longitude', 'lng', 'lon', 'x', 'start_lng', 'startLng', 'start_lon', 'startLon', 'end_lng', 'endLng', 'end_lon', 'endLon'];
+
+    for (final String pk in parentKeys) {
+      final Object? sub = map[pk];
+      if (sub is Map<String, dynamic>) {
+        final double? nested = asDoubleOrNull(sub, coordKeys);
+        if (nested != null && nested != 0.0) return nested;
+      } else if (sub is Map) {
+        final double? nested = asDoubleOrNull(Map<String, dynamic>.from(sub), coordKeys);
+        if (nested != null && nested != 0.0) return nested;
+      } else if (sub is List && sub.length >= 2) {
+        final double? v0 = sub[0] is num ? (sub[0] as num).toDouble() : double.tryParse(sub[0].toString());
+        final double? v1 = sub[1] is num ? (sub[1] as num).toDouble() : double.tryParse(sub[1].toString());
+        if (v0 != null && v1 != null) {
+          if (isLat) {
+            return (v1 >= -90 && v1 <= 90 && (v0 > 90 || v0 < -90)) ? v1 : (v0 >= -90 && v0 <= 90 ? v0 : v1);
+          } else {
+            return (v0 > 90 || v0 < -90 || (v1 >= -90 && v1 <= 90)) ? v0 : v1;
+          }
+        }
+      } else if (sub is String && sub.contains(',')) {
+        final List<String> parts = sub.split(',');
+        if (parts.length >= 2) {
+          final double? p0 = double.tryParse(parts[0].trim());
+          final double? p1 = double.tryParse(parts[1].trim());
+          if (p0 != null && p1 != null) {
+            return isLat ? p0 : p1;
+          }
+        }
+      }
+    }
+
+    // 3. Check GeoJSON geometry: { "type": "Point", "coordinates": [lon, lat] }
+    final Object? geom = map['geometry'] ?? map['location'] ?? map['point'];
+    if (geom is Map) {
+      final Object? coords = geom['coordinates'];
+      if (coords is List && coords.length >= 2) {
+        final double? lon = coords[0] is num ? (coords[0] as num).toDouble() : double.tryParse(coords[0].toString());
+        final double? lat = coords[1] is num ? (coords[1] as num).toDouble() : double.tryParse(coords[1].toString());
+        return isLat ? lat : lon;
+      }
+    }
+
+    return direct;
+  }
+
+  double? get startLat =>
+      _extractCoordinate(
+        raw,
+        const <String>[
+          'start_lat', 'startLat', 'startLatitude', 'start_latitude',
+          'fromLat', 'from_lat', 'fromLatitude', 'from_latitude',
+          'originLat', 'origin_lat', 'originLatitude', 'origin_latitude',
+          'departureLat', 'departure_lat', 'departureLatitude', 'departure_latitude',
+          'first_lat', 'firstLat', 'lat', 'latitude',
+        ],
+        const <String>[
+          'startLocation', 'start_location', 'startPoint', 'start_point',
+          'startPosition', 'start_position', 'fromLocation', 'from_location',
+          'fromPoint', 'from_point', 'fromPosition', 'from_position',
+          'origin', 'departure', 'start', 'from', 'startCoords', 'start_coords',
+        ],
+        isLat: true,
+      ) ?? latitude;
+
+  double? get startLng =>
+      _extractCoordinate(
+        raw,
+        const <String>[
+          'start_lng', 'startLng', 'start_lon', 'startLon', 'startLongitude', 'start_longitude',
+          'fromLng', 'from_lng', 'fromLon', 'from_lon', 'fromLongitude', 'from_longitude',
+          'originLng', 'origin_lng', 'originLon', 'origin_lon', 'originLongitude', 'origin_longitude',
+          'departureLng', 'departure_lng', 'departureLon', 'departure_lon', 'departureLongitude', 'departure_longitude',
+          'first_lng', 'firstLng', 'first_lon', 'firstLon', 'lng', 'lon', 'longitude',
+        ],
+        const <String>[
+          'startLocation', 'start_location', 'startPoint', 'start_point',
+          'startPosition', 'start_position', 'fromLocation', 'from_location',
+          'fromPoint', 'from_point', 'fromPosition', 'from_position',
+          'origin', 'departure', 'start', 'from', 'startCoords', 'start_coords',
+        ],
+        isLat: false,
+      ) ?? longitude;
+
+  double? get endLat =>
+      _extractCoordinate(
+        raw,
+        const <String>[
+          'end_lat', 'endLat', 'endLatitude', 'end_latitude',
+          'toLat', 'to_lat', 'toLatitude', 'to_latitude',
+          'destLat', 'dest_lat', 'destinationLat', 'destination_lat', 'destinationLatitude', 'destination_latitude',
+          'arrivalLat', 'arrival_lat', 'arrivalLatitude', 'arrival_latitude',
+          'last_lat', 'lastLat',
+        ],
+        const <String>[
+          'endLocation', 'end_location', 'endPoint', 'end_point',
+          'endPosition', 'end_position', 'toLocation', 'to_location',
+          'toPoint', 'to_point', 'toPosition', 'to_position',
+          'destination', 'dest', 'arrival', 'end', 'to', 'endCoords', 'end_coords',
+        ],
+        isLat: true,
+      );
+
+  double? get endLng =>
+      _extractCoordinate(
+        raw,
+        const <String>[
+          'end_lng', 'endLng', 'end_lon', 'endLon', 'endLongitude', 'end_longitude',
+          'toLng', 'to_lng', 'toLon', 'to_lon', 'toLongitude', 'to_longitude',
+          'destLng', 'dest_lng', 'destLon', 'dest_lon', 'destinationLng', 'destination_lng', 'destinationLon', 'destination_lon', 'destinationLongitude', 'destination_longitude',
+          'arrivalLng', 'arrival_lng', 'arrivalLon', 'arrival_lon', 'arrivalLongitude', 'arrival_longitude',
+          'last_lng', 'lastLng', 'last_lon', 'lastLon',
+        ],
+        const <String>[
+          'endLocation', 'end_location', 'endPoint', 'end_point',
+          'endPosition', 'end_position', 'toLocation', 'to_location',
+          'toPoint', 'to_point', 'toPosition', 'to_position',
+          'destination', 'dest', 'arrival', 'end', 'to', 'endCoords', 'end_coords',
+        ],
+        isLat: false,
+      );
 
   double? get startOdometer => asDoubleOrNull(raw, <String>[
         'start_odometer',
@@ -266,21 +408,22 @@ class ReportRow extends Equatable {
     }
 
     // 3. Fallback: calculate from total span / total duration minus driving/running time
-    final int? totalSpan = totalSpanSeconds ??
-        asDoubleOrNull(raw, <String>[
-          'total_span_seconds',
-          'totalSpanSeconds',
-          'total_duration',
-          'totalDuration',
-          'total_time',
-          'totalTime',
-          'duration_seconds',
-          'durationSeconds',
-          'duration',
-        ])?.round() ??
-        (startTime != null && endTime != null
-            ? endTime!.difference(startTime!).inSeconds.abs()
-            : null);
+    final int? totalSpan = asDoubleOrNull(raw, const <String>[
+      'total_span_seconds',
+      'totalSpanSeconds',
+      'total_span',
+      'totalSpan',
+      'total_duration',
+      'totalDuration',
+      'total_time',
+      'totalTime',
+      'duration_seconds',
+      'durationSeconds',
+      'duration',
+    ])?.round() ??
+    (startTime != null && endTime != null
+        ? endTime!.difference(startTime!).inSeconds.abs()
+        : null);
 
     final int effectiveDriving = drivingSeconds ?? runningSeconds ?? movingSeconds ?? 0;
     final int effectiveIdle = idleSeconds ?? 0;
@@ -339,15 +482,91 @@ class ReportRow extends Equatable {
     return (runSec + idleSec) / 3600.0;
   }
 
-  double? get startFuel => asDoubleOrNull(raw, <String>['start_fuel', 'startFuel', 'startingFuel', 'start_fuel_level', 'startFuelLevel']);
-  double? get endFuel => asDoubleOrNull(raw, <String>['end_fuel', 'endFuel', 'endingFuel', 'end_fuel_level', 'endFuelLevel']);
-  double? get consumption => asDoubleOrNull(raw, <String>['consumption', 'fuelConsumption', 'fuel_used', 'fuelUsed', 'totalConsumption', 'total_consumption']);
-  double? get filling => asDoubleOrNull(raw, <String>['filling', 'fuelFilling', 'fuelFilled', 'refuels', 'refuel', 'totalFilling', 'total_filling']);
-  double? get theft => asDoubleOrNull(raw, <String>['theft', 'fuelTheft', 'thefts', 'drain', 'totalTheft', 'total_theft']);
-  double? get kmpl => asDoubleOrNull(raw, <String>['kmpl', 'mileage', 'average']);
+  double? get startFuel => asDoubleOrNull(raw, <String>[
+        'start_fuel_level',
+        'startFuelLevel',
+        'start_fuel',
+        'startFuel',
+        'startingFuel',
+        'start_fuel_ltr',
+        'start_fuel_litres',
+        'start_fuel_liters',
+      ]);
+  double? get endFuel => asDoubleOrNull(raw, <String>[
+        'end_fuel_level',
+        'endFuelLevel',
+        'end_fuel',
+        'endFuel',
+        'endingFuel',
+        'end_fuel_ltr',
+        'end_fuel_litres',
+        'end_fuel_liters',
+        'current_fuel_level',
+        'currentFuelLevel',
+        'current_fuel',
+        'currentFuel',
+        'calibrated_fuel',
+        'calibratedFuel',
+        'normalized_fuel',
+        'normalizedFuel',
+        'fuel_litres',
+        'fuel_liters',
+        'fuel_qty',
+        'fuelQty',
+        'fuel',
+      ]);
+  double? get consumption => asDoubleOrNull(raw, <String>['total_fuel_consume', 'totalFuelConsume', 'consumption', 'fuelConsumption', 'fuel_used', 'fuelUsed', 'totalConsumption', 'total_consumption', 'fuel_consumed']);
+  double? get filling => asDoubleOrNull(raw, <String>['total_fuel_fill', 'totalFuelFill', 'filling', 'fuelFilling', 'fuelFilled', 'refuels', 'refuel', 'totalFilling', 'total_filling', 'total_fill']);
+  double? get theft => asDoubleOrNull(raw, <String>['total_fuel_theft', 'totalFuelTheft', 'theft', 'fuelTheft', 'thefts', 'drain', 'totalTheft', 'total_theft', 'fuel_theft']);
+  double? get kmpl => asDoubleOrNull(raw, <String>['kmpl', 'mileage', 'average', 'fuel_economy', 'fuelEconomy']);
   double? get lph => asDoubleOrNull(raw, <String>['lph', 'litresPerHour', 'avg_fuel_consumption_hourly']);
-  String? get fromLocation => asStringOrNull(raw, <String>['startAddress', 'start_address', 'fromLocation', 'from_location', 'origin']);
-  String? get toLocation => asStringOrNull(raw, <String>['endAddress', 'end_address', 'toLocation', 'to_location', 'destination']);
+  String? get fromLocation {
+    final String? direct = asStringOrNull(raw, const <String>[
+      'startAddress', 'start_address', 'startLocation', 'start_location',
+      'startPlace', 'start_place', 'fromLocation', 'from_location',
+      'fromAddress', 'from_address', 'fromPlace', 'from_place',
+      'origin', 'originAddress', 'origin_address',
+      'departureAddress', 'departure_address', 'departureLocation', 'departure_location',
+      'departure_place', 'departurePlace', 'firstAddress', 'first_address',
+    ]);
+    if (direct != null && direct.isNotEmpty && direct != 'Location unavailable') {
+      return direct;
+    }
+    for (final String pk in const <String>['startLocation', 'start_location', 'startPoint', 'start_point', 'startPosition', 'start_position', 'fromLocation', 'from_location', 'origin', 'departure']) {
+      final Object? sub = raw[pk];
+      if (sub is Map) {
+        final Object? addr = sub['address'] ?? sub['name'] ?? sub['label'] ?? sub['formattedAddress'] ?? sub['place'];
+        if (addr != null && addr.toString().trim().isNotEmpty && addr.toString().trim() != 'Location unavailable') {
+          return addr.toString().trim();
+        }
+      }
+    }
+    return direct;
+  }
+
+  String? get toLocation {
+    final String? direct = asStringOrNull(raw, const <String>[
+      'endAddress', 'end_address', 'endLocation', 'end_location',
+      'endPlace', 'end_place', 'toLocation', 'to_location',
+      'toAddress', 'to_address', 'toPlace', 'to_place',
+      'destination', 'destinationAddress', 'destination_address',
+      'arrivalAddress', 'arrival_address', 'arrivalLocation', 'arrival_location',
+      'arrival_place', 'arrivalPlace', 'lastAddress', 'last_address',
+    ]);
+    if (direct != null && direct.isNotEmpty && direct != 'Location unavailable') {
+      return direct;
+    }
+    for (final String pk in const <String>['endLocation', 'end_location', 'endPoint', 'end_point', 'endPosition', 'end_position', 'toLocation', 'to_location', 'destination', 'arrival']) {
+      final Object? sub = raw[pk];
+      if (sub is Map) {
+        final Object? addr = sub['address'] ?? sub['name'] ?? sub['label'] ?? sub['formattedAddress'] ?? sub['place'];
+        if (addr != null && addr.toString().trim().isNotEmpty && addr.toString().trim() != 'Location unavailable') {
+          return addr.toString().trim();
+        }
+      }
+    }
+    return direct;
+  }
 
   // Geofence Transit & Single Place fields
   String? get tripLabel => asStringOrNull(raw, <String>['trip_label', 'tripLabel', 'trip_type', 'tripType', 'mode']);
@@ -498,8 +717,12 @@ class ReportRow extends Equatable {
               ?.round(),
       speed: asDoubleOrNull(json, <String>['speed', 'max_speed', 'maxSpeed', 'avgSpeed', 'max_speed_kmh', 'avg_speed_kmh']),
       address: asStringOrNull(json, <String>['address', 'location', 'place', 'startAddress']),
-      latitude: asDoubleOrNull(json, <String>['latitude', 'lat', 'start_lat', 'startLat']),
-      longitude: asDoubleOrNull(json, <String>['longitude', 'lng', 'lon', 'start_lng', 'startLng']),
+      latitude: asDoubleOrNull(json, const <String>[
+        'latitude', 'lat', 'start_lat', 'startLat', 'startLatitude', 'start_latitude', 'fromLat', 'from_lat',
+      ]),
+      longitude: asDoubleOrNull(json, const <String>[
+        'longitude', 'lng', 'lon', 'start_lng', 'startLng', 'start_lon', 'startLon', 'startLongitude', 'start_longitude', 'fromLng', 'from_lng', 'fromLon', 'from_lon',
+      ]),
     );
   }
 

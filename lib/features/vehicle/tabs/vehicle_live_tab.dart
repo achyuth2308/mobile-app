@@ -20,6 +20,7 @@ import '../../../shared/widgets/live_address.dart';
 import '../../live_map/widgets/map_tiles.dart';
 import '../../live_map/widgets/vehicle_marker.dart';
 import '../widgets/telemetry_grid.dart';
+import 'vehicle_info_tab.dart';
 
 /// Live tab: a pinned mini-map plus a full telemetry grid, both updating
 /// from the same throttled fleet stream.
@@ -199,6 +200,8 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
           ),
         ),
 
+        const SizedBox(height: Gap.md),
+        ImmobilizerCard(vehicle: vehicle),
         const SizedBox(height: Gap.md),
         Builder(
           builder: (context) {

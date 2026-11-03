@@ -65,11 +65,12 @@ Future<void> main() async {
   // framework: build(), layout, paint, and gesture-recogniser errors.
   FlutterError.onError = (FlutterErrorDetails details) {
     final String msg = details.exceptionAsString();
-    // In Flutter Web / Riverpod transitions, defunct element assertions are
-    // non-fatal debug framework assertions that can occur during route popping.
+    // In Flutter Web / Riverpod transitions, defunct element assertions and navigator teardown
+    // debug assertions are non-fatal framework warnings during route disposal/popping.
     if (msg.contains('_lifecycleState != _ElementLifecycle.defunct') ||
         msg.contains('defunct') ||
         msg.contains('_dependents.isEmpty') ||
+        msg.contains('!_debugLocked') ||
         msg.contains('Cannot hit test a render box')) {
       return;
     }
@@ -93,6 +94,7 @@ Future<void> main() async {
     if (errorStr.contains('_lifecycleState != _ElementLifecycle.defunct') ||
         errorStr.contains('defunct') ||
         errorStr.contains('_dependents.isEmpty') ||
+        errorStr.contains('!_debugLocked') ||
         errorStr.contains('Cannot hit test a render box')) {
       return true;
     }

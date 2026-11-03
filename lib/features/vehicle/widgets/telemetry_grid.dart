@@ -58,12 +58,16 @@ class TelemetryGrid extends StatelessWidget {
         unit: '${vehicle.heading.round()}°',
         color: const Color(0xFF0D9488),
       ),
-      if (vehicle.fuelLevel != null)
+      if (vehicle.fuelLevel != null &&
+          vehicle.fuelLevel! > 0 &&
+          vehicle.fuelLevel! <= 400)
         _Cell(
           icon: Icons.local_gas_station_rounded,
           label: 'Fuel',
-          value: vehicle.fuelLevel!.round().toString(),
-          unit: vehicle.fuelLevel! > 100 ? 'L' : '%',
+          value: vehicle.fuelLevel! % 1 == 0
+              ? vehicle.fuelLevel!.round().toString()
+              : vehicle.fuelLevel!.toStringAsFixed(1),
+          unit: 'L',
           color: vehicle.fuelLevel! < 15 ? const Color(0xFFEF4444) : const Color(0xFFF97316),
         ),
       if (vehicle.batteryLevel != null && vehicle.batteryLevel! > 0)

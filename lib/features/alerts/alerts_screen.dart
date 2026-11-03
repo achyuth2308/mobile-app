@@ -177,6 +177,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       if (event.name == 'alert:new' || event.name == 'geofence:event') {
         try {
           FleetAlert newAlert = FleetAlert.fromJson(event.payload);
+          if (newAlert.isGenericFleetAlert) return;
           if (newAlert.vehicleName == null || newAlert.vehicleName!.isEmpty) {
             final String? vId = newAlert.vehicleId;
             if (vId != null) {
@@ -253,14 +254,14 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
 
       setState(() {
         if (reset) _alerts.clear();
-        _alerts.addAll(data);
+        _alerts.addAll(data.where((FleetAlert a) => !a.isGenericFleetAlert));
         _hasMore = data.length >= 30;
         _loading = false;
         _loadingMore = false;
       });
-      final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
+      final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead && !a.isGenericFleetAlert).length;
       ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
-      final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
+      final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed && !a.isGenericFleetAlert).length;
       ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
     } on ApiException catch (e) {
       if (!mounted) return;

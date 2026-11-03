@@ -199,6 +199,16 @@ class FleetAlert extends Equatable {
     return null;
   }
 
+  /// True if this alert is a generic uninformative "Fleet Alert" with no specific event type.
+  bool get isGenericFleetAlert {
+    final String t = type.toLowerCase().trim();
+    final String tl = title.toLowerCase().trim();
+    final String msg = message.toLowerCase().trim();
+    return (tl == 'fleet alert' && (msg == 'fleet alert' || msg.isEmpty)) ||
+        t == 'fleet_alert' ||
+        (t == 'info' && tl == 'fleet alert');
+  }
+
   AlertSeverity get severity {
     final String t = type.toLowerCase().trim();
     if (t == 'main_battery_disconnected' ||

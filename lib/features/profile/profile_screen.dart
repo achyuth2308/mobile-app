@@ -47,7 +47,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppUser? user = ref.watch(authProvider).user;
-    final AsyncValue<SocketStatus> socket = ref.watch(socketStatusProvider);
 
     if (user == null) return const SizedBox.shrink();
 
@@ -272,11 +271,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     if (confirm != true || !context.mounted) return;
 
+    // Allow dialog pop transition to finish cleanly before destroying route tree
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    if (!context.mounted) return;
+
     ref.read(fleetProvider.notifier).clear();
     await ref.read(authProvider.notifier).logout();
-
-    if (!context.mounted) return;
-    context.go('/login');
   }
 
   Future<void> _changePassword(BuildContext context) async {

@@ -109,6 +109,31 @@ class SafetyParkingNotifier extends StateNotifier<SafetyParkingState> {
     await _ref.read(fleetProvider.notifier).updateSettings(vehicleId, safetyPark: true);
   }
 
+  /// Called whenever live vehicle data updates. If the armed vehicle is now
+  /// moving (speed > 0 or ignition ON), Safety Parking is automatically disarmed.
+  Future<void> autoDisarmIfMoving({
+    required String vehicleId,
+    required bool ignition,
+    required double speed,
+  }) async {
+    final bool isArmedForThisVehicle = state.activeAlarm?.vehicleId == vehicleId;
+    // Only auto-disarm if vehicle is actually moving (speed > 0)
+    // Idle state (ignition ON, speed = 0) does not trigger auto-disarm
+    if (speed > 0) {
+      if (isArmedForThisVehicle) {
+        dismissAlarm();
+      }
+      // Disarm on server to keep state in sync
+      try {
+        await _ref.read(fleetProvider.notifier).updateSettings(vehicleId, safetyPark: false);
+      } catch (_) {
+        try {
+          await _ref.read(vehicleRepositoryProvider).updateSettings(vehicleId, safetyPark: false);
+        } catch (_) {}
+      }
+    }
+  }
+
   Future<void> disarm(String vehicleId) async {
     if (state.activeAlarm?.vehicleId == vehicleId) {
       dismissAlarm();

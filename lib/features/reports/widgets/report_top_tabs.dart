@@ -34,6 +34,13 @@ const List<ReportTabMeta> kReportTabs = <ReportTabMeta>[
     bg: Color(0xFFD1FAE5),
   ),
   ReportTabMeta(
+    type: ReportType.geofenceTransit,
+    title: 'Geofence Trips',
+    icon: Icons.fence_rounded,
+    color: Color(0xFF0D9488),
+    bg: Color(0xFFCCFBF1),
+  ),
+  ReportTabMeta(
     type: ReportType.ignition,
     title: 'Engine On / Off',
     icon: Icons.power_settings_new_rounded,
@@ -111,9 +118,7 @@ class ReportTopTabs extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: kReportTabs.map((ReportTabMeta tab) {
-            final bool isActive = tab.type == selectedType ||
-                (tab.type == ReportType.trip &&
-                    selectedType == ReportType.manualTrip);
+            final bool isActive = tab.type == selectedType;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Material(

@@ -132,7 +132,27 @@ class VehicleRepository {
   }
 
   Future<void> sendImmobilizerCommand(String vehicleId, bool cutEngine) async {
-    throw ApiException(message: 'Immobilizer feature is not yet available.');
+    try {
+      await _api.post<dynamic>(
+        '/vehicles//relay',
+        body: <String, dynamic>{'cut': cutEngine, 'relay': cutEngine ? 1 : 0},
+      );
+    } catch (_) {
+      try {
+        await _api.post<dynamic>(
+          '/vehicles//command',
+          body: <String, dynamic>{
+            'command': cutEngine ? 'engineStop' : 'engineResume',
+            'type': cutEngine ? 'relay_off' : 'relay_on',
+          },
+        );
+      } catch (_) {
+        await _api.patch<dynamic>(
+          '/vehicles//settings',
+          body: <String, dynamic>{'isImmobilized': cutEngine, 'engineCut': cutEngine},
+        );
+      }
+    }
   }
 
   Future<void> updateSettings(String vehicleId, {

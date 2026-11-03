@@ -169,6 +169,10 @@ class Vehicle extends Equatable {
       longitude != null &&
       !(latitude == 0 && longitude == 0);
 
+  /// True only if this vehicle has calibrated fuel telemetry from its device/sensor.
+  bool get hasFuel =>
+      fuelLevel != null && fuelLevel! > 0 && fuelLevel! <= 1000;
+
   /// True if Safety Parking (Theft Alarm) is armed for this vehicle.
   bool get isSafetyParkActive {
     final dynamic meta = raw['metadata'];
@@ -260,12 +264,11 @@ class Vehicle extends Equatable {
     // ── NO DATA RULE ─────────────────────────────────────────────
     // When telemetry is NOT coming from the device, keep the vehicle
     // in its exact SAME STATE (Moving, Idle, Parked) until the elapsed
-    // time exceeds the user's selected threshold (default: 1 hr, or 3h/6h/12h/24h).
+    // time exceeds the user's selected threshold (default: 30 min, or 1h/3h/6h/12h/24h).
     //
     // Only after the threshold duration has fully elapsed without any
     // packets arriving from the device, transition to 'offline' (No Data).
     if (age != null && age > AppConfig.offlineThreshold) {
-      if (isTwoWheeler) return VehicleStatus.stopped;
       return VehicleStatus.offline;
     }
 
@@ -316,12 +319,48 @@ class Vehicle extends Equatable {
     return speed > limit;
   }
 
+  DateTime? get resolvedExpiryDate {
+    if (expiryDate != null) return expiryDate;
+    // Dynamic scan in raw map for any field containing 'expir', 'valid', or 'renew'
+    for (final MapEntry<String, dynamic> e in raw.entries) {
+      final String k = e.key.toLowerCase();
+      if (k.contains('expir') || k.contains('valid') || k.contains('renew')) {
+        final DateTime? d = asDate(<String, dynamic>{'d': e.value}, <String>['d']);
+        if (d != null) return d;
+      }
+    }
+    if (raw['attributes'] is Map) {
+      final Map<String, dynamic> attrs =
+          Map<String, dynamic>.from(raw['attributes'] as Map);
+      for (final MapEntry<String, dynamic> e in attrs.entries) {
+        final String k = e.key.toLowerCase();
+        if (k.contains('expir') || k.contains('valid') || k.contains('renew')) {
+          final DateTime? d = asDate(<String, dynamic>{'d': e.value}, <String>['d']);
+          if (d != null) return d;
+        }
+      }
+    }
+    if (raw['device'] is Map) {
+      final Map<String, dynamic> dev =
+          Map<String, dynamic>.from(raw['device'] as Map);
+      for (final MapEntry<String, dynamic> e in dev.entries) {
+        final String k = e.key.toLowerCase();
+        if (k.contains('expir') || k.contains('valid') || k.contains('renew')) {
+          final DateTime? d = asDate(<String, dynamic>{'d': e.value}, <String>['d']);
+          if (d != null) return d;
+        }
+      }
+    }
+    return null;
+  }
+
   int? get daysToExpiry {
-    if (expiryDate == null) return null;
+    final DateTime? expDate = resolvedExpiryDate;
+    if (expDate == null) return null;
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
     final DateTime exp =
-        DateTime(expiryDate!.year, expiryDate!.month, expiryDate!.day);
+        DateTime(expDate.year, expDate.month, expDate.day);
     return exp.difference(today).inDays;
   }
 
@@ -570,31 +609,53 @@ class Vehicle extends Equatable {
         return val;
       }(),
       fuelLevel: () {
-        const List<String> fuelKeys = <String>[
-          'fuel',
-          'fuelLevel',
-          'fuel_level',
-          'fuelPercent',
-          'fuel_percent',
-          'current_fuel',
-          'currentFuel',
+        const List<String> calibratedKeys = <String>[
+          'calibrated_fuel',
+          'calibratedFuel',
+          'normalized_fuel',
+          'normalizedFuel',
+          'end_fuel',
+          'endFuel',
           'current_fuel_level',
           'currentFuelLevel',
           'fuel_litres',
           'fuelLitres',
           'fuel_liters',
           'fuelLiters',
-          'litres',
-          'liters',
           'fuel_qty',
           'fuelQty',
+          'litres',
+          'liters',
         ];
-        return asDoubleOrNull(src, fuelKeys) ??
-            asDoubleOrNull(srcAttrs, fuelKeys) ??
-            asDoubleOrNull(json, fuelKeys) ??
-            asDoubleOrNull(jsonAttrs, fuelKeys) ??
-            asDoubleOrNull(device, fuelKeys) ??
-            asDoubleOrNull(deviceAttrs, fuelKeys);
+        const List<String> fallbackKeys = <String>[
+          'current_fuel',
+          'currentFuel',
+          'fuel',
+          'fuelLevel',
+          'fuel_level',
+          'fuelPercent',
+          'fuel_percent',
+        ];
+        double? val = asDoubleOrNull(src, calibratedKeys) ??
+            asDoubleOrNull(srcAttrs, calibratedKeys) ??
+            asDoubleOrNull(json, calibratedKeys) ??
+            asDoubleOrNull(jsonAttrs, calibratedKeys) ??
+            asDoubleOrNull(device, calibratedKeys) ??
+            asDoubleOrNull(deviceAttrs, calibratedKeys);
+
+        val ??= asDoubleOrNull(src, fallbackKeys) ??
+            asDoubleOrNull(srcAttrs, fallbackKeys) ??
+            asDoubleOrNull(json, fallbackKeys) ??
+            asDoubleOrNull(jsonAttrs, fallbackKeys) ??
+            asDoubleOrNull(device, fallbackKeys) ??
+            asDoubleOrNull(deviceAttrs, fallbackKeys);
+
+        // Reject raw ADC values (e.g. 2803, 819). Calibrated fuel only!
+        if (val != null && val > 400) {
+          return null;
+        }
+
+        return val;
       }(),
       batteryLevel:
           asDoubleOrNull(src, <String>['current_voltage', 'voltage', 'external_voltage']) ??
@@ -712,14 +773,70 @@ class Vehicle extends Equatable {
             'startTime',
             'start_time',
           ]),
-      expiryDate: asDate(json, <String>[
-        'expiryDate',
-        'expiresAt',
-        'licenseExpiry',
-        'validTill',
-        'subscriptionExpiry',
-        'renewalDate',
-      ]),
+      expiryDate: () {
+        const List<String> expKeys = <String>[
+          'expiryDate',
+          'expiry_date',
+          'expirationTime',
+          'expiration_time',
+          'expiration',
+          'expiresAt',
+          'expires_at',
+          'expireDate',
+          'expire_date',
+          'expireTime',
+          'expire_time',
+          'expiry',
+          'expires',
+          'validTill',
+          'valid_till',
+          'validUntil',
+          'valid_until',
+          'validTo',
+          'valid_to',
+          'validity',
+          'validityDate',
+          'validity_date',
+          'subscriptionExpiry',
+          'subscription_expiry',
+          'subscriptionEndDate',
+          'subscription_end_date',
+          'subscriptionEnd',
+          'subscription_end',
+          'renewalDate',
+          'renewal_date',
+          'renewal',
+          'licenseExpiry',
+          'license_expiry',
+          'contractExpiry',
+          'contract_expiry',
+          'contractEndDate',
+          'contract_end_date',
+          'dueDate',
+          'due_date',
+          'endDate',
+          'end_date',
+          'simExpiry',
+          'sim_expiry',
+          'deviceExpiry',
+          'device_expiry',
+          'deviceExpiration',
+          'device_expiration',
+          'rechargeExpiry',
+          'recharge_expiry',
+          'rechargeDate',
+          'recharge_date',
+        ];
+        final Map<String, dynamic> sub =
+            asMap(json, <String>['subscription', 'sub', 'contract', 'renewal', 'plan']);
+        return asDate(json, expKeys) ??
+            asDate(jsonAttrs, expKeys) ??
+            asDate(sub, expKeys) ??
+            asDate(device, expKeys) ??
+            asDate(deviceAttrs, expKeys) ??
+            asDate(src, expKeys) ??
+            asDate(srcAttrs, expKeys);
+      }(),
       speedLimit: asDoubleOrNull(jsonAttrs, <String>[
         'speedLimit',
         'maxSpeed',
@@ -914,13 +1031,18 @@ class Vehicle extends Equatable {
       isMoving: hasExplicitMotion ? incoming.isMoving : isMoving,
       isOnline: nextIsOnline,
       odometer: nextOdometer ?? odometer,
-      fuelLevel: (incoming.fuelLevel != null && incoming.fuelLevel! >= 0) ? incoming.fuelLevel : fuelLevel,
+      fuelLevel: (incoming.fuelLevel != null &&
+              incoming.fuelLevel! >= 0 &&
+              incoming.fuelLevel! <= 400)
+          ? incoming.fuelLevel
+          : fuelLevel,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
       gsmSignal: incoming.gsmSignal ?? gsmSignal,
       satellites: incoming.satellites ?? satellites,
       address: incoming.address ?? address,
       lastPacketAt: incoming.lastPacketAt ?? (hasExplicitSpeed || hasExplicitMotion || incoming.latitude != null ? DateTime.now() : lastPacketAt),
       todayDistanceKm: nextTodayDistanceKm ?? todayDistanceKm,
+      expiryDate: incoming.expiryDate ?? expiryDate,
       rawStatus: incoming.rawStatus ?? rawStatus,
       raw: <String, dynamic>{...raw, ...frame},
     );

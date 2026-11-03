@@ -710,8 +710,7 @@ class _EngineAddressCellState extends State<_EngineAddressCell> {
         color: Color(0xFF0F172A),
         height: 1.3,
       ),
-      maxLines: 4,
-      overflow: TextOverflow.ellipsis,
+      softWrap: true,
     );
   }
 }

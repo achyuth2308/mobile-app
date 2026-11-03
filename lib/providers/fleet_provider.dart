@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config/app_config.dart';
 import '../core/network/api_exception.dart';
 import '../core/realtime/socket_service.dart';
+import '../data/models/json_utils.dart';
+import '../data/models/report_models.dart';
 import '../data/models/user.dart';
 import '../data/models/vehicle.dart';
 import 'auth_provider.dart';
@@ -269,11 +271,12 @@ class FleetController extends Notifier<FleetState> {
           return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
         });
       }
-      _rebuildIndexes(cleanMerged);
+      final List<Vehicle> calibratedList = await _syncConsolidatedFuel(cleanMerged);
+      _rebuildIndexes(calibratedList);
 
       if (!_mounted) return;
       _safeSetState(state.copyWith(
-        vehicles: cleanMerged,
+        vehicles: calibratedList,
         isLoading: false,
         isRefreshing: false,
         lastSyncedAt: DateTime.now(),
@@ -316,6 +319,159 @@ class FleetController extends Notifier<FleetState> {
         isRefreshing: false,
         error: e.toString(),
       ));
+    }
+  }
+
+  Future<List<Vehicle>> _syncConsolidatedFuel(List<Vehicle> list) async {
+    try {
+      final DateTime now = DateTime.now();
+      final DateTime start = DateTime(now.year, now.month, now.day);
+      final ReportResult repRes = await ref.read(reportRepositoryProvider).run(
+        type: ReportType.fuelConsolidated,
+        start: start,
+        end: now,
+      );
+
+      final Map<String, double> endFuelByVehicle = <String, double>{};
+
+      double? parseCalibrated(Map<String, dynamic> raw) {
+        final double? val = asDoubleOrNull(raw, <String>[
+          'end_fuel_level',
+          'endFuelLevel',
+          'end_fuel',
+          'endFuel',
+          'endingFuel',
+          'end_fuel_ltr',
+          'end_fuel_litres',
+          'end_fuel_liters',
+          'current_fuel_level',
+          'currentFuelLevel',
+          'current_fuel',
+          'currentFuel',
+          'calibrated_fuel',
+          'calibratedFuel',
+          'normalized_fuel',
+          'normalizedFuel',
+          'fuel_litres',
+          'fuel_liters',
+          'fuel_qty',
+          'fuelQty',
+          'fuel',
+          'fuelLevel',
+          'fuel_level',
+        ]);
+        if (val != null && val > 0 && val <= 400) return val;
+        return null;
+      }
+
+      void indexRow(ReportRow row) {
+        final double? ef = parseCalibrated(row.raw) ??
+            (row.endFuel != null && row.endFuel! > 0 && row.endFuel! <= 400
+                ? row.endFuel
+                : null);
+        if (ef == null) return;
+
+        final List<String?> idList = <String?>[
+          row.vehicleId,
+          row.raw['vehicle_id']?.toString(),
+          row.raw['vehicleId']?.toString(),
+          row.raw['id']?.toString(),
+          row.raw['_id']?.toString(),
+          row.raw['deviceId']?.toString(),
+          row.raw['device_id']?.toString(),
+          row.raw['imei']?.toString(),
+          row.raw['IMEI']?.toString(),
+        ];
+        for (final String? id in idList) {
+          if (id != null && id.trim().isNotEmpty) {
+            endFuelByVehicle[id.trim()] = ef;
+          }
+        }
+
+        final List<String?> plateList = <String?>[
+          row.plate,
+          row.raw['plate']?.toString(),
+          row.raw['plateNumber']?.toString(),
+          row.raw['registrationNumber']?.toString(),
+          row.raw['reg_no']?.toString(),
+          row.raw['regNo']?.toString(),
+          row.raw['vehicle_number']?.toString(),
+        ];
+        for (final String? p in plateList) {
+          if (p != null && p.trim().isNotEmpty) {
+            final String clean =
+                p.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+            if (clean.isNotEmpty) endFuelByVehicle[clean] = ef;
+          }
+        }
+
+        final List<String?> nameList = <String?>[
+          row.vehicleName,
+          row.raw['vehicle_name']?.toString(),
+          row.raw['vehicleName']?.toString(),
+          row.raw['name']?.toString(),
+        ];
+        for (final String? n in nameList) {
+          if (n != null && n.trim().isNotEmpty) {
+            final String clean =
+                n.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+            if (clean.isNotEmpty) endFuelByVehicle[clean] = ef;
+          }
+        }
+      }
+
+      for (final ReportRow row in repRes.rows) {
+        indexRow(row);
+      }
+
+      double? findFuelForVehicle(Vehicle v) {
+        if (endFuelByVehicle.containsKey(v.id)) return endFuelByVehicle[v.id];
+        if (v.deviceId.isNotEmpty && endFuelByVehicle.containsKey(v.deviceId)) {
+          return endFuelByVehicle[v.deviceId];
+        }
+        if (v.imei.isNotEmpty && endFuelByVehicle.containsKey(v.imei)) {
+          return endFuelByVehicle[v.imei];
+        }
+
+        final String cleanReg =
+            v.registrationNumber.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+        final String cleanName =
+            v.name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+        if (cleanReg.isNotEmpty && endFuelByVehicle.containsKey(cleanReg)) {
+          return endFuelByVehicle[cleanReg];
+        }
+        if (cleanName.isNotEmpty && endFuelByVehicle.containsKey(cleanName)) {
+          return endFuelByVehicle[cleanName];
+        }
+
+        for (final MapEntry<String, double> entry in endFuelByVehicle.entries) {
+          final String k = entry.key;
+          if (k.length >= 5) {
+            if (cleanReg.isNotEmpty &&
+                (cleanReg.contains(k) || k.contains(cleanReg))) {
+              return entry.value;
+            }
+            if (cleanName.isNotEmpty &&
+                (cleanName.contains(k) || k.contains(cleanName))) {
+              return entry.value;
+            }
+          }
+        }
+        return null;
+      }
+
+      final List<Vehicle> updated = list.map((Vehicle v) {
+        final double? f = findFuelForVehicle(v);
+        if (f != null && f > 0 && f <= 1000) {
+          return v.copyWith(fuelLevel: f);
+        }
+        return v;
+      }).toList();
+
+      return updated;
+    } catch (e) {
+      debugPrint('Consolidated fuel sync skipped: $e');
+      return list;
     }
   }
 
@@ -488,6 +644,14 @@ class FleetController extends Notifier<FleetState> {
     } catch (_) {}
   }
 
+  /// Manually update or add a vehicle (e.g. from a detailed single-vehicle fetch).
+  void upsertVehicle(Vehicle vehicle) {
+    if (!_mounted) return;
+    _pending[vehicle.id] = vehicle;
+    _vehiclesById[vehicle.id] = vehicle;
+    _flush();
+  }
+
   /// Flush buffered socket frames.
   /// Telemetry data updates the vehicle in-place at its exact position in the list
   /// without re-sorting, ensuring vehicle cards never jump or shift unexpectedly while
@@ -596,8 +760,18 @@ class FleetController extends Notifier<FleetState> {
   }) async {
     try {
       if (safetyPark != null) {
+        final String cleanTarget = vehicleId.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
         final List<Vehicle> updated = state.vehicles.map((Vehicle v) {
-          if (v.id == vehicleId) return v.withSafetyPark(safetyPark);
+          final String vReg = v.registrationNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+          final String vName = v.name.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+          if (v.id == vehicleId || vReg == cleanTarget || vName == cleanTarget) {
+            final Vehicle armed = v.withSafetyPark(safetyPark);
+            if (_pending.containsKey(v.id)) {
+              _pending[v.id] = _pending[v.id]!.withSafetyPark(safetyPark);
+            }
+            _vehiclesById[v.id] = armed;
+            return armed;
+          }
           return v;
         }).toList();
         _safeSetState(state.copyWith(vehicles: updated));

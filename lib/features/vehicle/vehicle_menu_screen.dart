@@ -25,6 +25,8 @@ class VehicleMenuScreen extends ConsumerStatefulWidget {
 }
 
 class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
+  bool? _optimisticSafetyPark;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +36,143 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
       ref.read(secureStoreProvider).setLastVehicleId(widget.vehicleId);
     });
   }
+
+  /// Safety Parking can only be ARMED when the vehicle is fully parked:
+  /// ignition OFF **and** speed == 0.
+  Future<void> _handleEngineCutToggle(BuildContext context, WidgetRef ref, Vehicle vehicle) async {
+    final bool isImmobilized = vehicle.isImmobilized;
+    final bool? proceed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (isImmobilized ? const Color(0xFF10B981) : const Color(0xFFDC2626)).withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isImmobilized ? Icons.settings_backup_restore_rounded : Icons.warning_rounded,
+              color: isImmobilized ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+              size: 38,
+            ),
+          ),
+          title: Text(
+            isImmobilized ? 'Restore Engine Power?' : '⚠️ DANGER: Cut Off Engine?',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isImmobilized
+                    ? 'This will close the relay circuit and restore ignition power to ${vehicle.displayName}, allowing the driver to start the vehicle.'
+                    : 'Cutting the engine is an EMERGENCY SAFETY ACTION that will immediately disable the ignition circuit of ${vehicle.displayName}.',
+                style: const TextStyle(fontSize: 13, height: 1.4),
+              ),
+              if (!isImmobilized) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.shield_outlined, color: Color(0xFFDC2626), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Ensure the vehicle is stationary or parked in a safe spot before cutting the circuit.',
+                          style: TextStyle(
+                            color: Color(0xFF991B1B),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    icon: Icon(
+                      isImmobilized ? Icons.power_rounded : Icons.power_off_rounded,
+                      size: 16,
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isImmobilized ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    label: Text(
+                      isImmobilized ? 'Restore' : 'CUT ENGINE',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (proceed != true || !context.mounted) return;
+
+    try {
+      await ref.read(vehicleRepositoryProvider).sendImmobilizerCommand(vehicle.id, !isImmobilized);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isImmobilized
+                  ? '✅ Engine restored for ${vehicle.displayName}.'
+                  : '🛑 Engine cut command sent for ${vehicle.displayName}.',
+            ),
+            backgroundColor: isImmobilized ? AppColors.moving : AppColors.danger,
+          ),
+        );
+      }
+      ref.read(fleetProvider.notifier).load();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _canArmSafetyParking(Vehicle vehicle) =>
+      !vehicle.ignition && vehicle.speed == 0;
 
   @override
   void dispose() {
@@ -68,6 +207,25 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
+
+    // Auto-disarm Safety Parking when the vehicle starts moving or engine turns ON
+    ref.listen<Vehicle?>(vehicleByIdProvider(widget.vehicleId), (previous, next) {
+      if (next == null) return;
+      final bool wasArmed = previous?.isSafetyParkActive ?? false;
+      final bool isMovingNow = next.speed > 0; // Only auto-disarm when actually moving, not idle
+      if (wasArmed && isMovingNow) {
+        // Reset optimistic state and auto-disarm
+        setState(() => _optimisticSafetyPark = false);
+        ref.read(safetyParkingProvider.notifier).autoDisarmIfMoving(
+          vehicleId: next.id,
+          ignition: next.ignition,
+          speed: next.speed,
+        );
+      }
+    });
+
+    final bool isArmed = _optimisticSafetyPark ?? vehicle.isSafetyParkActive;
+    final bool canArm = _canArmSafetyParking(vehicle);
 
     return Scaffold(
       appBar: AppBar(
@@ -267,106 +425,252 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           const SizedBox(height: Gap.md),
 
           // ── Safety Parking Quick Control Banner ───────────────────────
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          DecoratedBox(
             decoration: BoxDecoration(
-              color: vehicle.isSafetyParkActive
-                  ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
-                  : (isDark ? const Color(0xFF1E2238) : Colors.white),
               borderRadius: Corners.rLg,
-              border: Border.all(
-                color: vehicle.isSafetyParkActive
-                    ? const Color(0xFFDC2626)
-                    : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-                width: vehicle.isSafetyParkActive ? 1.5 : 1.0,
-              ),
               boxShadow: [
                 BoxShadow(
-                  color: (vehicle.isSafetyParkActive ? const Color(0xFFDC2626) : Colors.black)
-                      .withValues(alpha: vehicle.isSafetyParkActive ? 0.15 : 0.04),
+                  color: (isArmed ? const Color(0xFFDC2626) : Colors.black)
+                      .withValues(alpha: isArmed ? 0.15 : 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: vehicle.isSafetyParkActive
-                        ? const Color(0xFFDC2626)
-                        : (isDark ? Colors.white12 : const Color(0xFFF1F5F9)),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    vehicle.isSafetyParkActive ? Icons.security_rounded : Icons.shield_outlined,
-                    color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
-                    size: 20,
-                  ),
+            child: Material(
+              color: isArmed
+                  ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+                  : (isDark ? const Color(0xFF1E2640) : const Color(0xFFF0F7FF)),
+              shape: RoundedRectangleBorder(
+                borderRadius: Corners.rLg,
+                side: BorderSide(
+                  color: isArmed
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF2563EB).withOpacity(0.4),
+                  width: 1.5,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Safety Parking',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                            ),
+              ),
+              child: InkWell(
+                borderRadius: Corners.rLg,
+                onTap: () async {
+                  final bool nextState = !isArmed;
+
+                  // Block arming while vehicle is moving or engine is ON
+                  if (nextState && !_canArmSafetyParking(vehicle)) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            '⚠️ Safety Parking can only be armed when the vehicle is parked (Engine OFF & Speed = 0).',
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: vehicle.isSafetyParkActive
-                                  ? const Color(0xFFDC2626)
-                                  : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              vehicle.isSafetyParkActive ? 'ARMED' : 'DISARMED',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        vehicle.isSafetyParkActive
-                            ? 'Siren triggers if moved or ignition turns ON'
-                            : 'Tap to arm anti-theft parking guard',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: vehicle.isSafetyParkActive
-                              ? const Color(0xFFDC2626)
-                              : theme.colorScheme.onSurfaceVariant,
+                          backgroundColor: Color(0xFFB45309),
+                          duration: Duration(seconds: 3),
+                          behavior: SnackBarBehavior.floating,
                         ),
+                      );
+                    }
+                    return;
+                  }
+
+                  setState(() {
+                    _optimisticSafetyPark = nextState;
+                  });
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          nextState
+                              ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
+                              : 'Safety Parking Disarmed.',
+                        ),
+                        backgroundColor: nextState ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
                       ),
-                    ],
-                  ),
-                ),
-                Switch.adaptive(
-                  value: vehicle.isSafetyParkActive,
-                  activeColor: const Color(0xFFDC2626),
-                  onChanged: (bool val) async {
-                    if (val) {
+                    );
+                  }
+
+                  try {
+                    if (nextState) {
                       await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
                     } else {
                       await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
                     }
-                  },
+                  } catch (e) {
+                    if (context.mounted) {
+                      setState(() {
+                        _optimisticSafetyPark = !nextState;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to update Safety Parking: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: isArmed
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF2563EB),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isArmed ? const Color(0xFFDC2626) : const Color(0xFF2563EB))
+                                  .withOpacity(0.35),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          isArmed ? Icons.security_rounded : Icons.shield_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  'Safety Parking',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: isArmed
+                                        ? const Color(0xFFDC2626)
+                                        : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    isArmed ? 'ARMED' : 'DISARMED',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      color: isArmed ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isArmed
+                                  ? 'Siren triggers if moved or ignition turns ON'
+                                  : !canArm
+                                      ? (vehicle.speed > 0
+                                          ? 'Unavailable while moving — park the vehicle first'
+                                          : 'Unavailable while engine is ON — turn off ignition first')
+                                      : 'Tap anywhere to arm anti-theft parking guard',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isArmed
+                                    ? const Color(0xFFDC2626)
+                                    : !canArm
+                                        ? const Color(0xFFB45309)
+                                        : theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          gradient: isArmed
+                              ? const LinearGradient(colors: [Color(0xFFB91C1C), Color(0xFFDC2626)])
+                              : !canArm
+                                  ? null
+                                  : const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)]),
+                          color: !canArm
+                              ? (isDark ? Colors.orange.withValues(alpha: 0.2) : const Color(0xFFFEF3C7))
+                              : null,
+                          borderRadius: BorderRadius.circular(16),
+                          border: !canArm
+                              ? Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5), width: 1.2)
+                              : null,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isArmed
+                                      ? const Color(0xFFDC2626)
+                                      : !canArm
+                                          ? const Color(0xFFF59E0B)
+                                          : const Color(0xFF2563EB))
+                                  .withOpacity(0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isArmed
+                                  ? 'ARMED'
+                                  : !canArm
+                                      ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
+                                      : 'ARM GUARD',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: isArmed || canArm
+                                    ? Colors.white
+                                    : const Color(0xFFB45309),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              isArmed
+                                  ? Icons.shield_rounded
+                                  : !canArm
+                                      ? (vehicle.speed > 0
+                                          ? Icons.directions_car_rounded
+                                          : Icons.power_settings_new_rounded)
+                                      : Icons.chevron_right_rounded,
+                              size: 15,
+                              color: isArmed || canArm
+                                  ? Colors.white
+                                  : const Color(0xFFB45309),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
+          ),
+
+          const SizedBox(height: Gap.md),
+
+          // ── Special Emergency Engine Cut Off Banner ───────────────────
+          _EngineCutSpecialBanner(
+            vehicle: vehicle,
+            onToggle: () => _handleEngineCutToggle(context, ref, vehicle),
           ),
 
           const SizedBox(height: Gap.lg),
@@ -432,29 +736,112 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           ),
 
           _MenuItemCard(
-            title: 'Vehicle Reports',
-            subtitle: 'Distance, trip summary, idle time & fuel reports',
-            icon: Icons.assessment_rounded,
-            accentColor: const Color(0xFF8B5CF6), // Purple
-            onTap: () => context.go('/reports?vehicle=${widget.vehicleId}'),
-          ),
-
-          _MenuItemCard(
-            title: 'Primary Engine On',
-            subtitle: 'Engine ON/OFF events, total duration & nearest locations',
-            icon: Icons.power_settings_new_rounded,
-            accentColor: const Color(0xFFF59E0B), // Amber
-            onTap: () =>
-                context.push('/vehicle/${widget.vehicleId}/engine-on'),
-          ),
-
-          _MenuItemCard(
             title: 'Alert & Notification Configuration',
             subtitle: 'Speed limits, alert thresholds & notification toggles',
             icon: Icons.notifications_active_outlined,
             accentColor: const Color(0xFF64748B), // Slate
             onTap: () => context.push('/vehicle/${widget.vehicleId}/settings'),
           ),
+
+          // ── Dedicated Individual Reports ──────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+            child: Text(
+              'REPORTS',
+              style: AppTypography.eyebrow(theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+
+          _MenuItemCard(
+            title: 'Trip Report',
+            subtitle: 'Automated trips, start/end locations, duration & distance',
+            icon: Icons.route_rounded,
+            accentColor: const Color(0xFF8B5CF6), // Purple
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=trip'),
+          ),
+
+          _MenuItemCard(
+            title: 'Full Day Trip Report',
+            subtitle: 'Daily aggregated travel summary and total distance',
+            icon: Icons.today_rounded,
+            accentColor: const Color(0xFF6366F1), // Indigo
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=dailyTrip'),
+          ),
+
+          _MenuItemCard(
+            title: 'Geofence Trips',
+            subtitle: 'Corridor transit, entry/exit logs & geofence journeys',
+            icon: Icons.alt_route_rounded,
+            accentColor: const Color(0xFF0D9488), // Teal
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=geofenceTransit'),
+          ),
+
+          _MenuItemCard(
+            title: 'Stoppage Report',
+            subtitle: 'Halt locations, stoppage durations & parking logs',
+            icon: Icons.pause_circle_rounded,
+            accentColor: const Color(0xFFEA580C), // Orange
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=stoppages'),
+          ),
+
+          _MenuItemCard(
+            title: 'Idle Report',
+            subtitle: 'Engine idle time, stationary waste & locations',
+            icon: Icons.access_time_rounded,
+            accentColor: const Color(0xFFD97706), // Amber
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=idle'),
+          ),
+
+          _MenuItemCard(
+            title: 'Primary Engine On',
+            subtitle: 'Engine ON/OFF events, total duration & nearest locations',
+            icon: Icons.power_settings_new_rounded,
+            accentColor: const Color(0xFF059669), // Emerald
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/engine-on'),
+          ),
+
+          _MenuItemCard(
+            title: 'Overspeeding Report',
+            subtitle: 'Speed limit violations, top speeds & violation spots',
+            icon: Icons.speed_rounded,
+            accentColor: const Color(0xFFE11D48), // Rose
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=overspeeding'),
+          ),
+
+          _MenuItemCard(
+            title: 'Consolidated Report',
+            subtitle: 'Consolidated distance, running time, idle & halts',
+            icon: Icons.group_work_rounded,
+            accentColor: const Color(0xFF16A34A), // Green
+            onTap: () =>
+                context.go('/reports?vehicle=${widget.vehicleId}&type=consolidated'),
+          ),
+
+          if (vehicle.hasFuel) ...[
+            _MenuItemCard(
+              title: 'Fuel Analytics & Report',
+              subtitle: 'Interactive dual-axis graph, refills, theft & packet log',
+              icon: Icons.local_gas_station_rounded,
+              accentColor: const Color(0xFF0284C7), // Sky / Cyan
+              onTap: () =>
+                  context.push('/vehicle/${widget.vehicleId}/fuel-analytics'),
+            ),
+            _MenuItemCard(
+              title: 'Fuel Consolidated Report',
+              subtitle: 'Fuel consumption, refuels, theft & mileage breakdown',
+              icon: Icons.ev_station_rounded,
+              accentColor: const Color(0xFFEA580C), // Orange
+              onTap: () =>
+                  context.go('/reports?vehicle=${widget.vehicleId}&type=fuelConsolidated'),
+            ),
+          ],
         ],
       ),
     );
@@ -535,11 +922,15 @@ class _MenuItemCard extends StatelessWidget {
           color: theme.colorScheme.outlineVariant.withOpacity(0.3),
         ),
       ),
-      child: InkWell(
-        onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
         borderRadius: Corners.rLg,
-        child: Padding(
-          padding: const EdgeInsets.all(14.0),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: Corners.rLg,
+          mouseCursor: SystemMouseCursors.click,
+          child: Padding(
+            padding: const EdgeInsets.all(14.0),
           child: Row(
             children: [
               Container(
@@ -589,6 +980,185 @@ class _MenuItemCard extends StatelessWidget {
                 size: 20,
               ),
             ],
+          ),
+        ),
+      ),
+      ),
+    );
+  }
+}
+
+class _EngineCutSpecialBanner extends StatelessWidget {
+  const _EngineCutSpecialBanner({
+    required this.vehicle,
+    required this.onToggle,
+  });
+
+  final Vehicle vehicle;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final bool isCut = vehicle.isImmobilized;
+
+    // Danger / Alert accent colors
+    final Color primaryColor = isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626);
+    final Color bgColor = isCut
+        ? (isDark ? const Color(0xFF064E3B).withOpacity(0.4) : const Color(0xFFECFDF5))
+        : (isDark ? const Color(0xFF450A0A).withOpacity(0.5) : const Color(0xFFFEF2F2));
+    final Color borderColor = isCut
+        ? const Color(0xFF10B981).withOpacity(0.5)
+        : const Color(0xFFDC2626).withOpacity(0.4);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: Corners.rLg,
+        boxShadow: [
+          BoxShadow(
+            color: (isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626))
+                .withOpacity(isDark ? 0.2 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: bgColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: Corners.rLg,
+          side: BorderSide(color: borderColor, width: 1.5),
+        ),
+        child: InkWell(
+          borderRadius: Corners.rLg,
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                // Warning pulsing emblem / icon badge
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: isCut
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFDC2626),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626))
+                            .withOpacity(0.35),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    isCut ? Icons.power_rounded : Icons.power_settings_new_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Engine Cut Off Relay',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isCut
+                                  ? const Color(0xFF10B981)
+                                  : (isDark ? const Color(0xFFDC2626).withOpacity(0.3) : const Color(0xFFFEE2E2)),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              isCut ? 'CIRCUIT CUT' : 'NORMAL / ACTIVE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: isCut
+                                    ? Colors.white
+                                    : (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isCut
+                            ? 'Relay circuit is disabled. Tap to restore ignition.'
+                            : 'Emergency ignition cutoff — tap to immobilize vehicle',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isCut
+                              ? const Color(0xFF059669)
+                              : (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C)),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Dedicated Special Action Button
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isCut
+                          ? [const Color(0xFF059669), const Color(0xFF10B981)]
+                          : [const Color(0xFFB91C1C), const Color(0xFFEF4444)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626))
+                            .withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isCut ? Icons.settings_backup_restore_rounded : Icons.power_settings_new_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isCut ? 'RESTORE' : 'CUT OFF',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

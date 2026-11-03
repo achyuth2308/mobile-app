@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
@@ -137,11 +136,9 @@ class _AccountDeletionSheetState extends ConsumerState<AccountDeletionSheet> {
   }
 
   Future<void> _signOutAfterRequest() async {
+    Navigator.of(context).pop();
     ref.read(fleetProvider.notifier).clear();
     await ref.read(authProvider.notifier).logout();
-    if (!mounted) return;
-    Navigator.pop(context);
-    context.go('/login');
   }
 
   @override

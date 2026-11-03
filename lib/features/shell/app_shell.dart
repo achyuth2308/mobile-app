@@ -69,7 +69,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         if (didPop) return;
 
         if (widget.navigationShell.currentIndex != 0) {
-          widget.navigationShell.goBranch(0);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              widget.navigationShell.goBranch(0);
+            }
+          });
           return;
         }
 

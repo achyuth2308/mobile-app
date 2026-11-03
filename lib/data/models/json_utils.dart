@@ -130,9 +130,8 @@ bool asBool(Map<String, dynamic> json, List<String> keys, {bool fallback = false
 }
 
 DateTime? asDate(Map<String, dynamic> json, List<String> keys) {
-  for (final String k in keys) {
-    final Object? v = json[k];
-    if (v == null) continue;
+  DateTime? parseValue(Object? v) {
+    if (v == null) return null;
     if (v is DateTime) return v;
     if (v is num) {
       // Heuristic: 10-digit = seconds, 13-digit = milliseconds.
@@ -144,35 +143,33 @@ DateTime? asDate(Map<String, dynamic> json, List<String> keys) {
     }
     if (v is String && v.trim().isNotEmpty) {
       String str = v.trim();
-      
+
       // Convert DD-MM-YYYY or DD/MM/YYYY to YYYY-MM-DD
       if (RegExp(r'^\d{2}[-/]\d{2}[-/]\d{4}').hasMatch(str)) {
         str = '${str.substring(6, 10)}-${str.substring(3, 5)}-${str.substring(0, 2)}${str.substring(10)}';
+      } else if (RegExp(r'^\d{4}/\d{2}/\d{2}').hasMatch(str)) {
+        str = str.replaceAll('/', '-');
+      } else if (RegExp(r'^\d{4}\.\d{2}\.\d{2}').hasMatch(str)) {
+        str = str.replaceAll('.', '-');
       }
 
-      // If the backend sends UTC without a Z or offset (e.g. "2026-07-30 12:47:00")
-      // we append Z, but verify it does not jump into the future if the string was already local.
+      // Check if string contains timezone offset
       final bool hadOffset = str.endsWith('Z') ||
           str.contains('+') ||
           str.contains(RegExp(r'-[0-9]{2}:?[0-9]{2}$'));
-      if (!hadOffset) {
+
+      // If time component is present without offset, try parsing as local first
+      if (!hadOffset && str.contains(' ')) {
+        final DateTime? directLocal = DateTime.tryParse(str);
+        if (directLocal != null) return directLocal;
         str = str.replaceAll(' ', 'T');
-        if (str.contains('T')) {
-          str = '${str}Z';
-        }
       }
+
       final DateTime? d = DateTime.tryParse(str);
       if (d != null) {
-        final DateTime local = d.toLocal();
-        // If appending 'Z' pushed this timestamp more than 5 minutes into the future,
-        // the original string was already local time, not UTC.
-        if (!hadOffset && local.isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
-          final String withoutZ = str.replaceAll(RegExp(r'[Zz]$'), '');
-          final DateTime? fallbackLocal = DateTime.tryParse(withoutZ);
-          if (fallbackLocal != null) return fallbackLocal;
-        }
-        return local;
+        return d.toLocal();
       }
+
       final int? ms = int.tryParse(v);
       if (ms != null) {
         return DateTime.fromMillisecondsSinceEpoch(
@@ -181,8 +178,30 @@ DateTime? asDate(Map<String, dynamic> json, List<String> keys) {
         ).toLocal();
       }
     }
-    if (v is Map && v['\$date'] != null) {
-      return asDate(<String, dynamic>{'d': v['\$date']}, <String>['d']);
+    if (v is Map) {
+      if (v['\$date'] != null) {
+        return parseValue(v['\$date']);
+      }
+      if (v['date'] != null) {
+        return parseValue(v['date']);
+      }
+      if (v['value'] != null) {
+        return parseValue(v['value']);
+      }
+    }
+    return null;
+  }
+
+  for (final String k in keys) {
+    final DateTime? direct = parseValue(json[k]);
+    if (direct != null) return direct;
+
+    final String fuzzyK = k.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final MapEntry<String, dynamic> entry in json.entries) {
+      if (entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') == fuzzyK) {
+        final DateTime? fuzzy = parseValue(entry.value);
+        if (fuzzy != null) return fuzzy;
+      }
     }
   }
   return null;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -96,14 +97,57 @@ class LocationSearchService {
       }
     } catch (_) {}
 
-    // 3. Fallback to OpenStreetMap Nominatim if Google returned no matches
+    // 3. Fallback to Photon / OpenStreetMap if Google returned no matches
     if (results.isEmpty) {
+      try {
+        final Response<dynamic> res = await _dio.get(
+          'https://photon.komoot.io/api/?q=${Uri.encodeComponent(trimmed)}&limit=5',
+        );
+        if (res.statusCode == 200 && res.data is Map) {
+          final dynamic features = (res.data as Map)['features'];
+          if (features is List) {
+            for (final dynamic item in features) {
+              if (item is Map) {
+                final dynamic geom = item['geometry'];
+                final dynamic props = item['properties'];
+                if (geom is Map && props is Map) {
+                  final dynamic coords = geom['coordinates'];
+                  if (coords is List && coords.length >= 2) {
+                    final double? lng = double.tryParse(coords[0].toString());
+                    final double? lat = double.tryParse(coords[1].toString());
+                    final String name = props['name']?.toString() ?? props['street']?.toString() ?? trimmed;
+                    final List<String> addrParts = <String>[];
+                    if (props['name'] != null) addrParts.add(props['name'].toString());
+                    if (props['district'] != null) addrParts.add(props['district'].toString());
+                    if (props['city'] != null) addrParts.add(props['city'].toString());
+                    if (props['state'] != null) addrParts.add(props['state'].toString());
+                    final String address = addrParts.isNotEmpty ? addrParts.join(', ') : name;
+                    if (lat != null && lng != null) {
+                      results.add(
+                        PlaceSearchResult(
+                          name: name,
+                          address: address,
+                          lat: lat,
+                          lng: lng,
+                        ),
+                      );
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (results.isEmpty && !kIsWeb) {
       try {
         final String nomUrl =
             'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(trimmed)}&limit=5&countrycodes=in';
         final Response<dynamic> res = await _dio.get(
           nomUrl,
-          options: Options(headers: {'User-Agent': 'FuelTracks-FleetApp/1.0'}),
+          options: Options(headers: const <String, String>{'User-Agent': 'FuelTracks-FleetApp/1.0'}),
         );
         if (res.statusCode == 200 && res.data is List) {
           for (final dynamic item in res.data as List<dynamic>) {

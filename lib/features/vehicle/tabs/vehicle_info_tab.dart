@@ -21,14 +21,33 @@ import '../../../shared/widgets/live_address.dart';
 
 import 'package:local_auth/local_auth.dart';
 
-class VehicleInfoTab extends ConsumerWidget {
+class VehicleInfoTab extends ConsumerStatefulWidget {
   const VehicleInfoTab({required this.vehicleId, super.key});
 
   final String vehicleId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final Vehicle? v = ref.watch(vehicleByIdProvider(vehicleId));
+  ConsumerState<VehicleInfoTab> createState() => _VehicleInfoTabState();
+}
+
+class _VehicleInfoTabState extends ConsumerState<VehicleInfoTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final Vehicle detailed =
+            await ref.read(vehicleRepositoryProvider).getVehicle(widget.vehicleId);
+        if (mounted) {
+          ref.read(fleetProvider.notifier).upsertVehicle(detailed);
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Vehicle? v = ref.watch(vehicleByIdProvider(widget.vehicleId));
     final ThemeData theme = Theme.of(context);
 
     if (v == null) return const SizedBox.shrink();
@@ -41,13 +60,12 @@ class VehicleInfoTab extends ConsumerWidget {
           const SizedBox(height: Gap.lg),
         ],
 
-        _ImmobilizerCard(vehicle: v),
+        ImmobilizerCard(vehicle: v),
         const SizedBox(height: Gap.lg),
 
         _Section(
           title: 'VEHICLE',
           rows: <(String, String)>[
-            ('Registration', v.registrationNumber.isEmpty ? '—' : v.registrationNumber),
             ('Name', v.name.isEmpty ? '—' : v.name),
             ('Type', v.type.toUpperCase()),
             if (v.speedLimit != null)
@@ -104,7 +122,7 @@ class VehicleInfoTab extends ConsumerWidget {
         _Section(
           title: 'SUBSCRIPTION',
           rows: <(String, String)>[
-            ('Expiry date', Fmt.date(v.expiryDate)),
+            ('Expiry date', Fmt.date(v.resolvedExpiryDate)),
             ('Status', Fmt.expiry(v.daysToExpiry)),
           ],
         ),
@@ -266,9 +284,9 @@ class _RenewalBanner extends StatelessWidget {
     return Container(
       padding: Gap.card,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: Corners.rLg,
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: <Widget>[
@@ -310,16 +328,16 @@ class _RenewalBanner extends StatelessWidget {
   }
 }
 
-class _ImmobilizerCard extends ConsumerStatefulWidget {
-  const _ImmobilizerCard({required this.vehicle});
+class ImmobilizerCard extends ConsumerStatefulWidget {
+  const ImmobilizerCard({required this.vehicle, super.key});
 
   final Vehicle vehicle;
 
   @override
-  ConsumerState<_ImmobilizerCard> createState() => _ImmobilizerCardState();
+  ConsumerState<ImmobilizerCard> createState() => _ImmobilizerCardState();
 }
 
-class _ImmobilizerCardState extends ConsumerState<_ImmobilizerCard> {
+class _ImmobilizerCardState extends ConsumerState<ImmobilizerCard> {
   bool _loading = false;
   final LocalAuthentication _auth = LocalAuthentication();
 
@@ -455,7 +473,7 @@ class _ImmobilizerCardState extends ConsumerState<_ImmobilizerCard> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: Corners.rSm,
                 ),
                 child: Icon(
@@ -542,9 +560,9 @@ class _AssignedRoutesCard extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(Gap.md),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withOpacity(0.35),
+              color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
               borderRadius: Corners.rMd,
-              border: Border.all(color: scheme.outlineVariant.withOpacity(0.5)),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
             ),
             child: Row(
               children: <Widget>[
@@ -577,16 +595,16 @@ class _AssignedRoutesCard extends ConsumerWidget {
               margin: const EdgeInsets.only(bottom: Gap.sm),
               padding: const EdgeInsets.all(Gap.md),
               decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest.withOpacity(0.35),
+                color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
                 borderRadius: Corners.rMd,
-                border: Border.all(color: AppColors.brand.withOpacity(0.3)),
+                border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      Icon(Icons.alt_route_rounded,
+                      const Icon(Icons.alt_route_rounded,
                           size: 20, color: AppColors.brand),
                       const SizedBox(width: Gap.sm),
                       Expanded(
@@ -600,7 +618,7 @@ class _AssignedRoutesCard extends ConsumerWidget {
                         padding:
                             const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.12),
+                          color: Colors.green.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(

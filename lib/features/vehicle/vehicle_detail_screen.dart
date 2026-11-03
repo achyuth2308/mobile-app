@@ -163,6 +163,17 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
                     },
                   ),
                   IconButton(
+                    icon: Icon(
+                      vehicle.isImmobilized
+                          ? Icons.power_settings_new_rounded
+                          : Icons.power_settings_new_rounded,
+                      size: 20,
+                      color: vehicle.isImmobilized ? const Color(0xFFDC2626) : const Color(0xFF10B981),
+                    ),
+                    tooltip: vehicle.isImmobilized ? 'Engine Cut (Tap to Restore)' : 'Engine Normal (Cut Engine)',
+                    onPressed: () => _confirmEngineToggle(context, ref, vehicle),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.settings_outlined, size: 20),
                     tooltip: 'Vehicle Settings',
                     onPressed: () => context.push('/vehicle/${widget.vehicleId}/settings'),
@@ -204,6 +215,70 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _confirmEngineToggle(BuildContext context, WidgetRef ref, Vehicle vehicle) async {
+    final bool isImmobilized = vehicle.isImmobilized;
+    final bool? proceed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          icon: Icon(
+            isImmobilized ? Icons.settings_backup_restore_rounded : Icons.power_settings_new_rounded,
+            color: isImmobilized ? AppColors.moving : AppColors.danger,
+            size: 40,
+          ),
+          title: Text(isImmobilized ? 'Restore Engine?' : 'Cut Off Engine?'),
+          content: Text(
+            isImmobilized
+                ? 'This will restore the ignition circuit, allowing  to start again.'
+                : 'WARNING: This will disable \'s ignition/fuel circuit. '
+                  'The vehicle cannot be restarted until restored. Ensure the vehicle is in a safe location.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: isImmobilized ? AppColors.moving : AppColors.danger,
+              ),
+              child: Text(isImmobilized ? 'Restore Engine' : 'Cut Engine'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (proceed != true || !context.mounted) return;
+
+    try {
+      await ref.read(vehicleRepositoryProvider).sendImmobilizerCommand(vehicle.id, !isImmobilized);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isImmobilized
+                  ? '✅ Engine restored for .'
+                  : '🛑 Engine cut command sent for .',
+            ),
+            backgroundColor: isImmobilized ? AppColors.moving : AppColors.danger,
+          ),
+        );
+      }
+      ref.read(fleetProvider.notifier).load();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update engine status: '),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _shareLocation(Vehicle vehicle) async {

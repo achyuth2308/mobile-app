@@ -305,7 +305,7 @@ class NoDataThresholdNotifier extends StateNotifier<double> {
   }
 
   Future<void> setThreshold(double hours) async {
-    final double val = hours <= 0 ? 1.0 : hours;
+    final double val = hours <= 0 ? 0.5 : hours;
     AppConfig.noDataThresholdHours = val;
     state = val;
     await _ref.read(secureStoreProvider).setNodataThresholdHours(val);

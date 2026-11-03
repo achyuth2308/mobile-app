@@ -552,7 +552,9 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (didPop) return;
-        _handleBack();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _handleBack();
+        });
       },
       child: Scaffold(
         extendBodyBehindAppBar: true,

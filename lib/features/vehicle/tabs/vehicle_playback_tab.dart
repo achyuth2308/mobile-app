@@ -14,17 +14,12 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/trip.dart';
-import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/fleet_provider.dart';
-import '../../../providers/route_provider.dart';
-import '../../../providers/trip_provider.dart';
-import '../../../data/models/user_trip.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
-import '../../../core/utils/polyline_simplifier.dart';
-import '../../../data/models/route.dart';
+import '../../geofences/geofence_editor_sheet.dart';
 
 
 /// Stoppage / parking event along a historical route.
@@ -131,7 +126,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       } else {
         if (stopStart != null && stopEnd != null) {
           final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
-          if (diff.inMinutes >= 5 && stopStart.timestamp != points.first.timestamp) {
+          if (diff.inMinutes >= 5) {
             TrackPoint bestPt = stopStart;
             if (currentStopPoints.isNotEmpty) {
               final List<TrackPoint> zeroPts =
@@ -161,7 +156,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
     if (stopStart != null && stopEnd != null) {
       final Duration diff = stopEnd.timestamp.difference(stopStart.timestamp);
-      if (diff.inMinutes >= 5 && stopStart.timestamp != points.first.timestamp) {
+      if (diff.inMinutes >= 5) {
         TrackPoint bestPt = stopStart;
         if (currentStopPoints.isNotEmpty) {
           final List<TrackPoint> zeroPts =
@@ -887,7 +882,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               
               const Spacer(),
 
-              // SET AS ROUTE BUTTON PILL (Right-Center)
+              // SET GEOFENCE BUTTON PILL (Right-Center)
               if (_points.isNotEmpty && !_loading)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(100),
@@ -904,11 +899,11 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       ),
                       child: IconButton(
                         icon: Icon(
-                          Icons.route_rounded,
+                          Icons.fence_rounded,
                           color: isDarkMap ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF1E293B),
                         ),
-                        tooltip: 'Set as Route',
-                        onPressed: _showSaveRouteDialog,
+                        tooltip: 'Set Geofence',
+                        onPressed: () => _openGeofenceSheet(),
                       ),
                     ),
                   ),
@@ -1004,6 +999,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                                 key: const ValueKey('active_stoppage_card'),
                                 point: _currentPoint,
                                 stoppage: _currentStoppage,
+                                vehicleId: widget.vehicleId,
+                                onSetGeofence: () {
+                                  final double lat = _currentStoppage?.lat ?? _currentPoint.latitude;
+                                  final double lng = _currentStoppage?.lng ?? _currentPoint.longitude;
+                                  _openGeofenceSheet(location: LatLng(lat, lng));
+                                },
                               ),
                             ),
                           if (_isCurrentlyStopped)
@@ -1322,16 +1323,25 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
           constraints: const BoxConstraints(maxWidth: 450),
           padding: const EdgeInsets.all(32.0),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(28.0),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: theme.colorScheme.shadow.withOpacity(0.06),
-                blurRadius: 32,
+                color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                blurRadius: 36,
+                spreadRadius: 1,
                 offset: const Offset(0, 12),
               ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
             ],
-            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+            border: Border.all(
+              color: const Color(0xFF2563EB),
+              width: 2.0,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1360,7 +1370,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               ),
               const SizedBox(height: 36),
               
-              // From Date and Start Time row
+              // From Date and Start Time row (First two: Blue)
               Row(
                 children: <Widget>[
                   Expanded(
@@ -1386,7 +1396,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       onTap: _pickStartTime,
                       theme: theme,
                       gradient: LinearGradient(
-                        colors: [Colors.orange.shade400, Colors.orange.shade800],
+                        colors: [Colors.blue.shade400, Colors.blue.shade800],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -1396,7 +1406,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               ),
               const SizedBox(height: 16),
               
-              // To Date and End Time row
+              // To Date and End Time row (Other two: Orange)
               Row(
                 children: <Widget>[
                   Expanded(
@@ -1407,7 +1417,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       onTap: _pickEndDate,
                       theme: theme,
                       gradient: LinearGradient(
-                        colors: [Colors.purple.shade400, Colors.purple.shade800],
+                        colors: [Colors.orange.shade400, Colors.orange.shade800],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -1422,7 +1432,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       onTap: _pickEndTime,
                       theme: theme,
                       gradient: LinearGradient(
-                        colors: [Colors.pink.shade400, Colors.pink.shade800],
+                        colors: [Colors.orange.shade400, Colors.orange.shade800],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -1456,283 +1466,25 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     );
   }
 
-  void _showSaveRouteDialog() {
-    final TextEditingController nameCtrl = TextEditingController(text: 'History Route - ${_formatDateShort(_range.start)}');
-    double tolerance = 100;
-    int selectedScope = 0; // 0: Full, 1: Outbound, 2: Return
-
-    int turnaroundIdx = _allLatLng.length ~/ 2;
-    if (_allLatLng.length >= 3) {
-      const Distance dist = Distance();
-      final LatLng s = _allLatLng.first;
-      double maxD = 0;
-      for (int i = 0; i < _allLatLng.length; i++) {
-        final double d = dist(s, _allLatLng[i]);
-        if (d > maxD) {
-          maxD = d;
-          turnaroundIdx = i;
-        }
-      }
+  Future<void> _openGeofenceSheet({LatLng? location}) async {
+    if (_playing) {
+      _togglePlay();
     }
-
-    String startName = 'Start';
-    String endName = 'End';
-    String turnName = 'Turnaround';
-
-    void updateSuggestedName(StateSetter setDialogState) {
-      if (selectedScope == 1) {
-        nameCtrl.text = '$startName – $turnName';
-      } else if (selectedScope == 2) {
-        nameCtrl.text = '$turnName – $endName';
-      } else {
-        nameCtrl.text = startName == endName
-            ? '$startName (Round Trip Loop)'
-            : '$startName – $endName';
-      }
-      setDialogState(() {});
-    }
-
-    // Automatically resolve start, turnaround & end place
-    if (_allLatLng.length >= 2) {
-      final LatLng sPt = _allLatLng.first;
-      final LatLng ePt = _allLatLng.last;
-      final LatLng tPt = _allLatLng[turnaroundIdx];
-      Future.wait(<Future<String>>[
-        Geocoder.getAddress(sPt.latitude, sPt.longitude),
-        Geocoder.getAddress(ePt.latitude, ePt.longitude),
-        Geocoder.getAddress(tPt.latitude, tPt.longitude),
-      ]).then((List<String> addrs) {
-        startName = Geocoder.cleanPlaceName(addrs[0]);
-        endName = Geocoder.cleanPlaceName(addrs[1]);
-        turnName = Geocoder.cleanPlaceName(addrs[2]);
-        if (nameCtrl.text.startsWith('History Route')) {
-          nameCtrl.text = startName == endName
-              ? '$startName (Round Trip Loop)'
-              : '$startName – $endName';
-        }
-      }).catchError((_) {});
-    }
-    
-    showDialog<void>(
+    final LatLng loc = location ?? _currentPoint.latLng;
+    final bool? created = await showModalBottomSheet<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setDialogState) {
-            return AlertDialog(
-              title: const Text('Set as Route (Compressed)'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Compresses history using Douglas-Peucker algorithm to guarantee zero server lag.'),
-                    if (_allLatLng.length >= 4) ...[
-                      const SizedBox(height: 14),
-                      const Text('Route Scope / Section:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Full Trip (Loop)', style: TextStyle(fontSize: 11)),
-                            selected: selectedScope == 0,
-                            onSelected: (bool sel) {
-                              if (sel) {
-                                selectedScope = 0;
-                                updateSuggestedName(setDialogState);
-                              }
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Outbound (Start ➔ Turn)', style: TextStyle(fontSize: 11)),
-                            selected: selectedScope == 1,
-                            onSelected: (bool sel) {
-                              if (sel) {
-                                selectedScope = 1;
-                                updateSuggestedName(setDialogState);
-                              }
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Return (Turn ➔ End)', style: TextStyle(fontSize: 11)),
-                            selected: selectedScope == 2,
-                            onSelected: (bool sel) {
-                              if (sel) {
-                                selectedScope = 2;
-                                updateSuggestedName(setDialogState);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Route Name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text('Deviation Tolerance: ${tolerance.round()} meters'),
-                    Slider(
-                      value: tolerance,
-                      min: 100,
-                      max: 1000,
-                      divisions: 9,
-                      label: '${tolerance.round()} m',
-                      onChanged: (double val) => setDialogState(() => tolerance = val),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    if (nameCtrl.text.trim().isEmpty) return;
-                    Navigator.pop(context);
-                    
-                    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-                    try {
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Compressing route...')),
-                      );
-                      
-                      // 1. Extract GPS coordinates based on scope
-                      List<LatLng> targetPts = _allLatLng;
-                      if (selectedScope == 1 && turnaroundIdx >= 1) {
-                        targetPts = _allLatLng.sublist(0, turnaroundIdx + 1);
-                      } else if (selectedScope == 2 && _allLatLng.length - turnaroundIdx >= 2) {
-                        targetPts = _allLatLng.sublist(turnaroundIdx);
-                      }
-
-                      final List<List<double>> rawCoords = targetPts
-                          .map((LatLng pt) => <double>[pt.latitude, pt.longitude])
-                          .toList(growable: false);
-                          
-                      // 2. Compress via PolylineSimplifier (10 meters epsilon is perfect for highways)
-                      final List<List<double>> compressedCoords = PolylineSimplifier.simplify(rawCoords, 10.0);
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Compressed ${rawCoords.length} points to ${compressedCoords.length} points! Saving...')),
-                      );
-                      
-                      // 3. Save to backend and local storage via routeProvider
-                      final AppRoute newRoute = AppRoute(
-                        id: 'temp_${DateTime.now().millisecondsSinceEpoch}', 
-                        name: nameCtrl.text.trim(),
-                        coordinates: compressedCoords.map((c) => LatLng(c[0], c[1])).toList(),
-                        toleranceMeters: tolerance,
-                        isActive: true,
-                        vehicleIds: <String>[widget.vehicleId],
-                        createdAt: DateTime.now(),
-                      );
-                      
-                      final AppRoute? createdRoute = await ref.read(routeProvider.notifier).create(
-                            newRoute,
-                            vehicleIds: <String>[widget.vehicleId],
-                          );
-                      
-                      // 4. Record and store the trip run with start time, end time, duration, and stoppages
-                      int startIdx = 0;
-                      int endIdx = _points.isNotEmpty ? _points.length - 1 : 0;
-                      if (selectedScope == 1 && turnaroundIdx >= 1) {
-                        endIdx = turnaroundIdx.clamp(0, _points.length - 1);
-                      } else if (selectedScope == 2 && _points.length - turnaroundIdx >= 2) {
-                        startIdx = turnaroundIdx.clamp(0, _points.length - 1);
-                      }
-
-                      DateTime tripStart = _range.start;
-                      DateTime tripEnd = _range.end;
-                      if (_points.isNotEmpty && startIdx <= endIdx && endIdx < _points.length) {
-                        tripStart = _points[startIdx].timestamp;
-                        tripEnd = _points[endIdx].timestamp;
-                      }
-
-                      double tripDistKm = 0.0;
-                      if (_cumulativeDistances.isNotEmpty &&
-                          startIdx < _cumulativeDistances.length &&
-                          endIdx < _cumulativeDistances.length) {
-                        tripDistKm = (_cumulativeDistances[endIdx] - _cumulativeDistances[startIdx]).abs() / 1000.0;
-                      }
-                      if (tripDistKm <= 0.0) {
-                        tripDistKm = newRoute.approxLengthKm;
-                      }
-
-                      final int stopCount = _stoppages.where((StoppageEvent s) {
-                        return !s.startTime.isBefore(tripStart) && !s.endTime.isAfter(tripEnd);
-                      }).length;
-
-                      double maxSpd = 0;
-                      double sumSpd = 0;
-                      int countSpd = 0;
-                      for (int i = startIdx; i <= endIdx && i < _points.length; i++) {
-                        final double spd = _points[i].speed;
-                        if (spd > maxSpd) maxSpd = spd;
-                        if (spd > 0) {
-                          sumSpd += spd;
-                          countSpd++;
-                        }
-                      }
-                      final double avgSpd = countSpd > 0 ? (sumSpd / countSpd) : 0.0;
-
-                      final Vehicle? veh = ref
-                          .read(fleetProvider)
-                          .vehicles
-                          .where((Vehicle item) => item.id == widget.vehicleId)
-                          .firstOrNull;
-
-                      final UserTrip recordedTrip = UserTrip(
-                        id: 'trip_${DateTime.now().millisecondsSinceEpoch}',
-                        vehicleId: widget.vehicleId,
-                        name: '${newRoute.name} - Playback Run',
-                        status: 'completed',
-                        routeId: createdRoute?.id ?? newRoute.id,
-                        routeName: newRoute.name,
-                        vehicleName: veh?.displayName ?? widget.vehicleId,
-                        plate: veh?.registrationNumber ?? widget.vehicleId,
-                        startTime: tripStart,
-                        endTime: tripEnd,
-                        durationSecs: tripEnd.difference(tripStart).inSeconds,
-                        distanceKm: tripDistKm,
-                        stoppageCount: stopCount > 0 ? stopCount : _stoppages.length,
-                        maxSpeed: maxSpd.round(),
-                        avgSpeed: avgSpd,
-                        createdAt: DateTime.now(),
-                      );
-
-                      await ref.read(tripProvider.notifier).create(recordedTrip);
-                      
-                      if (mounted) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Route "${newRoute.name}" created with trip details & ${_stoppages.length} stops!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Save & Compress'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (BuildContext ctx) => GeofenceEditorSheet(
+        initialLocation: loc,
+        initialVehicleId: widget.vehicleId,
+      ),
     );
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geofence created successfully')),
+      );
+    }
   }
 
   Widget _buildSelectionButton({
@@ -2627,7 +2379,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
     );
 
     final bool timeElapsed = _lastFetchTime == null || now.difference(_lastFetchTime!).inMilliseconds > 400;
-    final bool movedFarEnough = distMoved > 50.0;
+    final bool movedFarEnough = distMoved > 25.0;
 
     if (forceImmediate || (timeElapsed && movedFarEnough)) {
       _lastFetchTime = now;
@@ -2635,17 +2387,16 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
       _lastFetchedLng = widget.point.longitude;
       _fetchNetworkAddress();
     } else if (_debounce == null || !_debounce!.isActive) {
-      _debounce = Timer(const Duration(milliseconds: 200), () {
+      _debounce = Timer(const Duration(milliseconds: 150), () {
         if (mounted) _fetchNetworkAddress();
       });
     }
   }
 
   void _fetchNetworkAddress() {
-    final int currentId = ++_lastRequestId;
     final TrackPoint snap = widget.point;
     Geocoder.getAddress(snap.latitude, snap.longitude).then((String a) {
-      if (mounted && currentId == _lastRequestId && a != 'Location unavailable') {
+      if (mounted && a != 'Location unavailable') {
         setState(() => _address = a);
       }
     });
@@ -2836,7 +2587,7 @@ class _PlaybackFloatingCardState extends State<_PlaybackFloatingCard> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _address ?? '...',
+                            _address ?? 'Fetching address...',
                             maxLines: null,
                             overflow: TextOverflow.visible,
                             style: const TextStyle(
@@ -2892,10 +2643,14 @@ class _ActiveStoppageBottomCard extends StatefulWidget {
     super.key,
     required this.point,
     this.stoppage,
+    this.vehicleId,
+    this.onSetGeofence,
   });
 
   final TrackPoint point;
   final StoppageEvent? stoppage;
+  final String? vehicleId;
+  final VoidCallback? onSetGeofence;
 
   @override
   State<_ActiveStoppageBottomCard> createState() => _ActiveStoppageBottomCardState();
@@ -2904,6 +2659,24 @@ class _ActiveStoppageBottomCard extends StatefulWidget {
 class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
   String? _address;
   int _lastReqId = 0;
+
+  void _handleSetGeofence() {
+    if (widget.onSetGeofence != null) {
+      widget.onSetGeofence!();
+    } else {
+      final double lat = widget.stoppage?.lat ?? widget.point.latitude;
+      final double lng = widget.stoppage?.lng ?? widget.point.longitude;
+      showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (BuildContext ctx) => GeofenceEditorSheet(
+          initialLocation: LatLng(lat, lng),
+          initialVehicleId: widget.vehicleId,
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -3027,6 +2800,35 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
                                   ),
                                 ),
                               ),
+                              // Set Geofence Quick Button Chip
+                              InkWell(
+                                onTap: _handleSetGeofence,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEFF6FF),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const <Widget>[
+                                      Icon(Icons.fence_rounded, size: 13, color: Color(0xFF2563EB)),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Set Geofence',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
                               // Red Stopped Badge
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -3149,6 +2951,27 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
                           ),
                         ),
                         Icon(Icons.chevron_right_rounded, size: 20, color: Colors.black54),
+                      ],
+                    ),
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                // Set Geofence Action Row
+                InkWell(
+                  onTap: _handleSetGeofence,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      children: const <Widget>[
+                        Icon(Icons.fence_rounded, size: 20, color: Color(0xFF2563EB)),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Set Geofence',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF2563EB)),
                       ],
                     ),
                   ),

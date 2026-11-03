@@ -174,7 +174,7 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
   double _idleDuration = 60.0;
   double _parkingDuration = 60.0;
   double _movingDuration = 60.0;
-  double _noDataThreshold = 1.0;
+  double _noDataThreshold = 0.5;
   late TextEditingController _idleController;
   late TextEditingController _parkingController;
   late TextEditingController _movingController;
@@ -404,7 +404,9 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${_noDataThreshold.toInt()} hr${_noDataThreshold == 1.0 ? '' : 's'}',
+                      _noDataThreshold == 0.5
+                          ? '30 mins (Default)'
+                          : '${_noDataThreshold.toInt()} hr${_noDataThreshold == 1.0 ? '' : 's'}',
                       style: const TextStyle(color: Color(0xFF0EA5E9), fontWeight: FontWeight.w700, fontSize: 12),
                     ),
                   ),
@@ -421,7 +423,9 @@ class _ThresholdsSectionState extends ConsumerState<_ThresholdsSection> {
                 runSpacing: 6,
                 children: AppConfig.noDataThresholdOptions.map((double h) {
                   final bool isSelected = _noDataThreshold == h;
-                  final String label = h == 1.0 ? '1 hr (Default)' : '${h.toInt()} hrs';
+                  final String label = h == 0.5
+                      ? '30 min (Default)'
+                      : (h == 1.0 ? '1 hr' : '${h.toInt()} hrs');
                   return ChoiceChip(
                     label: Text(label),
                     selected: isSelected,

@@ -23,6 +23,7 @@ class ReportsHubScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ReportDetailScreen(
+      key: ValueKey<String>('${initialVehicleId}_${initialType?.name}'),
       type: initialType ?? ReportType.trip,
       initialVehicleId: initialVehicleId,
       initialFromGeofenceId: initialFromGeofenceId,

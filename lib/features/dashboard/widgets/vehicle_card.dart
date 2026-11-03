@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -205,14 +206,15 @@ class VehicleCard extends ConsumerWidget {
                                           : 'N/A',
                                       dotColor: Colors.cyan,
                                     ),
-                                    if (vehicle.fuelLevel != null) ...[
+                                    if (vehicle.hasFuel) ...[
                                       const SizedBox(height: 12),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
                                         value:
-                                            '${vehicle.fuelLevel!.round()} ${vehicle.fuelLevel! > 100 ? 'L' : '%'}',
+                                            '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L',
                                         dotColor: const Color(0xFFF97316),
+                                        onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),
                                     ],
                                     const SizedBox(height: 12),
@@ -284,14 +286,15 @@ class VehicleCard extends ConsumerWidget {
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
-                                    if (vehicle.fuelLevel != null) ...[
+                                    if (vehicle.hasFuel) ...[
                                       const SizedBox(height: 12),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
                                         value:
-                                            '${vehicle.fuelLevel!.round()} ${vehicle.fuelLevel! > 100 ? 'L' : '%'}',
+                                            '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L',
                                         dotColor: const Color(0xFFF97316),
+                                        onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),
                                     ],
                                   ],
@@ -399,11 +402,13 @@ class VehicleCard extends ConsumerWidget {
 
     void showDebugDialog() async {
       // Show loading indicator dialog
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext ctx) =>
-            const Center(child: CircularProgressIndicator()),
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext ctx) =>
+              const Center(child: CircularProgressIndicator()),
+        ),
       );
 
       try {
@@ -412,9 +417,9 @@ class VehicleCard extends ConsumerWidget {
         final Vehicle detailedVehicle =
             await vehicleRepo.getVehicle(vehicle.id);
         if (!context.mounted) return;
-        Navigator.pop(context); // Dismiss loading dialog
+        Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading dialog
 
-        showDialog<void>(
+        await showDialog<void>(
           context: context,
           builder: (BuildContext ctx) => AlertDialog(
             title: Text('${vehicle.name} Detailed Raw JSON'),
@@ -423,7 +428,7 @@ class VehicleCard extends ConsumerWidget {
               height: 450,
               child: SingleChildScrollView(
                 child: SelectableText(
-                  JsonEncoder.withIndent("  ").convert(detailedVehicle.raw),
+                  const JsonEncoder.withIndent("  ").convert(detailedVehicle.raw),
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
                 ),
               ),
@@ -438,8 +443,8 @@ class VehicleCard extends ConsumerWidget {
         );
       } catch (e) {
         if (!context.mounted) return;
-        Navigator.pop(context); // Dismiss loading dialog
-        showDialog<void>(
+        Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading dialog
+        await showDialog<void>(
           context: context,
           builder: (BuildContext ctx) => AlertDialog(
             title: const Text('Error'),
@@ -696,17 +701,19 @@ class _MetricItem extends StatelessWidget {
     required this.value,
     required this.dotColor,
     this.icon,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final Color dotColor;
   final IconData? icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
+    final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -748,5 +755,14 @@ class _MetricItem extends StatelessWidget {
         ),
       ],
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: content,
+      );
+    }
+    return content;
   }
 }

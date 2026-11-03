@@ -33,7 +33,8 @@ class AlertRepository {
     final List<Map<String, dynamic>> localRaw = await PushService.getLocalAlerts();
     final List<FleetAlert> localAlerts = localRaw
         .map(FleetAlert.fromJson)
-        .where((FleetAlert a) => a.id.isNotEmpty && !deletedIds.contains(a.id))
+        .where((FleetAlert a) =>
+            a.id.isNotEmpty && !deletedIds.contains(a.id) && !a.isGenericFleetAlert)
         .map((FleetAlert a) {
           final bool isLocallyRead = a.isRead ||
               readIds.contains(a.id) ||
@@ -69,7 +70,8 @@ class AlertRepository {
 
       apiAlerts = asMapList(res)
           .map(FleetAlert.fromJson)
-          .where((FleetAlert a) => a.id.isNotEmpty && !deletedIds.contains(a.id))
+          .where((FleetAlert a) =>
+              a.id.isNotEmpty && !deletedIds.contains(a.id) && !a.isGenericFleetAlert)
           .map((FleetAlert a) {
             final bool isLocallyRead = a.isRead ||
                 readIds.contains(a.id) ||

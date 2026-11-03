@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../data/models/vehicle.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/live_address.dart';
@@ -206,8 +205,10 @@ class _FuelLevelWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double fuel = vehicle.fuelLevel ?? 0.0;
-    final bool hasFuel = vehicle.fuelLevel != null;
+    final bool hasFuel = vehicle.fuelLevel != null &&
+        vehicle.fuelLevel! > 0 &&
+        vehicle.fuelLevel! <= 400;
+    final double fuel = hasFuel ? vehicle.fuelLevel! : 0.0;
     
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -219,7 +220,9 @@ class _FuelLevelWidget extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(
-          hasFuel ? '${fuel.toInt()} L' : 'N/A',
+          hasFuel
+              ? '${fuel % 1 == 0 ? fuel.toInt() : fuel.toStringAsFixed(1)} L'
+              : 'N/A',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 13,

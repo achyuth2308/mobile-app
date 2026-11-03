@@ -67,15 +67,31 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     _toGeofenceId = widget.initialToGeofenceId;
 
     final DateTime now = DateTime.now();
-    _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
-    _endDate = now;
+    if (_currentType == ReportType.dailyTrip) {
+      final DateTime yStart = DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
+      final DateTime yEnd = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
+      _startDate = yStart;
+      _endDate = yEnd;
+    } else {
+      _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+      _endDate = now;
+    }
 
     _loadGeofences();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_currentType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
-        final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
-        if (vehicles.isNotEmpty) {
+      final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+      if (vehicles.isNotEmpty) {
+        if (_vehicleId != null && _vehicleId!.isNotEmpty) {
+          final String cleanId = _vehicleId!.trim().toLowerCase();
+          final Vehicle? matched = vehicles.where((Vehicle v) =>
+              v.id == _vehicleId ||
+              v.id.toLowerCase() == cleanId ||
+              v.registrationNumber.toLowerCase() == cleanId).firstOrNull;
+          if (matched != null) {
+            _vehicleId = matched.id;
+          }
+        } else if (_currentType.requiresVehicle) {
           _vehicleId = vehicles.first.id;
         }
       }
@@ -102,6 +118,17 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     
     if (oldWidget.type != widget.type) {
       _currentType = widget.type;
+      if (_currentType == ReportType.dailyTrip) {
+        final DateTime now = DateTime.now();
+        if (_startDate.year == now.year &&
+            _startDate.month == now.month &&
+            _startDate.day == now.day) {
+          final DateTime yStart = DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
+          final DateTime yEnd = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
+          _startDate = yStart;
+          _endDate = yEnd;
+        }
+      }
       shouldRun = true;
     }
     
@@ -110,6 +137,14 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       shouldRun = true;
     }
     
+    if (_currentType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
+      final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+      if (vehicles.isNotEmpty) {
+        _vehicleId = vehicles.first.id;
+        shouldRun = true;
+      }
+    }
+
     if (shouldRun) {
       setState(() {});
       _run();
@@ -122,10 +157,30 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       _currentType = newType;
       _searchController.clear();
       _searchQuery = '';
+      if (newType == ReportType.dailyTrip) {
+        final DateTime now = DateTime.now();
+        if (_startDate.year == now.year &&
+            _startDate.month == now.month &&
+            _startDate.day == now.day) {
+          final DateTime yStart = DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
+          final DateTime yEnd = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
+          _startDate = yStart;
+          _endDate = yEnd;
+        }
+      }
       if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
         final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
         if (vehicles.isNotEmpty) {
-          _vehicleId = vehicles.first.id;
+          final String? targetId = widget.initialVehicleId;
+          final Vehicle? matched = targetId != null
+              ? vehicles.where((Vehicle v) {
+                  final String clean = targetId.trim().toLowerCase();
+                  return v.id == targetId ||
+                      v.id.toLowerCase() == clean ||
+                      v.registrationNumber.toLowerCase() == clean;
+                }).firstOrNull
+              : null;
+          _vehicleId = matched?.id ?? vehicles.first.id;
         }
       }
       _result = null;
@@ -251,6 +306,40 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<FleetState>(fleetProvider, (FleetState? prev, FleetState next) {
+      if (!mounted || next.vehicles.isEmpty) return;
+
+      bool updated = false;
+      if (_vehicleId != null && _vehicleId!.isNotEmpty) {
+        final String cleanId = _vehicleId!.trim().toLowerCase();
+        final Vehicle? matched = next.vehicles.where((Vehicle v) =>
+            v.id == _vehicleId ||
+            v.id.toLowerCase() == cleanId ||
+            v.registrationNumber.toLowerCase() == cleanId).firstOrNull;
+        if (matched != null && _vehicleId != matched.id) {
+          _vehicleId = matched.id;
+          updated = true;
+        }
+      } else if (_currentType.requiresVehicle) {
+        final String? initial = widget.initialVehicleId;
+        final Vehicle? matched = initial != null
+            ? next.vehicles.where((Vehicle v) {
+                final String clean = initial.trim().toLowerCase();
+                return v.id == initial ||
+                    v.id.toLowerCase() == clean ||
+                    v.registrationNumber.toLowerCase() == clean;
+              }).firstOrNull
+            : null;
+        _vehicleId = matched?.id ?? next.vehicles.first.id;
+        updated = true;
+      }
+
+      if (updated || (_result == null && !_loading && _error != null)) {
+        setState(() {});
+        _run();
+      }
+    });
+
     final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
     final ReportResult? res = _result;
     final List<ReportRow> allRows = res?.rows ?? const <ReportRow>[];
@@ -286,18 +375,20 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else if (widget.initialVehicleId != null) {
+            if (widget.initialVehicleId != null && widget.initialVehicleId!.isNotEmpty) {
               context.go('/vehicle/${widget.initialVehicleId}');
+            } else if (context.canPop()) {
+              context.pop();
             } else {
               context.go('/dashboard');
             }
           },
         ),
-        title: const Text(
-          'Reports',
-          style: TextStyle(
+        title: Text(
+          _currentType.label.endsWith('Report') || _currentType.label.endsWith('Trips')
+              ? _currentType.label
+              : '${_currentType.label} Report',
+          style: const TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 18,
             color: Color(0xFF0F172A),
@@ -319,13 +410,14 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(bottom: 40),
             children: <Widget>[
-              // Top Horizontal Tabs
-              ReportTopTabs(
-                selectedType: _currentType,
-                onTabSelected: _onTabChanged,
-              ),
-
-              const SizedBox(height: 8),
+              // Top Horizontal Tabs (only shown for global fleet reports hub)
+              if (widget.initialVehicleId == null) ...[
+                ReportTopTabs(
+                  selectedType: _currentType,
+                  onTabSelected: _onTabChanged,
+                ),
+                const SizedBox(height: 8),
+              ],
 
               // Filter Controls Card
               ReportFilterBar(
@@ -511,8 +603,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       ),
                     ),
 
-                    // In-card Search Bar
-                    if (totalCount > 0 && !_loading)
+                    // In-card Search Bar (only needed for multi-vehicle fleet-wide reports)
+                    if (_vehicleId == null && !_currentType.requiresVehicle && totalCount > 0 && !_loading)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: const BoxDecoration(

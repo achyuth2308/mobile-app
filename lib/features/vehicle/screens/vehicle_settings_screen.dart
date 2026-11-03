@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../data/models/json_utils.dart';
@@ -28,6 +29,7 @@ class _VehicleSettingsScreenState
   late double _idleDuration;
   late double _parkingDuration;
   late double _movingDuration;
+  double _noDataThreshold = 0.5;
   late bool _safetyPark;
   late TextEditingController _idleController;
   late TextEditingController _parkingController;
@@ -66,6 +68,7 @@ class _VehicleSettingsScreenState
         toDouble(metadata['stoppageThreshold']) ??
         60.0;
     _movingDuration = toDouble(metadata['movingDurationAlert']) ?? 60.0;
+    _noDataThreshold = ref.read(noDataThresholdProvider);
     _safetyPark = vehicle?.isSafetyParkActive ?? (metadata['safetyPark'] == 'YES');
 
     _idleController = TextEditingController(text: '${_idleDuration.round()}');
@@ -101,6 +104,9 @@ class _VehicleSettingsScreenState
               _movingDuration = toDouble(remote['moving_duration_mins']) ?? _movingDuration;
               _movingController.text = '${_movingDuration.round()}';
             }
+            if (remote['nodata_threshold_hours'] != null) {
+              _noDataThreshold = toDouble(remote['nodata_threshold_hours']) ?? _noDataThreshold;
+            }
             for (final key in _alertToggles.keys) {
               if (remote.containsKey(key) && remote[key] is bool) {
                 _alertToggles[key] = remote[key] as bool;
@@ -131,8 +137,10 @@ class _VehicleSettingsScreenState
           'idle_duration_mins': _idleDuration,
           'parking_duration_mins': _parkingDuration,
           'moving_duration_mins': _movingDuration,
+          'nodata_threshold_hours': _noDataThreshold,
         };
         await ref.read(alertRepositoryProvider).updatePreferences(userPrefs);
+        await ref.read(noDataThresholdProvider.notifier).setThreshold(_noDataThreshold);
       }
 
       await ref.read(fleetProvider.notifier).updateSettings(
@@ -624,6 +632,54 @@ class _VehicleSettingsScreenState
                       _alertToggles['idle'] = val;
                     }),
                     onDurationChanged: (double v) => setState(() => _idleDuration = v),
+                  ),
+
+                  const SizedBox(height: Gap.lg),
+
+                  // ── Section 4: No Data (Inactivity) Rule ───────────
+                  _SettingsCard(
+                    cardBg: cardBg,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    title: 'No Data Rule (Inactivity Threshold)',
+                    subtitle:
+                        'Keep vehicle in same state (Running, Idle, Parked) for this duration before marking as No Data',
+                    icon: Icons.cloud_off_rounded,
+                    iconColor: const Color(0xFF0EA5E9),
+                    badgeText: _noDataThreshold == 0.5
+                        ? '30 mins (Default)'
+                        : '${_noDataThreshold.toInt()} hr${_noDataThreshold == 1.0 ? '' : 's'}',
+                    badgeColor: const Color(0xFF0EA5E9),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Wrap(
+                          spacing: Gap.xs,
+                          runSpacing: Gap.xs,
+                          children: AppConfig.noDataThresholdOptions.map((double h) {
+                            final bool isSelected = _noDataThreshold == h;
+                            final String label = h == 0.5
+                                ? '30 min (Default)'
+                                : (h == 1.0 ? '1 hr' : '${h.toInt()} hrs');
+                            return ChoiceChip(
+                              label: Text(label),
+                              selected: isSelected,
+                              selectedColor: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+                              labelStyle: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                color: isSelected
+                                    ? const Color(0xFF0EA5E9)
+                                    : scheme.onSurfaceVariant,
+                              ),
+                              onSelected: (bool selected) {
+                                if (selected) setState(() => _noDataThreshold = h);
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: Gap.lg),

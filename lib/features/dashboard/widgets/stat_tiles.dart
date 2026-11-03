@@ -504,7 +504,9 @@ Widget _buildNoDataDropdown(
   bool isDark,
   Color color,
 ) {
-  final String label = thresholdHours == 1.0 ? '1 hr' : '${thresholdHours.toInt()} hr';
+  final String label = thresholdHours == 0.5
+      ? '30 min'
+      : (thresholdHours == 1.0 ? '1 hr' : '${thresholdHours.toInt()} hr');
 
   return Theme(
     data: Theme.of(context).copyWith(
@@ -513,7 +515,7 @@ Widget _buildNoDataDropdown(
     ),
     child: PopupMenuButton<double>(
       initialValue: thresholdHours,
-      tooltip: 'No Data Rule: 1hr by default, 3hr, 6hr, 24hr',
+      tooltip: 'No Data Rule: 30 min by default, 1hr, 3hr, 6hr, 24hr',
       padding: EdgeInsets.zero,
       elevation: 8,
       color: isDark ? const Color(0xFF1E293B) : Colors.white,
@@ -525,7 +527,9 @@ Widget _buildNoDataDropdown(
       ),
       onSelected: (double val) {
         ref.read(noDataThresholdProvider.notifier).setThreshold(val);
-        final String optName = val == 1.0 ? '1 hr (Default)' : '${val.toInt()} hr';
+        final String optName = val == 0.5
+            ? '30 min (Default)'
+            : (val == 1.0 ? '1 hr' : '${val.toInt()} hr');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('No Data Rule threshold set to $optName'),
@@ -535,7 +539,9 @@ Widget _buildNoDataDropdown(
         );
       },
       itemBuilder: (BuildContext ctx) => AppConfig.noDataThresholdOptions.map((double opt) {
-        final String optLabel = opt == 1.0 ? '1 hr (Default)' : '${opt.toInt()} hr';
+        final String optLabel = opt == 0.5
+            ? '30 min (Default)'
+            : (opt == 1.0 ? '1 hr' : '${opt.toInt()} hr');
         final bool isSelected = thresholdHours == opt;
         return PopupMenuItem<double>(
           value: opt,

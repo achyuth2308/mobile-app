@@ -144,7 +144,16 @@ class SecureStore {
 
   // ── No Data Rule Persistence ───────────────────────────────────────
   static const String _kNodataThresholdHours = 'ft_nodata_threshold_hours';
-  double get nodataThresholdHours => _prefs.getDouble(_kNodataThresholdHours) ?? 1.0;
+  static const String _kNodataThresholdMigrated = 'ft_nodata_migrated_30min';
+  double get nodataThresholdHours {
+    final bool migrated = _prefs.getBool(_kNodataThresholdMigrated) ?? false;
+    if (!migrated) {
+      _prefs.setBool(_kNodataThresholdMigrated, true);
+      _prefs.setDouble(_kNodataThresholdHours, 0.5);
+      return 0.5;
+    }
+    return _prefs.getDouble(_kNodataThresholdHours) ?? 0.5;
+  }
   Future<void> setNodataThresholdHours(double v) => _prefs.setDouble(_kNodataThresholdHours, v);
 
   // ── Deleted Alert Persistence ──────────────────────────────────────

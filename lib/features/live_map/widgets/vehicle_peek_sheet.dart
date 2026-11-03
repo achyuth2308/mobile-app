@@ -838,12 +838,29 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
                     Material(
                       color: vehicle.isSafetyParkActive
                           ? const Color(0xFFDC2626)
-                          : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                          : (vehicle.ignition || vehicle.speed > 0)
+                              ? (isDark ? Colors.orange.withValues(alpha: 0.15) : const Color(0xFFFEF3C7))
+                              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
                       borderRadius: BorderRadius.circular(20),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(20),
                         onTap: () async {
                           final bool target = !vehicle.isSafetyParkActive;
+                          // Block arming while vehicle is moving or engine is ON
+                          if (target && (vehicle.ignition || vehicle.speed > 0)) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    '⚠️ Safety Parking can only be armed when the vehicle is parked (Engine OFF & Speed = 0).',
+                                  ),
+                                  backgroundColor: Color(0xFFB45309),
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                            return;
+                          }
                           if (target) {
                             await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
                           } else {
@@ -871,17 +888,33 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
                               Icon(
                                 vehicle.isSafetyParkActive
                                     ? Icons.security_rounded
-                                    : Icons.shield_outlined,
+                                    : (vehicle.ignition || vehicle.speed > 0)
+                                        ? (vehicle.speed > 0
+                                            ? Icons.directions_car_rounded
+                                            : Icons.power_settings_new_rounded)
+                                        : Icons.shield_outlined,
                                 size: 14,
-                                color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
+                                color: vehicle.isSafetyParkActive
+                                    ? Colors.white
+                                    : (vehicle.ignition || vehicle.speed > 0)
+                                        ? const Color(0xFFB45309)
+                                        : const Color(0xFF64748B),
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                vehicle.isSafetyParkActive ? 'ARMED' : 'SAFE PARK',
+                                vehicle.isSafetyParkActive
+                                    ? 'ARMED'
+                                    : (vehicle.ignition || vehicle.speed > 0)
+                                        ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
+                                        : 'SAFE PARK',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
-                                  color: vehicle.isSafetyParkActive ? Colors.white : const Color(0xFF64748B),
+                                  color: vehicle.isSafetyParkActive
+                                      ? Colors.white
+                                      : (vehicle.ignition || vehicle.speed > 0)
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF64748B),
                                 ),
                               ),
                             ],

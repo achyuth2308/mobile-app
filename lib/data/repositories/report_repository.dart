@@ -65,14 +65,38 @@ class ReportRepository {
               // Filter row matching this vehicle (only for Consolidated & Fuel Consolidated)
               ReportResult filteredRes = res;
               if (type == ReportType.consolidated || type == ReportType.fuelConsolidated) {
-                final List<ReportRow> matchingRows = res.rows.where((ReportRow row) =>
-                  row.vehicleId == id ||
-                  row.vehicleName == vehicle?.displayName ||
-                  row.raw['vehicle_id'] == id
-                ).toList();
+                final List<ReportRow> matchingRows = res.rows.where((ReportRow row) {
+                  if (row.vehicleId == id ||
+                      row.raw['vehicle_id'] == id ||
+                      row.raw['id'] == id ||
+                      row.raw['_id'] == id) {
+                    return true;
+                  }
+                  if (vehicle != null) {
+                    if (vehicle.deviceId.isNotEmpty &&
+                        (row.vehicleId == vehicle.deviceId ||
+                            row.raw['deviceId'] == vehicle.deviceId ||
+                            row.raw['device_id'] == vehicle.deviceId)) {
+                      return true;
+                    }
+                    if (vehicle.imei.isNotEmpty &&
+                        (row.raw['imei'] == vehicle.imei ||
+                            row.raw['IMEI'] == vehicle.imei)) {
+                      return true;
+                    }
+                    final String p = (row.plate ?? '').toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+                    final String n = (row.vehicleName ?? '').toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+                    final String vP = vehicle.registrationNumber.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+                    final String vN = vehicle.name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+                    if (vP.isNotEmpty && (p == vP || vP.contains(p) || p.contains(vP))) return true;
+                    if (vN.isNotEmpty && (n == vN || vN.contains(n) || n.contains(vN))) return true;
+                  }
+                  return false;
+                }).toList();
+                final List<ReportRow> finalRows = matchingRows.isNotEmpty ? matchingRows : res.rows;
                 filteredRes = ReportResult(
-                  rows: matchingRows,
-                  summary: ReportSummary.fromRows(matchingRows),
+                  rows: finalRows,
+                  summary: ReportSummary.fromRows(finalRows),
                   columns: res.columns,
                 );
               }
@@ -533,17 +557,27 @@ class ReportRepository {
         'endDate': end.toUtc().toIso8601String(),
         'from': start.toUtc().toIso8601String(),
         'to': end.toUtc().toIso8601String(),
-        if (vehicleId != null && vehicleId.isNotEmpty) 'vehicleId': vehicleId,
+        if (vehicleId != null && vehicleId.isNotEmpty) ...<String, dynamic>{
+          'vehicleId': vehicleId,
+          'vehicle': vehicleId,
+          'vehicle_id': vehicleId,
+        },
         if (vehicleIds != null && vehicleIds.isNotEmpty)
           'vehicleIds': vehicleIds.join(','),
         if (type == ReportType.idle) 'onlyIdle': true,
         if (mode != null && mode.isNotEmpty && mode != 'all') 'mode': mode,
-        if (fromGeofenceId != null && fromGeofenceId.isNotEmpty)
+        if (fromGeofenceId != null && fromGeofenceId.isNotEmpty) ...<String, dynamic>{
           'fromGeofenceId': fromGeofenceId,
-        if (toGeofenceId != null && toGeofenceId.isNotEmpty)
+          'from_geofence_id': fromGeofenceId,
+        },
+        if (toGeofenceId != null && toGeofenceId.isNotEmpty) ...<String, dynamic>{
           'toGeofenceId': toGeofenceId,
-        if (geofenceId != null && geofenceId.isNotEmpty)
+          'to_geofence_id': toGeofenceId,
+        },
+        if (geofenceId != null && geofenceId.isNotEmpty) ...<String, dynamic>{
           'geofenceId': geofenceId,
+          'geofence_id': geofenceId,
+        },
       },
       cancelToken: cancelToken,
     );
@@ -611,7 +645,7 @@ class ReportRepository {
       final Map<String, dynamic> copy = Map<String, dynamic>.of(payload);
       copy.forEach((key, val) {
         if (val is List || val is Map) {
-          copy[key] = _filterPayloadByVehicle(val, vehicleId);
+          copy[key] = _filterPayloadByVehicle(val, vehicleId, vehicle);
         }
       });
       return copy;
@@ -620,7 +654,7 @@ class ReportRepository {
         final Map copy = Map.of(payload);
         copy.forEach((key, val) {
           if (val is List || val is Map) {
-            copy[key] = _filterPayloadByVehicle(val, vehicleId);
+            copy[key] = _filterPayloadByVehicle(val, vehicleId, vehicle);
           }
         });
         return copy;
