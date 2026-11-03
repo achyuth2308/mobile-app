@@ -815,69 +815,106 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           // ── Dedicated Analytical Reports (Modern Responsive Grid) ────
           _SectionHeader(label: 'VEHICLE ANALYTICS & REPORTS', trailing: '8 Modules'),
 
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 2.6,
+          Column(
             children: [
-              _ReportGridItemCard(
-                title: 'Trip Report',
-                subtitle: 'Routes & Distance',
-                icon: Icons.route_rounded,
-                accentColor: const Color(0xFF8B5CF6),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=trip'),
+              // Row 1: Trip Report + Full Day Trip
+              Row(
+                children: [
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Trip Report',
+                      subtitle: 'Routes & Distance',
+                      icon: Icons.route_rounded,
+                      accentColor: const Color(0xFF8B5CF6),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=trip'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Full Day Trip',
+                      subtitle: 'Daily Aggregates',
+                      icon: Icons.today_rounded,
+                      accentColor: const Color(0xFF6366F1),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=dailyTrip'),
+                    ),
+                  ),
+                ],
               ),
-              _ReportGridItemCard(
-                title: 'Full Day Trip',
-                subtitle: 'Daily Aggregates',
-                icon: Icons.today_rounded,
-                accentColor: const Color(0xFF6366F1),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=dailyTrip'),
+              const SizedBox(height: 8),
+              // Row 2: Geofence Trips + Stoppage Report
+              Row(
+                children: [
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Geofence Trips',
+                      subtitle: 'Entry & Exit Logs',
+                      icon: Icons.alt_route_rounded,
+                      accentColor: const Color(0xFF0D9488),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=geofenceTransit'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Stoppage Report',
+                      subtitle: 'Halt Duration Logs',
+                      icon: Icons.pause_circle_rounded,
+                      accentColor: const Color(0xFFEA580C),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=stoppages'),
+                    ),
+                  ),
+                ],
               ),
-              _ReportGridItemCard(
-                title: 'Geofence Trips',
-                subtitle: 'Entry & Exit Logs',
-                icon: Icons.alt_route_rounded,
-                accentColor: const Color(0xFF0D9488),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=geofenceTransit'),
+              const SizedBox(height: 8),
+              // Row 3: Idle Report + Engine On/Off
+              Row(
+                children: [
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Idle Report',
+                      subtitle: 'Engine Fuel Waste',
+                      icon: Icons.access_time_rounded,
+                      accentColor: const Color(0xFFD97706),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=idle'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Engine On / Off',
+                      subtitle: 'Ignition Log Events',
+                      icon: Icons.power_settings_new_rounded,
+                      accentColor: const Color(0xFF059669),
+                      onTap: () => context.push('/vehicle/${widget.vehicleId}/engine-on'),
+                    ),
+                  ),
+                ],
               ),
-              _ReportGridItemCard(
-                title: 'Stoppage Report',
-                subtitle: 'Halt Duration Logs',
-                icon: Icons.pause_circle_rounded,
-                accentColor: const Color(0xFFEA580C),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=stoppages'),
-              ),
-              _ReportGridItemCard(
-                title: 'Idle Report',
-                subtitle: 'Engine Fuel Waste',
-                icon: Icons.access_time_rounded,
-                accentColor: const Color(0xFFD97706),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=idle'),
-              ),
-              _ReportGridItemCard(
-                title: 'Engine On / Off',
-                subtitle: 'Ignition Log Events',
-                icon: Icons.power_settings_new_rounded,
-                accentColor: const Color(0xFF059669),
-                onTap: () => context.push('/vehicle/${widget.vehicleId}/engine-on'),
-              ),
-              _ReportGridItemCard(
-                title: 'Overspeeding',
-                subtitle: 'Violations & Speeds',
-                icon: Icons.speed_rounded,
-                accentColor: const Color(0xFFE11D48),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=overspeeding'),
-              ),
-              _ReportGridItemCard(
-                title: 'Consolidated',
-                subtitle: 'Complete Summary',
-                icon: Icons.group_work_rounded,
-                accentColor: const Color(0xFF16A34A),
-                onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=consolidated'),
+              const SizedBox(height: 8),
+              // Row 4: Overspeeding + Consolidated
+              Row(
+                children: [
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Overspeeding',
+                      subtitle: 'Violations & Speeds',
+                      icon: Icons.speed_rounded,
+                      accentColor: const Color(0xFFE11D48),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=overspeeding'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ReportGridItemCard(
+                      title: 'Consolidated',
+                      subtitle: 'Complete Summary',
+                      icon: Icons.group_work_rounded,
+                      accentColor: const Color(0xFF16A34A),
+                      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=consolidated'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
