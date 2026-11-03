@@ -10,6 +10,7 @@ import '../../../data/models/vehicle.dart';
 import '../../../providers/alerts_provider.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
+import 'fleet_infographic_wheel.dart';
 
 /// The hero panel: total fleet count with a proportional status bar and
 /// four tappable status filters underneath.
@@ -22,352 +23,133 @@ class FleetOverviewCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ThemeData theme = Theme.of(context);
-    final FleetStats stats = ref.watch(fleetStatsProvider);
     final VehicleStatus? active = ref.watch(fleetFilterProvider);
-    final double thresholdHours = ref.watch(noDataThresholdProvider);
-    final bool isDark = theme.brightness == Brightness.dark;
+    final int overspeedCount = ref.watch(unreadOverspeedCountProvider);
 
-    return Container(
-      padding: const EdgeInsets.all(Gap.lg),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: Corners.rXl,
-        border: Border.all(
-          color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
-          width: 1.6,
-        ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Gap.sm),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'TOTAL FLEET',
-                      style: TextStyle(
-                        fontSize: 11,
-                        letterSpacing: 2.0,
-                        fontWeight: FontWeight.w700,
-                        color: isDark
-                            ? const Color(0xFF64748B)
-                            : const Color(0xFF8B92A2),
-                      ),
+          if (overspeedCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: Gap.sm),
+              child: Material(
+                color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                child: InkWell(
+                  onTap: () => context.push('/alerts?type=overspeed'),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                    const SizedBox(height: Gap.sm),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${stats.total}',
-                            style: TextStyle(
-                              fontSize: 38,
-                              fontWeight: FontWeight.w800,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1E2432),
-                            ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.speed_rounded,
+                          size: 13,
+                          color: Color(0xFFF43F5E),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$overspeedCount overspeeding',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFF43F5E),
                           ),
-                          const WidgetSpan(child: SizedBox(width: Gap.xs)),
-                          TextSpan(
-                            text: stats.total == 1 ? 'vehicle' : 'vehicles',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? const Color(0xFF64748B)
-                                  : const Color(0xFF8B92A2),
-                            ),
-                          ),
-                        ],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-              _OnlineRing(
-                percent: stats.onlinePercent,
-                online: stats.online,
-                isDark: isDark,
+            ),
+
+          // ── 5-Step Animated Infographic Wheel (Directly on canvas) ────
+          const FleetInfographicWheel(),
+
+          // ── Active Filter Bar / Reset Badge ───────────────────
+          if (active != null)
+            Padding(
+              padding: const EdgeInsets.only(top: Gap.xs),
+              child: Material(
+                color: _getStatusColor(active).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  onTap: () =>
+                      ref.read(fleetFilterProvider.notifier).state = null,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.filter_alt_rounded,
+                          size: 12,
+                          color: _getStatusColor(active),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Showing ${_getStatusName(active)} • Tap to reset',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _getStatusColor(active),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.close_rounded,
+                          size: 12,
+                          color: _getStatusColor(active),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ],
-          ),
-          const SizedBox(height: Gap.md),
-          // Proportional composition bar.
-          _CompositionBar(stats: stats),
-          const SizedBox(height: Gap.md),
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final int overspeedCount = ref.watch(unreadOverspeedCountProvider);
-              final bool showOverspeed = overspeedCount > 0;
-              final bool showUnreachable = stats.noData > 0;
-
-              if (constraints.maxWidth < 580) {
-                // If extra dynamic tiles are present (overspeed or unreachable),
-                // use 3 tiles in row 1 and dynamic tiles in row 2.
-                // Otherwise use standard 2x2 grid.
-                if (showOverspeed || showUnreachable) {
-                  return Column(
-                    children: [
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: _StatusTile(
-                              label: 'Moving',
-                              count: stats.moving,
-                              color: AppColors.moving,
-                              icon: Icons.arrow_upward_rounded,
-                              selected: active == VehicleStatus.moving,
-                              onTap: () => _toggle(ref, VehicleStatus.moving),
-                              isDark: isDark,
-                            ),
-                          ),
-                          const SizedBox(width: Gap.sm),
-                          Expanded(
-                            child: _StatusTile(
-                              label: 'Idle',
-                              count: stats.idle,
-                              color: AppColors.idle,
-                              icon: Icons.hourglass_empty_rounded,
-                              selected: active == VehicleStatus.idle,
-                              onTap: () => _toggle(ref, VehicleStatus.idle),
-                              isDark: isDark,
-                            ),
-                          ),
-                          const SizedBox(width: Gap.sm),
-                          Expanded(
-                            child: _StatusTile(
-                              label: 'Stopped',
-                              count: stats.stopped,
-                              color: AppColors.stopped,
-                              icon: Icons.local_parking_rounded,
-                              selected: active == VehicleStatus.stopped,
-                              onTap: () => _toggle(ref, VehicleStatus.stopped),
-                              isDark: isDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: Gap.sm),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: _StatusTile(
-                              label: 'No Data',
-                              count: stats.offline,
-                              color: AppColors.offline,
-                              icon: Icons.cloud_off_rounded,
-                              selected: active == VehicleStatus.offline,
-                              onTap: () => _toggle(ref, VehicleStatus.offline),
-                              isDark: isDark,
-                              dropdown: _buildNoDataDropdown(context, ref, thresholdHours, isDark, AppColors.offline),
-                            ),
-                          ),
-                          if (showOverspeed) ...[
-                            const SizedBox(width: Gap.sm),
-                            Expanded(
-                              child: _StatusTile(
-                                label: 'Overspeed',
-                                count: overspeedCount,
-                                color: const Color(0xFFF43F5E),
-                                icon: Icons.speed_rounded,
-                                selected: false,
-                                onTap: () => context.push('/alerts?type=overspeed'),
-                                isDark: isDark,
-                              ),
-                            ),
-                          ],
-                          if (showUnreachable) ...[
-                            const SizedBox(width: Gap.sm),
-                            Expanded(
-                              child: _StatusTile(
-                                label: 'Unreachable',
-                                count: stats.noData,
-                                color: AppColors.noData,
-                                icon: Icons.sensors_off_rounded,
-                                selected: active == VehicleStatus.noData,
-                                onTap: () => _toggle(ref, VehicleStatus.noData),
-                                isDark: isDark,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  );
-                }
-
-                // Standard 2x2 layout when no extra alerts
-                return Column(
-                  children: [
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _StatusTile(
-                            label: 'Moving',
-                            count: stats.moving,
-                            color: AppColors.moving,
-                            icon: Icons.arrow_upward_rounded,
-                            selected: active == VehicleStatus.moving,
-                            onTap: () => _toggle(ref, VehicleStatus.moving),
-                            isDark: isDark,
-                          ),
-                        ),
-                        const SizedBox(width: Gap.sm),
-                        Expanded(
-                          child: _StatusTile(
-                            label: 'Idle',
-                            count: stats.idle,
-                            color: AppColors.idle,
-                            icon: Icons.hourglass_empty_rounded,
-                            selected: active == VehicleStatus.idle,
-                            onTap: () => _toggle(ref, VehicleStatus.idle),
-                            isDark: isDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: Gap.sm),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _StatusTile(
-                            label: 'Stopped',
-                            count: stats.stopped,
-                            color: AppColors.stopped,
-                            icon: Icons.local_parking_rounded,
-                            selected: active == VehicleStatus.stopped,
-                            onTap: () => _toggle(ref, VehicleStatus.stopped),
-                            isDark: isDark,
-                          ),
-                        ),
-                        const SizedBox(width: Gap.sm),
-                        Expanded(
-                          child: _StatusTile(
-                            label: 'No Data',
-                            count: stats.offline,
-                            color: AppColors.offline,
-                            icon: Icons.cloud_off_rounded,
-                            selected: active == VehicleStatus.offline,
-                            onTap: () => _toggle(ref, VehicleStatus.offline),
-                            isDark: isDark,
-                            dropdown: _buildNoDataDropdown(context, ref, thresholdHours, isDark, AppColors.offline),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              }
-              
-              // Wide Layout (≥ 580px)
-              return Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _StatusTile(
-                      label: 'Moving',
-                      count: stats.moving,
-                      color: AppColors.moving,
-                      icon: Icons.arrow_upward_rounded,
-                      selected: active == VehicleStatus.moving,
-                      onTap: () => _toggle(ref, VehicleStatus.moving),
-                      isDark: isDark,
-                    ),
-                  ),
-                  const SizedBox(width: Gap.sm),
-                  Expanded(
-                    child: _StatusTile(
-                      label: 'Idle',
-                      count: stats.idle,
-                      color: AppColors.idle,
-                      icon: Icons.hourglass_empty_rounded,
-                      selected: active == VehicleStatus.idle,
-                      onTap: () => _toggle(ref, VehicleStatus.idle),
-                      isDark: isDark,
-                    ),
-                  ),
-                  const SizedBox(width: Gap.sm),
-                  Expanded(
-                    child: _StatusTile(
-                      label: 'Stopped',
-                      count: stats.stopped,
-                      color: AppColors.stopped,
-                      icon: Icons.local_parking_rounded,
-                      selected: active == VehicleStatus.stopped,
-                      onTap: () => _toggle(ref, VehicleStatus.stopped),
-                      isDark: isDark,
-                    ),
-                  ),
-                  const SizedBox(width: Gap.sm),
-                  Expanded(
-                    child: _StatusTile(
-                      label: 'No Data',
-                      count: stats.offline,
-                      color: AppColors.offline,
-                      icon: Icons.cloud_off_rounded,
-                      selected: active == VehicleStatus.offline,
-                      onTap: () => _toggle(ref, VehicleStatus.offline),
-                      isDark: isDark,
-                      dropdown: _buildNoDataDropdown(context, ref, thresholdHours, isDark, AppColors.offline),
-                    ),
-                  ),
-                  if (showOverspeed) ...[
-                    const SizedBox(width: Gap.sm),
-                    Expanded(
-                      child: _StatusTile(
-                        label: 'Overspeed',
-                        count: overspeedCount,
-                        color: const Color(0xFFF43F5E),
-                        icon: Icons.speed_rounded,
-                        selected: false,
-                        onTap: () => context.push('/alerts?type=overspeed'),
-                        isDark: isDark,
-                      ),
-                    ),
-                  ],
-                  if (showUnreachable) ...[
-                    const SizedBox(width: Gap.sm),
-                    Expanded(
-                      child: _StatusTile(
-                        label: 'Unreachable',
-                        count: stats.noData,
-                        color: AppColors.noData,
-                        icon: Icons.sensors_off_rounded,
-                        selected: active == VehicleStatus.noData,
-                        onTap: () => _toggle(ref, VehicleStatus.noData),
-                        isDark: isDark,
-                      ),
-                    ),
-                  ],
-                ],
-              );
-            },
-          ),
+            ),
         ],
       ),
     );
   }
 
-  void _toggle(WidgetRef ref, VehicleStatus status) {
-    final StateController<VehicleStatus?> ctrl =
-        ref.read(fleetFilterProvider.notifier);
-    ctrl.state = ctrl.state == status ? null : status;
+  Color _getStatusColor(VehicleStatus status) {
+    switch (status) {
+      case VehicleStatus.moving:
+        return const Color(0xFF10B981);
+      case VehicleStatus.idle:
+        return const Color(0xFFEAB308);
+      case VehicleStatus.stopped:
+        return const Color(0xFF64748B);
+      case VehicleStatus.offline:
+        return const Color(0xFFEF4444);
+      case VehicleStatus.noData:
+        return const Color(0xFFBE123C);
+    }
+  }
+
+  String _getStatusName(VehicleStatus status) {
+    switch (status) {
+      case VehicleStatus.moving:
+        return 'Moving';
+      case VehicleStatus.idle:
+        return 'Idle';
+      case VehicleStatus.stopped:
+        return 'Stopped';
+      case VehicleStatus.offline:
+        return 'No Data';
+      case VehicleStatus.noData:
+        return 'Offline';
+    }
   }
 }
 

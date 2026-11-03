@@ -222,6 +222,7 @@ class FleetAlert extends Equatable {
         t == 'theft' ||
         t == 'theft_alarm' ||
         t == 'safety_park' ||
+        t == 'fuel_theft' ||
         isContinuousOverspeed) {
       return AlertSeverity.critical;
     }
@@ -237,7 +238,8 @@ class FleetAlert extends Equatable {
         t == 'geofence_enter' ||
         t == 'geofenceenter' ||
         t == 'geofence_exit' ||
-        t == 'geofenceexit') {
+        t == 'geofenceexit' ||
+        t == 'low_battery') {
       return AlertSeverity.warning;
     }
 
@@ -353,7 +355,8 @@ class FleetAlert extends Equatable {
         'moving' || 'start_moving' => 'Vehicle Moving',
         'stopped' => 'Vehicle Stopped',
         'parking' => 'Parking Alert',
-        'theft' || 'theft_alarm' || 'safety_park' => 'Vehicle Theft Alarm',
+        'theft' || 'theft_alarm' || 'safety_park' || 'fuel_theft' => 'Vehicle Theft Alarm',
+        'fuel_refill' || 'fuel_refill_final' => 'Fuel Refill Confirmed',
         _ => 'Fleet Alert',
       };
 
