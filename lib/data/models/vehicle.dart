@@ -70,6 +70,7 @@ class Vehicle extends Equatable {
     this.rawStatus,
     this.raw = const <String, dynamic>{},
     this.isImmobilized = false,
+    this.isAcOff = false,
     this.isOnline = true,
   });
 
@@ -116,6 +117,9 @@ class Vehicle extends Equatable {
 
   /// Whether the engine is currently cut via relay command.
   final bool isImmobilized;
+
+  /// Whether the AC relay is currently cut/disabled.
+  final bool isAcOff;
 
   /// Whether the vehicle is currently online according to the server.
   final bool isOnline;
@@ -534,6 +538,10 @@ class Vehicle extends Equatable {
         asBool(deviceAttrs, <String>['blocked', 'out1', 'cut']) ||
         asBool(json, <String>['blocked', 'out1', 'cut']);
 
+    final bool isAcOff = asBool(srcAttrs, <String>['acOff', 'ac_off', 'cutAc', 'isAcCut', 'out2', 'relay2']) ||
+        asBool(deviceAttrs, <String>['acOff', 'ac_off', 'cutAc', 'isAcCut', 'out2', 'relay2']) ||
+        asBool(json, <String>['acOff', 'ac_off', 'cutAc', 'isAcCut', 'out2', 'relay2']);
+
     final String? parsedStatus = asStringOrNull(json, statusKeys) ??
         asStringOrNull(src, statusKeys) ??
         asStringOrNull(srcAttrs, statusKeys) ??
@@ -588,6 +596,7 @@ class Vehicle extends Equatable {
       ignition: isIgnition,
       isMoving: isMotion,
       isImmobilized: isImmobilized,
+      isAcOff: isAcOff,
       isOnline: asBool(json, <String>['is_online', 'isOnline', 'online'], fallback: true) &&
                 asBool(src, <String>['is_online', 'isOnline', 'online'], fallback: true),
       odometer: () {
@@ -1139,6 +1148,7 @@ class Vehicle extends Equatable {
     String? rawStatus,
     Map<String, dynamic>? raw,
     bool? isImmobilized,
+    bool? isAcOff,
     bool? isOnline,
   }) =>
       Vehicle(
@@ -1174,6 +1184,7 @@ class Vehicle extends Equatable {
         rawStatus: rawStatus ?? this.rawStatus,
         raw: raw ?? this.raw,
         isImmobilized: isImmobilized ?? this.isImmobilized,
+        isAcOff: isAcOff ?? this.isAcOff,
         isOnline: isOnline ?? this.isOnline,
       );
 
@@ -1196,6 +1207,7 @@ class Vehicle extends Equatable {
         expiryDate,
         rawStatus,
         isImmobilized,
+        isAcOff,
         todayDistanceKm,
         odometer,
         satellites,

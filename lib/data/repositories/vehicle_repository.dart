@@ -134,13 +134,13 @@ class VehicleRepository {
   Future<void> sendImmobilizerCommand(String vehicleId, bool cutEngine) async {
     try {
       await _api.post<dynamic>(
-        '/vehicles//relay',
+        '/vehicles/$vehicleId/relay',
         body: <String, dynamic>{'cut': cutEngine, 'relay': cutEngine ? 1 : 0},
       );
     } catch (_) {
       try {
         await _api.post<dynamic>(
-          '/vehicles//command',
+          '/vehicles/$vehicleId/command',
           body: <String, dynamic>{
             'command': cutEngine ? 'engineStop' : 'engineResume',
             'type': cutEngine ? 'relay_off' : 'relay_on',
@@ -148,8 +148,33 @@ class VehicleRepository {
         );
       } catch (_) {
         await _api.patch<dynamic>(
-          '/vehicles//settings',
+          '/vehicles/$vehicleId/settings',
           body: <String, dynamic>{'isImmobilized': cutEngine, 'engineCut': cutEngine},
+        );
+      }
+    }
+  }
+
+  Future<void> sendAcCommand(String vehicleId, bool turnOffAc) async {
+    try {
+      await _api.post<dynamic>(
+        '/vehicles/$vehicleId/relay2',
+        body: <String, dynamic>{'ac': !turnOffAc, 'relay2': turnOffAc ? 1 : 0, 'cutAc': turnOffAc},
+      );
+    } catch (_) {
+      try {
+        await _api.post<dynamic>(
+          '/vehicles/$vehicleId/command',
+          body: <String, dynamic>{
+            'command': turnOffAc ? 'acStop' : 'acResume',
+            'type': turnOffAc ? 'ac_off' : 'ac_on',
+            'relay2': turnOffAc ? 1 : 0,
+          },
+        );
+      } catch (_) {
+        await _api.patch<dynamic>(
+          '/vehicles/$vehicleId/settings',
+          body: <String, dynamic>{'isAcCut': turnOffAc, 'acOff': turnOffAc},
         );
       }
     }

@@ -26,6 +26,7 @@ class VehicleMenuScreen extends ConsumerStatefulWidget {
 
 class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
   bool? _optimisticSafetyPark;
+  bool? _optimisticAcOff;
 
   @override
   void initState() {
@@ -161,6 +162,148 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
       ref.read(fleetProvider.notifier).load();
     } catch (e) {
       if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleAcToggle(BuildContext context, WidgetRef ref, Vehicle vehicle) async {
+    final bool currentAcOff = _optimisticAcOff ?? vehicle.isAcOff;
+    final bool nextAcOff = !currentAcOff;
+    final bool? proceed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (nextAcOff ? const Color(0xFF0284C7) : const Color(0xFF10B981)).withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              nextAcOff ? Icons.ac_unit_rounded : Icons.power_settings_new_rounded,
+              color: nextAcOff ? const Color(0xFF0284C7) : const Color(0xFF10B981),
+              size: 38,
+            ),
+          ),
+          title: Text(
+            nextAcOff ? 'Turn Off Air Conditioner?' : 'Restore Air Conditioner?',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                nextAcOff
+                    ? 'This will cut the secondary relay circuit to turn OFF the air conditioning in ${vehicle.displayName}. Use this to save fuel or reduce engine idling load.'
+                    : 'This will restore the secondary relay circuit and re-enable the air conditioning system for ${vehicle.displayName}.',
+                style: const TextStyle(fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: nextAcOff ? const Color(0xFFF0F9FF) : const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: (nextAcOff ? const Color(0xFF0284C7) : const Color(0xFF10B981)).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      nextAcOff ? Icons.eco_outlined : Icons.check_circle_outline_rounded,
+                      color: nextAcOff ? const Color(0xFF0284C7) : const Color(0xFF10B981),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        nextAcOff
+                            ? 'Switching off the AC reduces fuel burn and alternator load while idling.'
+                            : 'Cooling circuit will be energized and cabin AC will resume operation.',
+                        style: TextStyle(
+                          color: nextAcOff ? const Color(0xFF0369A1) : const Color(0xFF047857),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    icon: Icon(
+                      nextAcOff ? Icons.power_settings_new_rounded : Icons.ac_unit_rounded,
+                      size: 16,
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: nextAcOff ? const Color(0xFF0284C7) : const Color(0xFF10B981),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    label: Text(
+                      nextAcOff ? 'TURN OFF AC' : 'TURN ON AC',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (proceed != true || !context.mounted) return;
+
+    setState(() => _optimisticAcOff = nextAcOff);
+
+    try {
+      await ref.read(vehicleRepositoryProvider).sendAcCommand(vehicle.id, nextAcOff);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              nextAcOff
+                  ? '❄️ AC turned OFF for ${vehicle.displayName}.'
+                  : '❄️ AC power restored for ${vehicle.displayName}.',
+            ),
+            backgroundColor: nextAcOff ? const Color(0xFF0284C7) : AppColors.moving,
+          ),
+        );
+      }
+      ref.read(fleetProvider.notifier).load();
+    } catch (e) {
+      if (context.mounted) {
+        setState(() => _optimisticAcOff = currentAcOff);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $e'),
@@ -736,6 +879,15 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           _EngineCutSpecialBanner(
             vehicle: vehicle,
             onToggle: () => _handleEngineCutToggle(context, ref, vehicle),
+          ),
+
+          const SizedBox(height: Gap.md),
+
+          // ── Air Conditioning Quick Control Banner ─────────────────────────
+          _AcControlSpecialBanner(
+            vehicle: vehicle,
+            isAcOff: _optimisticAcOff ?? vehicle.isAcOff,
+            onToggle: () => _handleAcToggle(context, ref, vehicle),
           ),
 
           const SizedBox(height: Gap.lg),
@@ -1425,6 +1577,187 @@ class _EngineCutSpecialBanner extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
                           letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AcControlSpecialBanner extends StatelessWidget {
+  const _AcControlSpecialBanner({
+    required this.vehicle,
+    required this.isAcOff,
+    required this.onToggle,
+  });
+
+  final Vehicle vehicle;
+  final bool isAcOff;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    // AC ON (active cyan) vs AC CUT/OFF (amber/disabled)
+    final Color primaryColor = isAcOff ? const Color(0xFFF59E0B) : const Color(0xFF0284C7);
+    final Color bgColor = isAcOff
+        ? (isDark ? const Color(0xFF332200).withOpacity(0.4) : const Color(0xFFFFFBEB))
+        : (isDark ? const Color(0xFF0C243B).withOpacity(0.4) : const Color(0xFFF0F9FF));
+    final Color borderColor = isAcOff
+        ? const Color(0xFFF59E0B).withOpacity(0.45)
+        : const Color(0xFF0284C7).withOpacity(0.35);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: Corners.rLg,
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(isDark ? 0.2 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: bgColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: Corners.rLg,
+          side: BorderSide(color: borderColor, width: 1.5),
+        ),
+        child: InkWell(
+          borderRadius: Corners.rLg,
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                // AC icon badge
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.35),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    isAcOff ? Icons.power_off_rounded : Icons.ac_unit_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Air Conditioning Relay',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isAcOff
+                                  ? (isDark ? const Color(0xFFF59E0B).withOpacity(0.25) : const Color(0xFFFEF3C7))
+                                  : (isDark ? const Color(0xFF0284C7).withOpacity(0.25) : const Color(0xFFE0F2FE)),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: primaryColor.withOpacity(0.7),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              isAcOff ? 'AC CUT / OFF' : 'AC ACTIVE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: isAcOff
+                                    ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309))
+                                    : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isAcOff
+                            ? 'AC relay circuit is cut • Tap to turn ON AC'
+                            : 'Cabin climate control active • Tap to turn OFF AC',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isAcOff
+                              ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309))
+                              : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0284C7)),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Dedicated Action Button
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isAcOff
+                          ? [const Color(0xFF0284C7), const Color(0xFF0EA5E9)]
+                          : [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isAcOff ? Icons.ac_unit_rounded : Icons.power_settings_new_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isAcOff ? 'TURN ON AC' : 'TURN OFF AC',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
