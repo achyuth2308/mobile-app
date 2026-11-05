@@ -58,77 +58,71 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             SliverAppBar(
               pinned: true,
               toolbarHeight: 88,
-              expandedHeight: 88 + MediaQuery.paddingOf(context).top,
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.lg,
-              flexibleSpace: FlexibleSpaceBar(
-                background: SafeArea(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(Gap.lg, 12.0, 110.0, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Row(
-                          children: [
-                            Text(
-                              _timeGreeting(),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF64748B),
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text('👋', style: TextStyle(fontSize: 13)),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
+              title: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: [
                         Text(
-                          (name ?? '').trim().isNotEmpty
-                              ? (name ?? '').trim()
-                              : 'Operator',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          _timeGreeting(),
                           style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.4,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            height: 1.2,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
+                            letterSpacing: 0.2,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_rounded,
-                              size: 11,
-                              color: isDark
-                                  ? const Color(0xFF64748B)
-                                  : const Color(0xFF94A3B8),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              Fmt.date(DateTime.now()),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
+                        const SizedBox(width: 4),
+                        const Text('👋', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      (name ?? '').trim().isNotEmpty
+                          ? (name ?? '').trim()
+                          : 'Operator',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          size: 11,
+                          color: isDark
+                              ? const Color(0xFF64748B)
+                              : const Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          Fmt.date(DateTime.now()),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
+                          ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
               actions: <Widget>[

@@ -249,7 +249,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                     Expanded(
                       child: LiveAddress(
                         vehicle: vehicle,
-                        max: 100,
+                        
                         style: TextStyle(
                           fontSize: 11,
                           color: isDark

@@ -40,7 +40,7 @@ class VehicleCard extends ConsumerWidget {
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
     final Widget content = Padding(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -62,7 +62,7 @@ class VehicleCard extends ConsumerWidget {
                         color: statusColor.withOpacity(0.5),
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 3),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -164,7 +164,7 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 5),
 
                     // Metrics Grid (3x2 or 2x3 depending on screen size)
                     Row(
@@ -182,14 +182,14 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor:
                                           const Color(0xFF4CAF50), // Green
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Today km',
                                       value:
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Battery',
                                       value: (vehicle.batteryLevel != null &&
@@ -215,7 +215,7 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor: Colors.cyan,
                                     ),
                                     if (vehicle.fuelLevel != null) ...[
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 6),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
@@ -224,7 +224,7 @@ class VehicleCard extends ConsumerWidget {
                                         dotColor: const Color(0xFFF97316),
                                       ),
                                     ],
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     Wrap(
                                       spacing: 8,
                                       crossAxisAlignment:
@@ -270,7 +270,7 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor:
                                           const Color(0xFF4CAF50), // Green
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Battery',
                                       value: (vehicle.batteryLevel != null &&
@@ -294,7 +294,7 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
                                     if (vehicle.fuelLevel != null) ...[
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 6),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
@@ -318,7 +318,7 @@ class VehicleCard extends ConsumerWidget {
                                           : 'N/A',
                                       dotColor: Colors.cyan,
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     Wrap(
                                       spacing: 8,
                                       crossAxisAlignment:
@@ -359,44 +359,48 @@ class VehicleCard extends ConsumerWidget {
             ],
           ),
           if (!minimal) ...[
-            const SizedBox(height: 7),
+            const SizedBox(height: 5),
             _LiveStatusStrip(vehicle: vehicle),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Divider(
                 height: 1,
                 color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
-            const SizedBox(height: 7),
+            const SizedBox(height: 5),
 
             // BOTTOM ROW: Address
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.location_on,
-                    size: 20, color: Color(0xFFE91E63)),
-                const SizedBox(width: 8),
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(Icons.location_on,
+                      size: 16, color: Color(0xFFE91E63)),
+                ),
+                const SizedBox(width: 6),
                 Expanded(
                   child: LiveAddress(
                     vehicle: vehicle,
-                    max: 1,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
                       color:
                           isDark ? Colors.grey.shade400 : Colors.grey.shade700,
-                      height: 1.3,
+                      height: 1.25,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Container(
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: theme.colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: IconButton(
                     icon: Icon(Icons.info_outline_rounded,
-                        color: theme.colorScheme.primary, size: 20),
+                        color: theme.colorScheme.primary, size: 17),
                     onPressed: onTrack,
                     constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(5),
                   ),
                 ),
               ],

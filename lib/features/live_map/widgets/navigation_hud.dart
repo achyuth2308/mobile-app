@@ -68,7 +68,7 @@ class NavigationHUD extends StatelessWidget {
                   const SizedBox(height: 4),
                   LiveAddress(
                     vehicle: vehicle,
-                    max: 9999,
+                    
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13.5,

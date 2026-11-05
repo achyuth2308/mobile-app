@@ -323,7 +323,7 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                       children: <Widget>[
                         LiveAddress(
                           vehicle: vehicle,
-                          max: 9999,
+                          
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurface,
                           ),

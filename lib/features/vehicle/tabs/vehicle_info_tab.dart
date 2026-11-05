@@ -76,7 +76,7 @@ class VehicleInfoTab extends ConsumerWidget {
           customWidgets: <String, Widget>{
             'Address': LiveAddress(
               vehicle: v,
-              max: 3,
+              
               textAlign: TextAlign.right,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface,

@@ -15,7 +15,7 @@ import '../../data/models/vehicle.dart';
 class LiveAddress extends StatefulWidget {
   const LiveAddress({
     required this.vehicle,
-    required this.max,
+    this.max,
     this.style,
     this.textAlign,
     this.onAddressResolved,
@@ -23,7 +23,7 @@ class LiveAddress extends StatefulWidget {
   });
 
   final Vehicle vehicle;
-  final int max;
+  final int? max;
   final TextStyle? style;
   final TextAlign? textAlign;
   final ValueChanged<String>? onAddressResolved;
@@ -137,7 +137,7 @@ class _LiveAddressState extends State<LiveAddress> {
           ? _resolvedAddress!
           : (widget.vehicle.hasLocation ? '...' : 'Location unavailable'),
       maxLines: widget.max,
-      overflow: TextOverflow.ellipsis,
+      overflow: widget.max != null ? TextOverflow.ellipsis : TextOverflow.visible,
       softWrap: true,
       textAlign: widget.textAlign,
       style: widget.style,

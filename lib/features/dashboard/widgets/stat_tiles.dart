@@ -10,7 +10,7 @@ import '../../../data/models/vehicle.dart';
 import '../../../providers/alerts_provider.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
-import 'fleet_infographic_wheel.dart';
+import 'fleet_3d_pie_chart.dart';
 
 /// The hero panel: total fleet count with a proportional status bar and
 /// four tappable status filters underneath.
@@ -95,76 +95,81 @@ class FleetOverviewCard extends ConsumerWidget {
                     ),
                   ],
                 ),
-                if (overspeedCount > 0)
-                  Material(
-                    color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                    child: InkWell(
-                      onTap: () => context.push('/alerts?type=overspeed'),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (overspeedCount > 0)
+                      Material(
+                        color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          onTap: () => context.push('/alerts?type=overspeed'),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3.5,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.speed_rounded,
+                                  size: 12,
+                                  color: Color(0xFFF43F5E),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$overspeedCount alert',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFF43F5E),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3.5,
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.speed_rounded,
-                              size: 12,
-                              color: Color(0xFFF43F5E),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(
+                            alpha: isDark ? 0.20 : 0.08,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.brand.withValues(
+                              alpha: isDark ? 0.38 : 0.20,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$overspeedCount alert',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFF43F5E),
-                              ),
-                            ),
-                          ],
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Text(
+                          '${stats.total} total',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? const Color(0xFF818CF8)
+                                : AppColors.brand,
+                          ),
                         ),
                       ),
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(
-                        alpha: isDark ? 0.20 : 0.08,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.brand.withValues(
-                          alpha: isDark ? 0.38 : 0.20,
-                        ),
-                        width: 1.0,
-                      ),
-                    ),
-                    child: Text(
-                      '${stats.total} total',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDark
-                            ? const Color(0xFF818CF8)
-                            : AppColors.brand,
-                      ),
-                    ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
           const SizedBox(height: Gap.xs),
 
-          // ── 5-Step Animated Infographic Wheel ─────────────────────
-          const FleetInfographicWheel(),
+          // ── Hero Visualization: 3D Isometric Pie Chart ─────────────
+          const Fleet3DPieChart(),
 
           // ── Active Filter Bar / Reset Badge ───────────────────────
           if (active != null)
@@ -219,15 +224,15 @@ class FleetOverviewCard extends ConsumerWidget {
   Color _getStatusColor(VehicleStatus status) {
     switch (status) {
       case VehicleStatus.moving:
-        return const Color(0xFF10B981);
+        return const Color(0xFF15803D); // Dark Green
       case VehicleStatus.idle:
-        return const Color(0xFFEAB308);
+        return const Color(0xFFEAB308); // Yellow
       case VehicleStatus.stopped:
-        return const Color(0xFF64748B);
+        return const Color(0xFF64748B); // Grey
       case VehicleStatus.offline:
-        return const Color(0xFFEF4444);
+        return const Color(0xFFEF4444); // Red
       case VehicleStatus.noData:
-        return const Color(0xFFBE123C);
+        return const Color(0xFF18181B); // Black
     }
   }
 
@@ -240,9 +245,9 @@ class FleetOverviewCard extends ConsumerWidget {
       case VehicleStatus.stopped:
         return 'Stopped';
       case VehicleStatus.offline:
-        return 'No Data';
-      case VehicleStatus.noData:
         return 'Offline';
+      case VehicleStatus.noData:
+        return 'Unreachable';
     }
   }
 }
