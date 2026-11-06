@@ -129,9 +129,12 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         trail.add(pt);
       } else if (v.id != _resolvedActiveId) {
         final double d = dist(trail.last, pt);
-        // Append if moved at least 3 meters and not an impossible teleport jump (>2km)
+        final bool isStationary =
+            v.speed <= 2.0 || v.status != VehicleStatus.moving;
+        final double minMoveDist = isStationary ? 25.0 : 3.0;
+        // Append if moved at least minMoveDist and not an impossible teleport jump (>2km)
         // (Active vehicle trail points are confirmed exclusively via _onPositionConfirmed when reached)
-        if (d >= 3.0 && d < 2000.0) {
+        if (d >= minMoveDist && d < 2000.0) {
           trail.add(pt);
         }
       }
@@ -217,7 +220,18 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
     final List<LatLng> trail =
         _confirmedTrails.putIfAbsent(activeId, () => <LatLng>[pos]);
     const Distance d = Distance();
-    if (trail.isEmpty || d(trail.last, pos) >= 1.5) {
+
+    // Suppress drift if vehicle is stationary / parked
+    Vehicle? v;
+    try {
+      v = widget.vehicles.firstWhere((x) => x.id == activeId);
+    } catch (_) {}
+
+    final bool isStationary =
+        v != null && (v.speed <= 2.0 || v.status != VehicleStatus.moving);
+    final double minMoveThreshold = isStationary ? 25.0 : 1.5;
+
+    if (trail.isEmpty || d(trail.last, pos) >= minMoveThreshold) {
       trail.add(pos);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() {});
@@ -341,7 +355,11 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
               isAhead = true;
             }
           } else {
-            if (dist(basePoints.last, pt) >= 3.0 && dist(basePoints.last, pt) < 2000.0) {
+            final bool isStationary =
+                (activeV?.speed ?? 0) <= 2.0 || activeV?.status != VehicleStatus.moving;
+            final double minAppendDist = isStationary ? 25.0 : 3.0;
+            if (dist(basePoints.last, pt) >= minAppendDist &&
+                dist(basePoints.last, pt) < 2000.0) {
               basePoints.add(pt);
             }
           }
@@ -420,7 +438,11 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         if (basePoints.isEmpty) {
           basePoints.add(V);
         } else if (dist(basePoints.last, V) >= 0.5) {
-          basePoints.add(V);
+          final bool isStationary =
+              (activeV?.speed ?? 0) <= 2.0 || activeV?.status != VehicleStatus.moving;
+          if (!isStationary || dist(basePoints.last, V) >= 25.0) {
+            basePoints.add(V);
+          }
         }
       } else if (activeVisualPos != null) {
         basePoints.add(activeVisualPos);

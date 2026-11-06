@@ -62,4 +62,51 @@ $gmapsUrl
       subject: 'Live Location: ${vehicle.displayName}',
     );
   }
+
+  /// Shares official FuelTracks AIS-140 Fitment Certificate details and verification link.
+  static Future<void> shareFitmentCertificate({
+    required String vehiclePlate,
+    required String certNumber,
+    required String mfr,
+    required String imei,
+    required String serialNo,
+    required String verifyUrl,
+  }) async {
+    final String shareText = '''
+*FuelTracks AIS-140 Fitment Certificate*
+📄 Certificate No: $certNumber
+🚛 Vehicle: $vehiclePlate
+🏭 VLTD Manufacturer: $mfr
+🔢 Device Serial No: $serialNo
+📶 IMEI: $imei
+
+✅ Verify & Download Certificate:
+$verifyUrl
+'''.trim();
+
+    // 1. Copy formatted text to Clipboard
+    await Clipboard.setData(ClipboardData(text: shareText));
+
+    // 2. Attempt WhatsApp launch first
+    final Uri waSchemeUri =
+        Uri.parse('whatsapp://send?text=${Uri.encodeComponent(shareText)}');
+    final Uri waWebUri =
+        Uri.parse('https://wa.me/?text=${Uri.encodeComponent(shareText)}');
+
+    try {
+      if (await canLaunchUrl(waSchemeUri)) {
+        await launchUrl(waSchemeUri, mode: LaunchMode.externalApplication);
+        return;
+      } else if (await canLaunchUrl(waWebUri)) {
+        await launchUrl(waWebUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {}
+
+    // 3. Fallback to system share sheet
+    await Share.share(
+      shareText,
+      subject: 'Fitment Certificate - $vehiclePlate ($certNumber)',
+    );
+  }
 }

@@ -432,6 +432,15 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           ),
 
           _MenuItemCard(
+            title: 'Fitment Certificate',
+            subtitle: 'View, verify & download official AIS-140 certificate (PDF)',
+            icon: Icons.verified_user_rounded,
+            accentColor: const Color(0xFF10B981), // Emerald
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/fitment-certificate'),
+          ),
+
+          _MenuItemCard(
             title: 'Vehicle Reports',
             subtitle: 'Distance, trip summary, idle time & fuel reports',
             icon: Icons.assessment_rounded,

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/utils/gps_filter.dart';
 import '../../../data/models/report_models.dart';
 import '../../../data/models/trip.dart';
 import '../../../providers/core_providers.dart';
@@ -176,8 +177,10 @@ final vehicleDailyHistoryProvider =
     }
   }
 
+  final List<TrackPoint> cleanRoute = GpsFilter.filterStationaryDrift(pts);
+
   return VehicleDailyData(
-    route: pts,
+    route: cleanRoute,
     stoppages: mergedStoppages,
   );
 });
