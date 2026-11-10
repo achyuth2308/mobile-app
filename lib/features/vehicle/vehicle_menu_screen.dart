@@ -1144,10 +1144,10 @@ class _HeroMetric extends StatelessWidget {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
         decoration: BoxDecoration(
           color: color.withOpacity(isDark ? 0.12 : 0.08),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: color.withOpacity(isDark ? 0.25 : 0.2),
             width: 1,
@@ -1159,25 +1159,28 @@ class _HeroMetric extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 12, color: color),
-                const SizedBox(width: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.grey.shade300 : const Color(0xFF64748B),
-                    letterSpacing: 0.2,
+                Icon(icon, size: 11, color: color),
+                const SizedBox(width: 2.5),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.grey.shade300 : const Color(0xFF64748B),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               value,
               style: TextStyle(
                 fontFamily: AppTypography.mono,
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w800,
                 color: color,
               ),
@@ -1450,7 +1453,6 @@ class _EngineCutSpecialBanner extends StatelessWidget {
     final bool isDark = theme.brightness == Brightness.dark;
     final bool isCut = vehicle.isImmobilized;
 
-    // Danger / Alert accent colors
     final Color primaryColor = isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626);
     final Color bgColor = isCut
         ? (isDark ? const Color(0xFF064E3B).withOpacity(0.4) : const Color(0xFFECFDF5))
@@ -1464,10 +1466,9 @@ class _EngineCutSpecialBanner extends StatelessWidget {
         borderRadius: Corners.rLg,
         boxShadow: [
           BoxShadow(
-            color: (isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626))
-                .withOpacity(isDark ? 0.2 : 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: primaryColor.withOpacity(isDark ? 0.2 : 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1475,28 +1476,25 @@ class _EngineCutSpecialBanner extends StatelessWidget {
         color: bgColor,
         shape: RoundedRectangleBorder(
           borderRadius: Corners.rLg,
-          side: BorderSide(color: borderColor, width: 1.5),
+          side: BorderSide(color: borderColor, width: 1.2),
         ),
         child: InkWell(
           borderRadius: Corners.rLg,
           onTap: onToggle,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             child: Row(
               children: [
-                // Warning pulsing emblem / icon badge
+                // Icon badge
                 Container(
-                  padding: const EdgeInsets.all(9),
+                  padding: const EdgeInsets.all(7.5),
                   decoration: BoxDecoration(
-                    color: isCut
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFDC2626),
+                    color: primaryColor,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626))
-                            .withOpacity(0.35),
-                        blurRadius: 8,
+                        color: primaryColor.withOpacity(0.35),
+                        blurRadius: 6,
                         spreadRadius: 1,
                       ),
                     ],
@@ -1504,41 +1502,47 @@ class _EngineCutSpecialBanner extends StatelessWidget {
                   child: Icon(
                     isCut ? Icons.power_rounded : Icons.power_settings_new_rounded,
                     color: Colors.white,
-                    size: 20,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'Engine Cut Off Relay',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          Flexible(
+                            child: Text(
+                              'Engine Cut Off',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: isCut
                                   ? const Color(0xFF10B981)
                                   : (isDark ? const Color(0xFFDC2626).withOpacity(0.3) : const Color(0xFFFEE2E2)),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626),
+                                color: primaryColor,
                                 width: 0.8,
                               ),
                             ),
                             child: Text(
-                              isCut ? 'CIRCUIT CUT' : 'NORMAL / ACTIVE',
+                              isCut ? 'CUT' : 'ACTIVE',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 8.5,
                                 fontWeight: FontWeight.w900,
                                 color: isCut
                                     ? Colors.white
@@ -1551,33 +1555,35 @@ class _EngineCutSpecialBanner extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         isCut
-                            ? 'Relay circuit is disabled. Tap to restore ignition.'
-                            : 'Emergency ignition cutoff — tap to immobilize vehicle',
+                            ? 'Circuit disabled • Tap to restore'
+                            : 'Emergency cut • Tap to immobilize',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           color: isCut
                               ? const Color(0xFF059669)
                               : (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C)),
                           fontWeight: FontWeight.w500,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                // Dedicated Special Action Button
+                const SizedBox(width: 8),
+                // Action Button
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isCut
                           ? [const Color(0xFF059669), const Color(0xFF10B981)]
                           : [const Color(0xFFB91C1C), const Color(0xFFEF4444)],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: (isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626))
-                            .withOpacity(0.3),
+                        color: primaryColor.withOpacity(0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -1588,17 +1594,17 @@ class _EngineCutSpecialBanner extends StatelessWidget {
                     children: [
                       Icon(
                         isCut ? Icons.settings_backup_restore_rounded : Icons.power_settings_new_rounded,
-                        size: 14,
+                        size: 12,
                         color: Colors.white,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Text(
                         isCut ? 'RESTORE' : 'CUT OFF',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
-                          letterSpacing: 0.6,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
@@ -1629,7 +1635,6 @@ class _AcControlSpecialBanner extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
 
-    // AC ON (active cyan) vs AC CUT/OFF (amber/disabled)
     final Color primaryColor = isAcOff ? const Color(0xFFF59E0B) : const Color(0xFF0284C7);
     final Color bgColor = isAcOff
         ? (isDark ? const Color(0xFF332200).withOpacity(0.4) : const Color(0xFFFFFBEB))
@@ -1644,8 +1649,8 @@ class _AcControlSpecialBanner extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: primaryColor.withOpacity(isDark ? 0.2 : 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1653,25 +1658,25 @@ class _AcControlSpecialBanner extends StatelessWidget {
         color: bgColor,
         shape: RoundedRectangleBorder(
           borderRadius: Corners.rLg,
-          side: BorderSide(color: borderColor, width: 1.5),
+          side: BorderSide(color: borderColor, width: 1.2),
         ),
         child: InkWell(
           borderRadius: Corners.rLg,
           onTap: onToggle,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             child: Row(
               children: [
                 // AC icon badge
                 Container(
-                  padding: const EdgeInsets.all(9),
+                  padding: const EdgeInsets.all(7.5),
                   decoration: BoxDecoration(
                     color: primaryColor,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
                         color: primaryColor.withOpacity(0.35),
-                        blurRadius: 8,
+                        blurRadius: 6,
                         spreadRadius: 1,
                       ),
                     ],
@@ -1679,31 +1684,33 @@ class _AcControlSpecialBanner extends StatelessWidget {
                   child: Icon(
                     isAcOff ? Icons.power_off_rounded : Icons.ac_unit_rounded,
                     color: Colors.white,
-                    size: 20,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
                             child: Text(
-                              'Air Conditioning Relay',
+                              'Air Conditioner',
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 13,
+                                fontSize: 12.5,
                                 color: isDark ? Colors.white : const Color(0xFF1E293B),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: isAcOff
                                   ? (isDark ? const Color(0xFFF59E0B).withOpacity(0.25) : const Color(0xFFFEF3C7))
@@ -1715,9 +1722,9 @@ class _AcControlSpecialBanner extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              isAcOff ? 'AC CUT / OFF' : 'AC ACTIVE',
+                              isAcOff ? 'AC OFF' : 'AC ON',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 8.5,
                                 fontWeight: FontWeight.w900,
                                 color: isAcOff
                                     ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309))
@@ -1730,10 +1737,10 @@ class _AcControlSpecialBanner extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         isAcOff
-                            ? 'AC relay circuit is cut • Tap to turn ON AC'
-                            : 'Cabin climate control active • Tap to turn OFF AC',
+                            ? 'AC relay cut • Tap to turn ON'
+                            : 'AC running • Tap to turn OFF',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           color: isAcOff
                               ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309))
                               : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0284C7)),
@@ -1748,14 +1755,14 @@ class _AcControlSpecialBanner extends StatelessWidget {
                 const SizedBox(width: 8),
                 // Dedicated Action Button
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isAcOff
                           ? [const Color(0xFF0284C7), const Color(0xFF0EA5E9)]
                           : [const Color(0xFF0284C7), const Color(0xFF0369A1)],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
                         color: primaryColor.withOpacity(0.3),
@@ -1769,17 +1776,17 @@ class _AcControlSpecialBanner extends StatelessWidget {
                     children: [
                       Icon(
                         isAcOff ? Icons.ac_unit_rounded : Icons.power_settings_new_rounded,
-                        size: 14,
+                        size: 12,
                         color: Colors.white,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Text(
                         isAcOff ? 'TURN ON AC' : 'TURN OFF AC',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
