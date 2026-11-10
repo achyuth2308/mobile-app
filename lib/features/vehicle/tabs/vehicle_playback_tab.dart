@@ -1302,6 +1302,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   // ── Initial Selection Screen ──────────────────────────────────────────
 
   Widget _buildInitialSelectionScreen(ThemeData theme) {
+    final bool isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       appBar: AppBar(
@@ -1318,150 +1319,154 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       ),
       body: Center(
         child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 450),
-          padding: const EdgeInsets.all(32.0),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28.0),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                blurRadius: 36,
-                spreadRadius: 1,
-                offset: const Offset(0, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 380),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2238) : Colors.white,
+              borderRadius: BorderRadius.circular(20.0),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.2 : 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+              border: Border.all(
+                color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.35 : 0.25),
+                width: 1.2,
               ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-            border: Border.all(
-              color: const Color(0xFF2563EB),
-              width: 2.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.history_rounded, size: 26, color: theme.colorScheme.primary),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Playback & History',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Select a date and time range to replay route.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11.5,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // From Date and Start Time row (First two: Blue)
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _buildSelectionButton(
+                        icon: Icons.calendar_today_rounded,
+                        label: 'From Date',
+                        value: _formatDateShort(_range.start),
+                        onTap: _pickStartDate,
+                        theme: theme,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSelectionButton(
+                        icon: Icons.access_time_rounded,
+                        label: 'Start Time',
+                        value: _formatTime(_range.start),
+                        onTap: _pickStartTime,
+                        theme: theme,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                
+                // To Date and End Time row (Other two: Orange)
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _buildSelectionButton(
+                        icon: Icons.event_rounded,
+                        label: 'To Date',
+                        value: _formatDateShort(_range.end),
+                        onTap: _pickEndDate,
+                        theme: theme,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF97316), Color(0xFFC2410C)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSelectionButton(
+                        icon: Icons.access_time_filled_rounded,
+                        label: 'End Time',
+                        value: _formatTime(_range.end),
+                        onTap: _pickEndTime,
+                        theme: theme,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF97316), Color(0xFFC2410C)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      setState(() => _isInitialized = true);
+                      _load(autoPlay: true);
+                    },
+                    icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                    label: const Text('Play History', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.3)),
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(0.4),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.history_rounded, size: 48, color: theme.colorScheme.primary),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Playback & History',
-                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Select a precise date and time range to load the vehicle\'s historical route, path, and stoppages.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 36),
-              
-              // From Date and Start Time row (First two: Blue)
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _buildSelectionButton(
-                      icon: Icons.calendar_today_rounded,
-                      label: 'From Date',
-                      value: _formatDateShort(_range.start),
-                      onTap: _pickStartDate,
-                      theme: theme,
-                      gradient: LinearGradient(
-                        colors: [Colors.blue.shade400, Colors.blue.shade800],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSelectionButton(
-                      icon: Icons.access_time_rounded,
-                      label: 'Start Time',
-                      value: _formatTime(_range.start),
-                      onTap: _pickStartTime,
-                      theme: theme,
-                      gradient: LinearGradient(
-                        colors: [Colors.blue.shade400, Colors.blue.shade800],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
-              // To Date and End Time row (Other two: Orange)
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _buildSelectionButton(
-                      icon: Icons.event_rounded,
-                      label: 'To Date',
-                      value: _formatDateShort(_range.end),
-                      onTap: _pickEndDate,
-                      theme: theme,
-                      gradient: LinearGradient(
-                        colors: [Colors.orange.shade400, Colors.orange.shade800],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSelectionButton(
-                      icon: Icons.access_time_filled_rounded,
-                      label: 'End Time',
-                      value: _formatTime(_range.end),
-                      onTap: _pickEndTime,
-                      theme: theme,
-                      gradient: LinearGradient(
-                        colors: [Colors.orange.shade400, Colors.orange.shade800],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-              
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    setState(() => _isInitialized = true);
-                    _load(autoPlay: true);
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                  label: const Text('Play History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
       ),
     );
   }
@@ -1499,17 +1504,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             gradient: gradient,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: gradient.colors.last.withOpacity(0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
+                color: gradient.colors.last.withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               )
             ],
           ),
@@ -1518,15 +1523,15 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  Icon(icon, size: 20, color: Colors.white.withOpacity(0.9)),
-                  const SizedBox(width: 8),
+                  Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.9)),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       label, 
                       style: const TextStyle(
                         color: Colors.white70,
                         fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1534,13 +1539,13 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
               Text(
                 value, 
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 14,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
