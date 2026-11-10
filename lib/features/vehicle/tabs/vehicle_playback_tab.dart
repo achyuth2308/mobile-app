@@ -250,6 +250,48 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     );
   }
 
+  static DateTimeRange _yesterdayRange() {
+    final DateTime now = DateTime.now();
+    final DateTime yesterday = now.subtract(const Duration(days: 1));
+    return DateTimeRange(
+      start: DateTime(yesterday.year, yesterday.month, yesterday.day),
+      end: DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59),
+    );
+  }
+
+  static DateTimeRange _last24hRange() {
+    final DateTime now = DateTime.now();
+    return DateTimeRange(
+      start: now.subtract(const Duration(hours: 24)),
+      end: now,
+    );
+  }
+
+  bool _isTodayRange() {
+    final DateTime now = DateTime.now();
+    final DateTime todayStart = DateTime(now.year, now.month, now.day);
+    return _range.start.year == todayStart.year &&
+        _range.start.month == todayStart.month &&
+        _range.start.day == todayStart.day &&
+        _range.end.day == now.day &&
+        _range.start.hour == 0 &&
+        _range.start.minute == 0;
+  }
+
+  bool _isYesterdayRange() {
+    final DateTime now = DateTime.now();
+    final DateTime y = now.subtract(const Duration(days: 1));
+    return _range.start.year == y.year &&
+        _range.start.month == y.month &&
+        _range.start.day == y.day &&
+        _range.end.day == y.day;
+  }
+
+  bool _isLast24hRange() {
+    final Duration diff = _range.end.difference(_range.start);
+    return diff.inHours >= 23 && diff.inHours <= 25 && !_isTodayRange() && !_isYesterdayRange();
+  }
+
   bool _isInitialized = false;
 
   @override
@@ -729,8 +771,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         FlutterMap(
           mapController: _map,
           options: MapOptions(
-            initialCenter: const LatLng(17.385, 78.4867),
-            initialZoom: 11,
+            initialCenter: vehicle != null && vehicle.lat != 0 && vehicle.lng != 0
+                ? LatLng(vehicle.lat, vehicle.lng)
+                : const LatLng(17.385, 78.4867),
+            initialZoom: 13,
             minZoom: 3,
             maxZoom: 19,
             backgroundColor: theme.colorScheme.surface,
@@ -790,17 +834,73 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               child: ErrorState(message: _error!, onRetry: _load),
             ),
           )
-        else if (_points.isEmpty)
-          Positioned.fill(
-            child: ColoredBox(
-              color: theme.colorScheme.surface,
-              child: EmptyState(
-                icon: Icons.timeline_rounded,
-                title: 'No route data',
-                message: 'This vehicle did not report any positions in '
-                    'the selected period.',
-                actionLabel: 'Choose another date',
-                onAction: () => setState(() => _isInitialized = false),
+        else if (_points.isEmpty && _isInitialized)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + Gap.md + 60,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(
+                  color: const Color(0xFFF59E0B).withOpacity(0.4),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'No route data for this date',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Vehicle did not report positions in this range.',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => setState(() => _isInitialized = false),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: const Text('Change Date', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1241,7 +1341,35 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
 
   List<Marker> _routeMarkers(ThemeData theme) {
-    if (_points.isEmpty) return const <Marker>[];
+    if (_points.isEmpty) {
+      final vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
+      if (vehicle != null && vehicle.lat != 0 && vehicle.lng != 0) {
+        final Color statusColor = AppColors.forStatus(vehicle.status.key);
+        return <Marker>[
+          Marker(
+            point: LatLng(vehicle.lat, vehicle.lng),
+            width: 44,
+            height: 44,
+            child: Container(
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: statusColor.withOpacity(0.4),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.directions_car_rounded, color: Colors.white, size: 22),
+            ),
+          ),
+        ];
+      }
+      return const <Marker>[];
+    }
 
     final TrackPoint cursor = _currentPoint;
 
@@ -1297,79 +1425,95 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
   Widget _buildInitialSelectionScreen(ThemeData theme) {
     final bool isDark = theme.brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 380),
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            constraints: const BoxConstraints(maxWidth: 440),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E2238) : Colors.white,
-              borderRadius: BorderRadius.circular(20.0),
+              borderRadius: BorderRadius.circular(22.0),
               boxShadow: <BoxShadow>[
                 BoxShadow(
-                  color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.2 : 0.08),
+                  color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
                   blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+                  offset: const Offset(0, 4),
                 ),
               ],
               border: Border.all(
-                color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.35 : 0.25),
+                color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
                 width: 1.2,
               ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  child: Icon(Icons.history_rounded, size: 26, color: theme.colorScheme.primary),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(Icons.history_rounded, size: 20, color: theme.colorScheme.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Route Playback & History',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          Text(
+                            'Select trip period to trace route on map',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _buildPresetPill('Today', _isTodayRange(), () {
+                      setState(() => _range = _todayRange());
+                    }, theme),
+                    const SizedBox(width: 6),
+                    _buildPresetPill('Yesterday', _isYesterdayRange(), () {
+                      setState(() => _range = _yesterdayRange());
+                    }, theme),
+                    const SizedBox(width: 6),
+                    _buildPresetPill('Last 24h', _isLast24hRange(), () {
+                      setState(() => _range = _last24hRange());
+                    }, theme),
+                  ],
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  'Playback & History',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Select a date and time range to replay route.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 11.5,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // From Date and Start Time row (First two: Blue)
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -1386,7 +1530,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: _buildSelectionButton(
                         icon: Icons.access_time_rounded,
@@ -1403,9 +1547,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                
-                // To Date and End Time row (Other two: Orange)
+                const SizedBox(height: 6),
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -1422,7 +1564,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: _buildSelectionButton(
                         icon: Icons.access_time_filled_rounded,
@@ -1439,25 +1581,95 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   height: 44,
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      setState(() => _isInitialized = true);
-                      _load(autoPlay: true);
-                    },
-                    icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                    label: const Text('Play History', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.3)),
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _isInitialized = true);
+                          _load(autoPlay: true);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                              SizedBox(width: 6),
+                              Text(
+                                'Play History',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.3,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPresetPill(String label, bool isSelected, VoidCallback onTap, ThemeData theme) {
+    final bool isDark = theme.brightness == Brightness.dark;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : (isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : (isDark ? Colors.white12 : const Color(0xFFCBD5E1)),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDark ? Colors.grey.shade300 : const Color(0xFF475569)),
+                ),
+              ),
             ),
           ),
         ),
