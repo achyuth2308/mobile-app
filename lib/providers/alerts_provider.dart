@@ -53,12 +53,17 @@ class UnreadAlertsCountNotifier extends StateNotifier<int> {
               data['alertType'] ??
               data['alert_type'] ??
               (event.name == 'geofence:event' ? 'geofence' : 'info'))
-          .toString();
+          .toString().toLowerCase().trim();
       final String title = (data['title'] ?? data['name'] ?? FleetAlert.titleFor(rawType)).toString();
       final String message = (data['message'] ?? data['description'] ?? data['body'] ?? title).toString();
-      if ((title.toLowerCase().trim() == 'fleet alert' && (message.toLowerCase().trim() == 'fleet alert' || message.trim().isEmpty)) ||
-          rawType.toLowerCase().trim() == 'fleet_alert' ||
-          (rawType.toLowerCase().trim() == 'info' && title.toLowerCase().trim() == 'fleet alert')) {
+      if (rawType == 'unknown' ||
+          rawType == 'fleet_alert' ||
+          rawType == 'fleet alert' ||
+          rawType == 'info' ||
+          rawType == 'default' ||
+          rawType.isEmpty ||
+          title.toLowerCase().trim() == 'fleet alert' ||
+          message.toLowerCase().contains('fleet alert')) {
         return;
       }
       final String alertId = data['alertId']?.toString() ??

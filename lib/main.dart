@@ -176,9 +176,19 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
         onNotificationTap: _handleNotificationTap,
         onForegroundMessage: _handleForegroundMessage,
         isNotificationEnabled: (String type) {
+          final String normalized = type.toLowerCase().trim();
+          if (normalized == 'unknown' ||
+              normalized == 'fleet_alert' ||
+              normalized == 'fleet alert' ||
+              normalized == 'info' ||
+              normalized == 'default' ||
+              normalized == 'alert' ||
+              normalized.isEmpty) {
+            return false;
+          }
           final NotificationPreferences prefs =
               ref.read(notificationPreferencesProvider);
-          return switch (type.toLowerCase()) {
+          return switch (normalized) {
             'sos' ||
             'panic' ||
             'crash' ||
@@ -205,7 +215,7 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
             'stoppage' =>
               prefs.ignition,
             'harsh_braking' || 'harsh_acceleration' || 'harsh_driving' || 'harsh' => false,
-            _ => true,
+            _ => false,
           };
         },
       );

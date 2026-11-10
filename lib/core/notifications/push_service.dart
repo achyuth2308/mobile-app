@@ -17,6 +17,58 @@ void notificationTapBackground(NotificationResponse notificationResponse) async 
   // Handled by system / app launch
 }
 
+/// Checks whether an incoming FCM message or alert data represents a generic,
+/// unknown, or dummy "Fleet Alert" that should be discarded to avoid spam.
+bool isSpamOrGenericAlert({
+  required String type,
+  Map<String, dynamic>? data,
+  RemoteNotification? n,
+}) {
+  final String t = type.toLowerCase().trim();
+  if (t == 'unknown' ||
+      t == 'fleet_alert' ||
+      t == 'fleet alert' ||
+      t == 'info' ||
+      t == 'default' ||
+      t == 'event' ||
+      t == 'notification' ||
+      t.isEmpty) {
+    return true;
+  }
+  final String rawTitle = (n?.title ??
+          data?['title'] ??
+          data?['alert_title'] ??
+          data?['alertTitle'] ??
+          '')
+      .toString()
+      .toLowerCase()
+      .trim();
+  final String rawBody = (n?.body ??
+          data?['message'] ??
+          data?['body'] ??
+          data?['alert_message'] ??
+          '')
+      .toString()
+      .toLowerCase()
+      .trim();
+  final String vName = (data?['vehicleName'] ??
+          data?['vehicle_name'] ??
+          data?['vehicleNumber'] ??
+          '')
+      .toString()
+      .trim();
+
+  if (rawTitle == 'fleet alert' && vName.isEmpty) {
+    return true;
+  }
+  if (rawBody.contains('a new fleet alert event has occurred') ||
+      rawBody == 'fleet alert' ||
+      rawBody == 'unknown') {
+    return true;
+  }
+  return false;
+}
+
 /// Top-level background handler — required by FCM to be a static/top-level
 /// function. Runs in a separate isolate with no access to app state, so it
 /// only does work that is safe there.
@@ -29,13 +81,26 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   // We must render it manually so the user actually sees the alert.
   if (message.notification == null) {
     final Map<String, dynamic> data = message.data;
-    final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase();
+    final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase().trim();
+
+    // DROP spam or unknown fleet alerts immediately!
+    if (isSpamOrGenericAlert(type: type, data: data, n: message.notification)) {
+      debugPrint('[push] background: dropping generic/unknown alert ($type)');
+      return;
+    }
 
     // Background isolates don't share state with Riverpod, so we read SharedPreferences directly.
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
     bool enabled = true;
     switch (type) {
+      case 'unknown':
+      case 'fleet_alert':
+      case 'fleet alert':
+      case 'info':
+      case 'default':
+      case '':
+        return;
       case 'sos':
       case 'panic':
       case 'crash':
@@ -408,6 +473,11 @@ class PushService {
     await androidImpl?.createNotificationChannel(_criticalChannel);
     await androidImpl?.createNotificationChannel(_theftChannel);
     await androidImpl?.createNotificationChannel(_generalChannel);
+
+    // Clear stale spam notifications from the system notification tray
+    try {
+      await _local.cancelAll();
+    } catch (_) {}
   }
 
   /// Contextual permission request. Call this after the user has seen the
@@ -457,7 +527,13 @@ class PushService {
 
   void _handleForeground(RemoteMessage message) {
     final Map<String, dynamic> data = _dataOf(message);
-    final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase();
+    final String type = (data['type'] ?? data['alertType'] ?? data['alert_type'] ?? data['event_type'] ?? '').toString().toLowerCase().trim();
+
+    // DROP spam or unknown fleet alerts immediately!
+    if (isSpamOrGenericAlert(type: type, data: data, n: message.notification)) {
+      debugPrint('[push] foreground: dropping generic/unknown alert ($type)');
+      return;
+    }
 
     final bool isTheft = data['isTheft'] == 'true' ||
         data['isTheft'] == true ||
@@ -537,11 +613,14 @@ class PushService {
 
   static Future<void> saveLocalAlert(Map<String, dynamic> alertMap) async {
     try {
+      final String type = (alertMap['type'] ?? alertMap['alertType'] ?? 'alert').toString().toLowerCase().trim();
+      if (isSpamOrGenericAlert(type: type, data: alertMap)) {
+        return;
+      }
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final List<String> list = prefs.getStringList(_localAlertsKey) ?? <String>[];
       final String? rawId = alertMap['id']?.toString() ?? alertMap['alertId']?.toString();
       final String vId = alertMap['vehicleId']?.toString() ?? alertMap['vehicle_id']?.toString() ?? '';
-      final String type = (alertMap['type'] ?? alertMap['alertType'] ?? 'alert').toString().toLowerCase().trim();
       
       final String timeStr = (alertMap['createdAt'] ?? alertMap['deviceTime'] ?? alertMap['serverTime'] ?? '').toString();
       final DateTime time = DateTime.tryParse(timeStr) ?? DateTime.now();
@@ -581,10 +660,14 @@ class PushService {
       for (final String s in list) {
         try {
           final dynamic decoded = jsonDecode(s);
-          if (decoded is Map<String, dynamic>) {
-            res.add(decoded);
-          } else if (decoded is Map) {
-            res.add(Map<String, dynamic>.from(decoded));
+          final Map<String, dynamic>? alertMap = decoded is Map<String, dynamic>
+              ? decoded
+              : (decoded is Map ? Map<String, dynamic>.from(decoded) : null);
+          if (alertMap != null) {
+            final String type = (alertMap['type'] ?? alertMap['alertType'] ?? '').toString().toLowerCase().trim();
+            if (!isSpamOrGenericAlert(type: type, data: alertMap)) {
+              res.add(alertMap);
+            }
           }
         } catch (_) {}
       }

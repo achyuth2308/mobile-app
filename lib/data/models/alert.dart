@@ -204,9 +204,26 @@ class FleetAlert extends Equatable {
     final String t = type.toLowerCase().trim();
     final String tl = title.toLowerCase().trim();
     final String msg = message.toLowerCase().trim();
-    return (tl == 'fleet alert' && (msg == 'fleet alert' || msg.isEmpty)) ||
+    if (t == 'unknown' ||
         t == 'fleet_alert' ||
-        (t == 'info' && tl == 'fleet alert');
+        t == 'fleet alert' ||
+        t == 'info' ||
+        t == 'default' ||
+        t == 'event' ||
+        t == 'notification' ||
+        t.isEmpty) {
+      return true;
+    }
+    if (tl == 'fleet alert' || tl == 'unknown' || tl.isEmpty) {
+      return true;
+    }
+    if (msg.contains('a new fleet alert event has occurred') ||
+        msg == 'fleet alert' ||
+        msg == 'unknown' ||
+        msg.isEmpty) {
+      return true;
+    }
+    return false;
   }
 
   AlertSeverity get severity {
