@@ -771,8 +771,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         FlutterMap(
           mapController: _map,
           options: MapOptions(
-            initialCenter: vehicle != null && vehicle.lat != 0 && vehicle.lng != 0
-                ? LatLng(vehicle.lat, vehicle.lng)
+            initialCenter: vehicle != null &&
+                    vehicle.latitude != null &&
+                    vehicle.longitude != null &&
+                    vehicle.latitude != 0 &&
+                    vehicle.longitude != 0
+                ? LatLng(vehicle.latitude!, vehicle.longitude!)
                 : const LatLng(17.385, 78.4867),
             initialZoom: 13,
             minZoom: 3,
@@ -1343,11 +1347,15 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   List<Marker> _routeMarkers(ThemeData theme) {
     if (_points.isEmpty) {
       final vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
-      if (vehicle != null && vehicle.lat != 0 && vehicle.lng != 0) {
-        final Color statusColor = AppColors.forStatus(vehicle.status.key);
+      if (vehicle != null &&
+          vehicle.latitude != null &&
+          vehicle.longitude != null &&
+          vehicle.latitude != 0 &&
+          vehicle.longitude != 0) {
+        final Color statusColor = AppColors.forStatus(vehicle.status.name);
         return <Marker>[
           Marker(
-            point: LatLng(vehicle.lat, vehicle.lng),
+            point: LatLng(vehicle.latitude!, vehicle.longitude!),
             width: 44,
             height: 44,
             child: Container(
