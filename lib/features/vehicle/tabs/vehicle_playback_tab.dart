@@ -20,6 +20,9 @@ import '../../../providers/fleet_provider.dart';
 import '../../../shared/widgets/app_states.dart';
 import '../../live_map/widgets/map_tiles.dart';
 import '../../geofences/geofence_editor_sheet.dart';
+import '../../../core/utils/gps_filter.dart';
+import '../../../core/utils/polyline_simplifier.dart';
+import '../../../data/models/route.dart';
 
 
 /// Stoppage / parking event along a historical route.
@@ -311,21 +314,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       // Compute actual stoppages from full in-range points before downsampling
       final List<StoppageEvent> computedStops = _computeStoppages(inRangePoints);
 
-      // Filter consecutive duplicates & micro-jitter to keep map path clean and smooth
-      final List<TrackPoint> cleanPoints = <TrackPoint>[];
-      const Distance distanceCalc = Distance();
-      for (final TrackPoint p in inRangePoints) {
-        if (cleanPoints.isEmpty) {
-          cleanPoints.add(p);
-        } else {
-          final TrackPoint last = cleanPoints.last;
-          if (distanceCalc(last.latLng, p.latLng) >= 2.0) {
-            cleanPoints.add(p);
-          }
-        }
-      }
+      // Filter consecutive duplicates & stationary GPS drift / jitter
+      final List<TrackPoint> cleanPoints =
+          GpsFilter.filterStationaryDrift(inRangePoints);
 
       final List<LatLng> cachedLatLng = cleanPoints.map((TrackPoint p) => p.latLng).toList(growable: false);
+      const Distance distanceCalc = Distance();
       
       final List<bool> gaps = List<bool>.filled(cachedLatLng.length, false);
       for (int i = 1; i < cachedLatLng.length; i++) {

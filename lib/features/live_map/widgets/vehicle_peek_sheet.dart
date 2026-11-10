@@ -1013,7 +1013,7 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
                           Expanded(
                             child: LiveAddress(
                               vehicle: vehicle,
-                              max: 3,
+                              
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,

@@ -614,7 +614,6 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                       Expanded(
                         child: LiveAddress(
                           vehicle: vehicle,
-                          max: 100,
                           style: TextStyle(
                             fontSize: 11,
                             color: isDark
@@ -954,6 +953,29 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             onTap: () =>
                 context.push('/vehicle/${widget.vehicleId}/detail?tab=3'),
           ),
+
+          const SizedBox(height: 6),
+
+          _MenuItemCard(
+            title: 'Fitment Certificate',
+            subtitle: 'View, verify & download official AIS-140 certificate (PDF)',
+            icon: Icons.verified_user_rounded,
+            accentColor: const Color(0xFF10B981),
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/fitment-certificate'),
+          ),
+
+          const SizedBox(height: 6),
+
+          _MenuItemCard(
+            title: 'Primary Engine On',
+            subtitle: 'Engine ON/OFF events, total duration & nearest locations',
+            icon: Icons.power_settings_new_rounded,
+            accentColor: const Color(0xFFF59E0B),
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/engine-on'),
+          ),
+
           const SizedBox(height: 6),
 
           _MenuItemCard(

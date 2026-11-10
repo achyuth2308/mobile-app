@@ -10,7 +10,7 @@ import '../../../data/models/vehicle.dart';
 import '../../../providers/alerts_provider.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
-import 'fleet_infographic_wheel.dart';
+import 'fleet_3d_pie_chart.dart';
 
 /// The hero panel: total fleet count with a proportional status bar and
 /// four tappable status filters underneath.
@@ -23,56 +23,155 @@ class FleetOverviewCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final FleetStats stats = ref.watch(fleetStatsProvider);
     final VehicleStatus? active = ref.watch(fleetFilterProvider);
     final int overspeedCount = ref.watch(unreadOverspeedCountProvider);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Gap.sm),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: Gap.sm),
+      padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.md),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF131C31) : Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: isDark
+              ? AppColors.brand.withValues(alpha: 0.38)
+              : AppColors.brand.withValues(alpha: 0.28),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.brand.withValues(alpha: isDark ? 0.25 : 0.08),
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.035),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          if (overspeedCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: Gap.sm),
-              child: Material(
-                color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-                child: InkWell(
-                  onTap: () => context.push('/alerts?type=overspeed'),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
+          // ── Section Header ───────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF10B981),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x6610B981),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.speed_rounded,
-                          size: 13,
-                          color: Color(0xFFF43F5E),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$overspeedCount overspeeding',
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFFF43F5E),
+                    const SizedBox(width: 8),
+                    Text(
+                      'FLEET OVERVIEW',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                        color: isDark
+                            ? Colors.white
+                            : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (overspeedCount > 0)
+                      Material(
+                        color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          onTap: () => context.push('/alerts?type=overspeed'),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3.5,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.speed_rounded,
+                                  size: 12,
+                                  color: Color(0xFFF43F5E),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$overspeedCount alert',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFF43F5E),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(
+                            alpha: isDark ? 0.20 : 0.08,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.brand.withValues(
+                              alpha: isDark ? 0.38 : 0.20,
+                            ),
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Text(
+                          '${stats.total} total',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? const Color(0xFF818CF8)
+                                : AppColors.brand,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
+              ],
             ),
+          ),
+          const SizedBox(height: Gap.xs),
 
-          // ── 5-Step Animated Infographic Wheel (Directly on canvas) ────
-          const FleetInfographicWheel(),
+          // ── Hero Visualization: 3D Isometric Pie Chart ─────────────
+          const Fleet3DPieChart(),
 
-          // ── Active Filter Bar / Reset Badge ───────────────────
+          // ── Active Filter Bar / Reset Badge ───────────────────────
           if (active != null)
             Padding(
               padding: const EdgeInsets.only(top: Gap.xs),
@@ -125,15 +224,15 @@ class FleetOverviewCard extends ConsumerWidget {
   Color _getStatusColor(VehicleStatus status) {
     switch (status) {
       case VehicleStatus.moving:
-        return const Color(0xFF10B981);
+        return const Color(0xFF15803D); // Dark Green
       case VehicleStatus.idle:
-        return const Color(0xFFEAB308);
+        return const Color(0xFFEAB308); // Yellow
       case VehicleStatus.stopped:
-        return const Color(0xFF64748B);
+        return const Color(0xFF64748B); // Grey
       case VehicleStatus.offline:
-        return const Color(0xFFEF4444);
+        return const Color(0xFFEF4444); // Red
       case VehicleStatus.noData:
-        return const Color(0xFFBE123C);
+        return const Color(0xFF18181B); // Black
     }
   }
 
@@ -146,60 +245,13 @@ class FleetOverviewCard extends ConsumerWidget {
       case VehicleStatus.stopped:
         return 'Stopped';
       case VehicleStatus.offline:
-        return 'No Data';
-      case VehicleStatus.noData:
         return 'Offline';
+      case VehicleStatus.noData:
+        return 'Unreachable';
     }
   }
 }
 
-class _CompositionBar extends StatelessWidget {
-  const _CompositionBar({required this.stats});
-
-  final FleetStats stats;
-
-  @override
-  Widget build(BuildContext context) {
-    if (stats.total == 0) {
-      return Container(
-        height: 8,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: Corners.rPill,
-        ),
-      );
-    }
-
-    final List<(int, Color)> segments = <(int, Color)>[
-      (stats.moving, AppColors.moving),
-      (stats.idle, AppColors.idle),
-      (stats.stopped, AppColors.stopped),
-      (stats.offline, AppColors.offline),
-      (stats.noData, AppColors.noData),
-    ].where(((int, Color) s) => s.$1 > 0).toList();
-
-    return ClipRRect(
-      borderRadius: Corners.rPill,
-      child: SizedBox(
-        height: 8,
-        child: Row(
-          children: <Widget>[
-            for (int i = 0; i < segments.length; i++) ...<Widget>[
-              Expanded(
-                flex: segments[i].$1,
-                child: AnimatedContainer(
-                  duration: Motion.normal,
-                  color: segments[i].$2,
-                ),
-              ),
-              if (i < segments.length - 1) const SizedBox(width: 2),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _OnlineRing extends StatelessWidget {
   const _OnlineRing({

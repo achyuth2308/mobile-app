@@ -27,6 +27,7 @@ import '../../features/vehicle/screens/vehicle_info_screen.dart';
 import '../../features/vehicle/screens/vehicle_alerts_screen.dart';
 import '../../features/vehicle/screens/vehicle_settings_screen.dart';
 import '../../features/fuel/screens/fuel_analytics_screen.dart';
+import '../../features/vehicle/screens/fitment_certificate_screen.dart';
 import '../../providers/auth_provider.dart';
 
 // ── Stable navigator keys (top-level singletons — never recreated) ───────────
@@ -256,6 +257,13 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             builder: (BuildContext c, GoRouterState s) =>
                 FuelAnalyticsScreen(vehicleId: s.pathParameters['id']),
           ),
+          GoRoute(
+            path: 'fitment-certificate',
+            builder: (BuildContext c, GoRouterState s) =>
+                FitmentCertificateScreen(
+              vehicleId: s.pathParameters['id'] ?? '',
+            ),
+          ),
         ],
       ),
       GoRoute(
@@ -272,6 +280,15 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         builder: (BuildContext c, GoRouterState s) => FuelAnalyticsScreen(
           vehicleId: s.uri.queryParameters['vehicle'] ??
               s.uri.queryParameters['vehicleId'],
+        ),
+      ),
+      GoRoute(
+        path: '/fitment-certificate',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => FitmentCertificateScreen(
+          vehicleId: s.uri.queryParameters['vehicle'] ??
+              s.uri.queryParameters['vehicleId'] ??
+              '',
         ),
       ),
       GoRoute(

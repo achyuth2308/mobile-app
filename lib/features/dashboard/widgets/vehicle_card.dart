@@ -41,7 +41,7 @@ class VehicleCard extends ConsumerWidget {
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
     final Widget content = Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -50,12 +50,12 @@ class VehicleCard extends ConsumerWidget {
             children: [
               // LEFT COLUMN: Image & Name
               SizedBox(
-                width: 90,
+                width: 82,
                 child: Column(
                   children: [
                     Image.asset(
                       'assets/images/vehicles/${vehicle.displayType}.png',
-                      height: 60,
+                      height: 44,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Icon(
                         VehicleIcons.forType(vehicle.displayType),
@@ -63,7 +63,7 @@ class VehicleCard extends ConsumerWidget {
                         color: statusColor.withOpacity(0.5),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 3),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -90,24 +90,33 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                          horizontal: 8, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.grey.shade800
-                            : const Color(0xFFF0F2F5),
+                        color: statusColor.withValues(
+                          alpha: isDark ? 0.20 : 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: statusColor.withValues(
+                            alpha: isDark ? 0.45 : 0.28,
+                          ),
+                          width: 1.0,
+                        ),
                       ),
                       child: Text(
                         vehicle.status.label,
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
                           color: isDark
-                              ? Colors.grey.shade300
-                              : const Color(0xFF5E657D),
+                              ? Color.lerp(statusColor, Colors.white, 0.25)
+                              : (statusColor == AppColors.idle
+                                  ? const Color(0xFFB45309)
+                                  : statusColor),
                         ),
                       ),
                     ),
@@ -115,7 +124,7 @@ class VehicleCard extends ConsumerWidget {
                 ),
               ),
 
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
               // RIGHT COLUMN: Metrics Grid
               Expanded(
@@ -156,7 +165,7 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 5),
 
                     // Metrics Grid (3x2 or 2x3 depending on screen size)
                     Row(
@@ -174,14 +183,14 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor:
                                           const Color(0xFF4CAF50), // Green
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Today km',
                                       value:
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Battery',
                                       value: (vehicle.batteryLevel != null &&
@@ -207,7 +216,7 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor: Colors.cyan,
                                     ),
                                     if (vehicle.hasFuel) ...[
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 6),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
@@ -217,7 +226,7 @@ class VehicleCard extends ConsumerWidget {
                                         onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),
                                     ],
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     Wrap(
                                       spacing: 8,
                                       crossAxisAlignment:
@@ -263,7 +272,7 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor:
                                           const Color(0xFF4CAF50), // Green
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Battery',
                                       value: (vehicle.batteryLevel != null &&
@@ -287,7 +296,7 @@ class VehicleCard extends ConsumerWidget {
                                       dotColor: const Color(0xFFE91E63), // Pink
                                     ),
                                     if (vehicle.hasFuel) ...[
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 6),
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
@@ -312,7 +321,7 @@ class VehicleCard extends ConsumerWidget {
                                           : 'N/A',
                                       dotColor: Colors.cyan,
                                     ),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 6),
                                     Wrap(
                                       spacing: 8,
                                       crossAxisAlignment:
@@ -353,44 +362,48 @@ class VehicleCard extends ConsumerWidget {
             ],
           ),
           if (!minimal) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 5),
             _LiveStatusStrip(vehicle: vehicle),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
             Divider(
                 height: 1,
                 color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
-            const SizedBox(height: 12),
+            const SizedBox(height: 5),
 
             // BOTTOM ROW: Address
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.location_on,
-                    size: 20, color: Color(0xFFE91E63)),
-                const SizedBox(width: 8),
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(Icons.location_on,
+                      size: 16, color: Color(0xFFE91E63)),
+                ),
+                const SizedBox(width: 6),
                 Expanded(
                   child: LiveAddress(
                     vehicle: vehicle,
-                    max: 9999,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
                       color:
                           isDark ? Colors.grey.shade400 : Colors.grey.shade700,
-                      height: 1.3,
+                      height: 1.25,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Container(
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: theme.colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: IconButton(
                     icon: Icon(Icons.info_outline_rounded,
-                        color: theme.colorScheme.primary, size: 20),
+                        color: theme.colorScheme.primary, size: 17),
                     onPressed: onTrack,
                     constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(5),
                   ),
                 ),
               ],
@@ -483,7 +496,7 @@ class VehicleCard extends ConsumerWidget {
     };
 
     return Container(
-      margin: EdgeInsets.only(bottom: dense ? Gap.md : Gap.lg),
+      margin: EdgeInsets.only(bottom: dense ? Gap.xs : Gap.sm),
       decoration: BoxDecoration(
         color: isDark ? AppColors.night3 : Colors.white,
         borderRadius: Corners.rLg,
@@ -622,7 +635,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
 
     if (v.status == VehicleStatus.noData || since == null) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(8),
@@ -651,7 +664,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
     final String durStr = Fmt.statusDuration(since);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
@@ -739,9 +752,9 @@ class _MetricItem extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         Padding(
-          padding: EdgeInsets.only(left: icon != null ? 17 : 14),
+          padding: EdgeInsets.only(left: icon != null ? 15 : 12),
           child: Text(
             label,
             style: TextStyle(

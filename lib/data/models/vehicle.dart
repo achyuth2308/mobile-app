@@ -14,9 +14,9 @@ extension VehicleStatusX on VehicleStatus {
   String get label => switch (this) {
         VehicleStatus.moving => 'Moving',
         VehicleStatus.idle => 'Idle',
-        VehicleStatus.stopped => 'Parking',
+        VehicleStatus.stopped => 'Stopped',
         VehicleStatus.offline => 'No Data',
-        VehicleStatus.noData => 'Unreachable',
+        VehicleStatus.noData => 'Offline',
       };
 
   String get sinceLabel => switch (this) {
