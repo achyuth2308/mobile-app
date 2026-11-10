@@ -557,42 +557,98 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                     height: 1,
                     color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _HeroMetric(
-                      label: 'Speed',
-                      value: '${vehicle.speed.round()} km/h',
-                      color: vehicle.speed > 0 ? AppColors.moving : const Color(0xFF64748B),
-                      icon: Icons.speed_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _HeroMetric(
-                      label: 'Odometer',
-                      value: vehicle.odometer != null
-                          ? '${vehicle.odometer!.toStringAsFixed(0)} km'
-                          : 'N/A',
-                      color: const Color(0xFF0284C7),
-                      icon: Icons.straighten_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _HeroMetric(
-                      label: 'Battery',
-                      value: vehicle.batteryLevel != null
-                          ? '${vehicle.batteryLevel!.toStringAsFixed(1)} V'
-                          : 'N/A',
-                      color: const Color(0xFFEA580C),
-                      icon: Icons.battery_charging_full_rounded,
-                    ),
-                    const SizedBox(width: 8),
-                    _HeroMetric(
-                      label: 'Ignition',
-                      value: vehicle.ignition ? 'ON' : 'OFF',
-                      color: vehicle.ignition
-                          ? AppColors.moving
-                          : const Color(0xFFEF4444),
-                      icon: Icons.power_settings_new_rounded,
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final bool isCompact = constraints.maxWidth < 440;
+                    if (isCompact) {
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              _HeroMetric(
+                                label: 'Speed',
+                                value: '${vehicle.speed.round()} km/h',
+                                color: vehicle.speed > 0
+                                    ? AppColors.moving
+                                    : const Color(0xFF64748B),
+                                icon: Icons.speed_rounded,
+                              ),
+                              const SizedBox(width: 8),
+                              _HeroMetric(
+                                label: 'Odometer',
+                                value: vehicle.odometer != null
+                                    ? '${vehicle.odometer!.toStringAsFixed(0)} km'
+                                    : 'N/A',
+                                color: const Color(0xFF0284C7),
+                                icon: Icons.straighten_rounded,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _HeroMetric(
+                                label: 'Battery',
+                                value: vehicle.batteryLevel != null
+                                    ? '${vehicle.batteryLevel!.toStringAsFixed(1)} V'
+                                    : 'N/A',
+                                color: const Color(0xFFEA580C),
+                                icon: Icons.battery_charging_full_rounded,
+                              ),
+                              const SizedBox(width: 8),
+                              _HeroMetric(
+                                label: 'Ignition',
+                                value: vehicle.ignition ? 'ON' : 'OFF',
+                                color: vehicle.ignition
+                                    ? AppColors.moving
+                                    : const Color(0xFFEF4444),
+                                icon: Icons.power_settings_new_rounded,
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        _HeroMetric(
+                          label: 'Speed',
+                          value: '${vehicle.speed.round()} km/h',
+                          color: vehicle.speed > 0
+                              ? AppColors.moving
+                              : const Color(0xFF64748B),
+                          icon: Icons.speed_rounded,
+                        ),
+                        const SizedBox(width: 8),
+                        _HeroMetric(
+                          label: 'Odometer',
+                          value: vehicle.odometer != null
+                              ? '${vehicle.odometer!.toStringAsFixed(0)} km'
+                              : 'N/A',
+                          color: const Color(0xFF0284C7),
+                          icon: Icons.straighten_rounded,
+                        ),
+                        const SizedBox(width: 8),
+                        _HeroMetric(
+                          label: 'Battery',
+                          value: vehicle.batteryLevel != null
+                              ? '${vehicle.batteryLevel!.toStringAsFixed(1)} V'
+                              : 'N/A',
+                          color: const Color(0xFFEA580C),
+                          icon: Icons.battery_charging_full_rounded,
+                        ),
+                        const SizedBox(width: 8),
+                        _HeroMetric(
+                          label: 'Ignition',
+                          value: vehicle.ignition ? 'ON' : 'OFF',
+                          color: vehicle.ignition
+                              ? AppColors.moving
+                              : const Color(0xFFEF4444),
+                          icon: Icons.power_settings_new_rounded,
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 Container(
@@ -721,11 +777,11 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                   }
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(9),
+                        padding: const EdgeInsets.all(7.5),
                         decoration: BoxDecoration(
                           color: isArmed
                               ? const Color(0xFFDC2626)
@@ -735,7 +791,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                             BoxShadow(
                               color: (isArmed ? const Color(0xFFDC2626) : const Color(0xFF2563EB))
                                   .withOpacity(0.35),
-                              blurRadius: 8,
+                              blurRadius: 6,
                               spreadRadius: 1,
                             ),
                           ],
@@ -743,26 +799,33 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                         child: Icon(
                           isArmed ? Icons.security_rounded : Icons.shield_rounded,
                           color: Colors.white,
-                          size: 20,
+                          size: 18,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 9),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text(
-                                  'Safety Parking',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
+                                Flexible(
+                                  child: Text(
+                                    'Safety Parking',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12.5,
+                                      color: isDark ? Colors.white : const Color(0xFF1E293B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 5),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                   decoration: BoxDecoration(
                                     color: isArmed
                                         ? const Color(0xFFDC2626)
@@ -770,9 +833,9 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    isArmed ? 'ARMED' : 'DISARMED',
+                                    isArmed ? 'ARMED' : 'OFF',
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: 8.5,
                                       fontWeight: FontWeight.w900,
                                       color: isArmed ? Colors.white : const Color(0xFF64748B),
                                     ),
@@ -783,26 +846,30 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                             const SizedBox(height: 2),
                             Text(
                               isArmed
-                                  ? 'Siren triggers if moved or ignition turns ON'
+                                  ? 'Siren triggers if moved or ignition ON'
                                   : !canArm
                                       ? (vehicle.speed > 0
-                                          ? 'Unavailable while moving — park the vehicle first'
-                                          : 'Unavailable while engine is ON — turn off ignition first')
-                                      : 'Tap anywhere to arm anti-theft parking guard',
+                                          ? 'Unavailable while moving • Park first'
+                                          : 'Unavailable while engine ON • Turn OFF')
+                                      : 'Anti-theft guard • Tap to arm',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 10.5,
                                 color: isArmed
                                     ? const Color(0xFFDC2626)
                                     : !canArm
                                         ? const Color(0xFFB45309)
-                                        : theme.colorScheme.onSurfaceVariant,
+                                        : (isDark ? Colors.grey.shade400 : const Color(0xFF64748B)),
+                                fontWeight: FontWeight.w500,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
                         decoration: BoxDecoration(
                           gradient: isArmed
                               ? const LinearGradient(colors: [Color(0xFFB91C1C), Color(0xFFDC2626)])
@@ -810,9 +877,9 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                                   ? null
                                   : const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)]),
                           color: !canArm
-                              ? (isDark ? Colors.orange.withValues(alpha: 0.2) : const Color(0xFFFEF3C7))
+                              ? (isDark ? Colors.orange.withOpacity(0.2) : const Color(0xFFFEF3C7))
                               : null,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                           border: !canArm
                               ? Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5), width: 1.2)
                               : null,
@@ -832,22 +899,6 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              isArmed
-                                  ? 'ARMED'
-                                  : !canArm
-                                      ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
-                                      : 'ARM GUARD',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: isArmed || canArm
-                                    ? Colors.white
-                                    : const Color(0xFFB45309),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
                             Icon(
                               isArmed
                                   ? Icons.shield_rounded
@@ -855,11 +906,25 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                                       ? (vehicle.speed > 0
                                           ? Icons.directions_car_rounded
                                           : Icons.power_settings_new_rounded)
-                                      : Icons.chevron_right_rounded,
-                              size: 15,
-                              color: isArmed || canArm
-                                  ? Colors.white
-                                  : const Color(0xFFB45309),
+                                      : Icons.shield_outlined,
+                              size: 12,
+                              color: isArmed || canArm ? Colors.white : const Color(0xFFB45309),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              isArmed
+                                  ? 'ARMED'
+                                  : !canArm
+                                      ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
+                                      : 'ARM',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: isArmed || canArm
+                                    ? Colors.white
+                                    : const Color(0xFFB45309),
+                                letterSpacing: 0.4,
+                              ),
                             ),
                           ],
                         ),
@@ -1144,48 +1209,55 @@ class _HeroMetric extends StatelessWidget {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 9),
         decoration: BoxDecoration(
           color: color.withOpacity(isDark ? 0.12 : 0.08),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: color.withOpacity(isDark ? 0.25 : 0.2),
+            color: color.withOpacity(isDark ? 0.25 : 0.18),
             width: 1,
           ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 11, color: color),
-                const SizedBox(width: 2.5),
-                Flexible(
-                  child: Text(
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(icon, size: 14, color: color),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
                     label,
                     style: TextStyle(
-                      fontSize: 9.5,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.grey.shade300 : const Color(0xFF64748B),
+                      color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: TextStyle(
-                fontFamily: AppTypography.mono,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                color: color,
+                  const SizedBox(height: 1),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontFamily: AppTypography.mono,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1722,7 +1794,7 @@ class _AcControlSpecialBanner extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              isAcOff ? 'AC OFF' : 'AC ON',
+                              isAcOff ? 'OFF' : 'ON',
                               style: TextStyle(
                                 fontSize: 8.5,
                                 fontWeight: FontWeight.w900,
@@ -1781,7 +1853,7 @@ class _AcControlSpecialBanner extends StatelessWidget {
                       ),
                       const SizedBox(width: 3),
                       Text(
-                        isAcOff ? 'TURN ON AC' : 'TURN OFF AC',
+                        isAcOff ? 'TURN ON' : 'TURN OFF',
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
