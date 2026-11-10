@@ -559,7 +559,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                 const SizedBox(height: 12),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final bool isCompact = constraints.maxWidth < 440;
+                    final bool isCompact = constraints.maxWidth < 580;
                     if (isCompact) {
                       return Column(
                         children: [
@@ -609,7 +609,9 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                         ],
                       );
                     }
-                    return Row(
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         _HeroMetric(
                           label: 'Speed',
@@ -618,8 +620,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               ? AppColors.moving
                               : const Color(0xFF64748B),
                           icon: Icons.speed_rounded,
+                          width: 132,
                         ),
-                        const SizedBox(width: 8),
                         _HeroMetric(
                           label: 'Odometer',
                           value: vehicle.odometer != null
@@ -627,8 +629,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               : 'N/A',
                           color: const Color(0xFF0284C7),
                           icon: Icons.straighten_rounded,
+                          width: 132,
                         ),
-                        const SizedBox(width: 8),
                         _HeroMetric(
                           label: 'Battery',
                           value: vehicle.batteryLevel != null
@@ -636,8 +638,8 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               : 'N/A',
                           color: const Color(0xFFEA580C),
                           icon: Icons.battery_charging_full_rounded,
+                          width: 132,
                         ),
-                        const SizedBox(width: 8),
                         _HeroMetric(
                           label: 'Ignition',
                           value: vehicle.ignition ? 'ON' : 'OFF',
@@ -645,6 +647,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               ? AppColors.moving
                               : const Color(0xFFEF4444),
                           icon: Icons.power_settings_new_rounded,
+                          width: 132,
                         ),
                       ],
                     );
@@ -1197,72 +1200,79 @@ class _HeroMetric extends StatelessWidget {
     required this.value,
     required this.color,
     required this.icon,
+    this.width,
   });
 
   final String label;
   final String value;
   final Color color;
   final IconData icon;
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 9),
-        decoration: BoxDecoration(
-          color: color.withOpacity(isDark ? 0.12 : 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: color.withOpacity(isDark ? 0.25 : 0.18),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(icon, size: 14, color: color),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontFamily: AppTypography.mono,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: color,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+    final Widget card = Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(vertical: 6.5, horizontal: 8.5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(isDark ? 0.12 : 0.08),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: color.withOpacity(isDark ? 0.25 : 0.18),
+          width: 1,
         ),
       ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 13, color: color),
+          ),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontFamily: AppTypography.mono,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+
+    if (width != null) {
+      return card;
+    }
+    return Expanded(child: card);
   }
 }
 
