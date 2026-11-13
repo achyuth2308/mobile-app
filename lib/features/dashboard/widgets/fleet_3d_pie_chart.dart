@@ -11,19 +11,20 @@ import '../../../providers/fleet_provider.dart';
 /// ─────────────────────────────────────────────────────────────────────────
 ///  FLEET 3D ISOMETRIC PIE CHART
 /// ─────────────────────────────────────────────────────────────────────────
-/// A photorealistic 3D isometric pie chart supporting all 5 fleet statuses:
-/// - MOVING (Deep Navy Blue / Emerald)
-/// - IDLE (Sky Cyan / Amber)
-/// - STOPPED (Coral Pink / Rose)
-/// - OFFLINE (Warm Golden Orange - Exploded)
-/// - UNREACHABLE (Vivid Purple / Crimson)
+/// A photorealistic 3D isometric pie chart supporting fleet statuses:
+/// - OFFLINE (Red)
+/// - MOVING (Dark Green)
+/// - IDLE (Yellow)
+/// - STOPPED (Solid Black)
+/// - OVERSPEED (Rose / Crimson)
+/// - UNREACHABLE (Purple / Violet)
 ///
 /// Features:
-/// - Isometric perspective projection with 3D cylinder extrusion.
+/// - Compact isometric perspective projection with 3D cylinder extrusion.
 /// - Dynamic directional face shading (top face, outer rim, radial cut walls).
-/// - Interactive exploded / elevated slice with contact shadow.
-/// - Guaranteed non-overlapping callout leader lines and shelves.
-/// - Interactive tap-to-select with Riverpod fleetFilterProvider integration.
+/// - Interactive exploded slice with soft contact shadow.
+/// - Guaranteed non-overlapping callout leader lines (3 on left, 3 on right).
+/// - Dynamic bottom inspector badge that reflects the selected category and count.
 class Fleet3DPieChart extends ConsumerStatefulWidget {
   const Fleet3DPieChart({
     super.key,
@@ -31,8 +32,8 @@ class Fleet3DPieChart extends ConsumerStatefulWidget {
     this.onStatusSelected,
   });
 
-  /// Status to explode by default when no filter is active.
-  final VehicleStatus explodedStatus;
+  /// Status to elevate by default when no filter is active.
+  final VehicleStatus? explodedStatus;
 
   /// Optional callback when a status is tapped.
   final ValueChanged<VehicleStatus?>? onStatusSelected;
@@ -68,12 +69,30 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
     super.dispose();
   }
 
-  void _onSliceTapped(VehicleStatus status) {
-    final StateController<VehicleStatus?> ctrl =
+  void _onSliceTapped(PieSliceData slice) {
+    final StateController<bool> alertsCtrl =
+        ref.read(fleetAlertsOnlyProvider.notifier);
+    final StateController<VehicleStatus?> filterCtrl =
         ref.read(fleetFilterProvider.notifier);
-    final VehicleStatus? next = ctrl.state == status ? null : status;
-    ctrl.state = next;
-    widget.onStatusSelected?.call(next);
+
+    if (slice.id == 'overspeed') {
+      if (alertsCtrl.state) {
+        alertsCtrl.state = false;
+      } else {
+        filterCtrl.state = null;
+        alertsCtrl.state = true;
+      }
+      widget.onStatusSelected?.call(null);
+      return;
+    }
+
+    alertsCtrl.state = false;
+    if (slice.status != null) {
+      final VehicleStatus? next =
+          filterCtrl.state == slice.status ? null : slice.status;
+      filterCtrl.state = next;
+      widget.onStatusSelected?.call(next);
+    }
   }
 
   @override
@@ -82,45 +101,58 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
     final bool isDark = theme.brightness == Brightness.dark;
     final FleetStats stats = ref.watch(fleetStatsProvider);
     final VehicleStatus? activeFilter = ref.watch(fleetFilterProvider);
+    final bool isOverspeedActive = ref.watch(fleetAlertsOnlyProvider);
 
-    // All 5 statuses with custom color specification:
-    // - idle: Yellow
-    // - moving: Dark Green
-    // - stopped: Grey
-    // - offline: Red (Exploded)
-    // - unreachable: Black
+    // 6 categories:
+    // Left side: Offline, Moving, Idle
+    // Right side: Unreachable, Overspeed, Stopped
     final List<PieSliceData> rawSlices = <PieSliceData>[
       PieSliceData(
+        id: 'offline',
         status: VehicleStatus.offline,
         label: 'OFFLINE',
         subLabel: 'no data',
         count: stats.offline,
         icon: Icons.cloud_off_rounded,
-        topColor: const Color(0xFFEF4444), // Red (Exploded)
+        topColor: const Color(0xFFEF4444), // Red
         sideColor: const Color(0xFFB91C1C),
         innerWallColor: const Color(0xFFDC2626),
       ),
       PieSliceData(
+        id: 'unreachable',
         status: VehicleStatus.noData,
         label: 'UNREACHABLE',
         subLabel: 'unreachable',
         count: stats.noData,
         icon: Icons.sensors_off_rounded,
-        topColor: isDark ? const Color(0xFF27272A) : const Color(0xFF18181B), // Black
-        sideColor: const Color(0xFF09090B),
-        innerWallColor: const Color(0xFF18181B),
+        topColor: const Color(0xFF7C3AED), // Purple
+        sideColor: const Color(0xFF5B21B6),
+        innerWallColor: const Color(0xFF6D28D9),
       ),
       PieSliceData(
+        id: 'overspeed',
+        status: null,
+        label: 'OVERSPEED',
+        subLabel: 'speeding',
+        count: stats.overspeeding,
+        icon: Icons.speed_rounded,
+        topColor: const Color(0xFFF43F5E), // Rose / Crimson
+        sideColor: const Color(0xFFBE123C),
+        innerWallColor: const Color(0xFFE11D48),
+      ),
+      PieSliceData(
+        id: 'stopped',
         status: VehicleStatus.stopped,
         label: 'STOPPED',
         subLabel: 'parked',
         count: stats.stopped,
-        icon: Icons.local_parking_rounded,
-        topColor: const Color(0xFF64748B), // Grey
-        sideColor: const Color(0xFF334155),
-        innerWallColor: const Color(0xFF475569),
+        icon: Icons.pause_circle_rounded,
+        topColor: isDark ? const Color(0xFF27272A) : const Color(0xFF18181B), // Solid Black
+        sideColor: const Color(0xFF09090B),
+        innerWallColor: const Color(0xFF18181B),
       ),
       PieSliceData(
+        id: 'idle',
         status: VehicleStatus.idle,
         label: 'IDLE',
         subLabel: 'idling',
@@ -131,6 +163,7 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
         innerWallColor: const Color(0xFFCA8A04),
       ),
       PieSliceData(
+        id: 'moving',
         status: VehicleStatus.moving,
         label: 'MOVING',
         subLabel: 'driving',
@@ -143,24 +176,31 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
     ];
 
     final int total = stats.total;
-    final double safeTotal = total > 0 ? total.toDouble() : 5.0;
+    final double safeTotal = total > 0 ? total.toDouble() : 6.0;
 
     // Minimum visible angle per slice so even 0-count statuses have clear 3D representation
-    const double minAngle = 0.28; // ~16 degrees
+    const double minAngle = 0.22; // ~12.6 degrees
     final double remainingSweep = (2 * math.pi) - (rawSlices.length * minAngle);
 
     final List<PieSliceData> computedSlices = <PieSliceData>[];
-    // Start angle calibrated so OFFLINE occupies Top-Left (~1.08π to 1.35π)
+    // Start angle calibrated so OFFLINE occupies Top-Left
     double currentAngle = 1.08 * math.pi;
 
     for (final PieSliceData s in rawSlices) {
-      final double fraction = total > 0 ? (s.count / safeTotal) : 0.20;
+      final double fraction = total > 0 ? (s.count / safeTotal) : (1.0 / 6.0);
       final double sweep = minAngle + (fraction * remainingSweep);
-      final double percent = total > 0 ? (s.count / total * 100) : 20.0;
+      final double percent = total > 0 ? (s.count / total * 100) : (100.0 / 6.0);
 
-      final bool isExploded = activeFilter != null
-          ? activeFilter == s.status
-          : s.status == widget.explodedStatus;
+      final bool isSelected = s.id == 'overspeed'
+          ? isOverspeedActive
+          : (activeFilter != null && activeFilter == s.status);
+
+      // Selected slice (or default slice) comes up as a 3D stepped elevation
+      final bool isExploded = isSelected ||
+          (activeFilter == null &&
+              !isOverspeedActive &&
+              widget.explodedStatus != null &&
+              s.status == widget.explodedStatus);
 
       computedSlices.add(
         s.copyWith(
@@ -168,7 +208,7 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
           sweepAngle: sweep,
           percentage: percent,
           isExploded: isExploded,
-          isSelected: activeFilter == s.status,
+          isSelected: isSelected,
           isDimmed: false,
         ),
       );
@@ -176,15 +216,45 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
       currentAngle += sweep;
     }
 
+    // Dynamic bottom badge label and color depending on selected category
+    String bottomBadgeText = '$total Vehicles Total';
+    Color? selectedColor;
+    bool hasActiveFilter = false;
+
+    if (isOverspeedActive) {
+      bottomBadgeText = '${stats.overspeeding} Overspeed Vehicles';
+      selectedColor = const Color(0xFFF43F5E);
+      hasActiveFilter = true;
+    } else if (activeFilter != null) {
+      hasActiveFilter = true;
+      switch (activeFilter) {
+        case VehicleStatus.moving:
+          bottomBadgeText = '${stats.moving} Moving Vehicles';
+          selectedColor = const Color(0xFF15803D);
+        case VehicleStatus.idle:
+          bottomBadgeText = '${stats.idle} Idle Vehicles';
+          selectedColor = const Color(0xFFEAB308);
+        case VehicleStatus.stopped:
+          bottomBadgeText = '${stats.stopped} Stopped Vehicles';
+          selectedColor = isDark ? Colors.white : const Color(0xFF18181B);
+        case VehicleStatus.offline:
+          bottomBadgeText = '${stats.offline} Offline Vehicles';
+          selectedColor = const Color(0xFFEF4444);
+        case VehicleStatus.noData:
+          bottomBadgeText = '${stats.noData} Unreachable Vehicles';
+          selectedColor = const Color(0xFF7C3AED);
+      }
+    }
+
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double width = constraints.maxWidth;
-        // Optimal height giving balanced breathing room for 3D pie and callouts
-        final double height = (width * 0.80).clamp(275.0, 320.0);
+        // Compact height giving clean breathing room for 3D pie and callouts
+        final double height = (width * 0.62).clamp(205.0, 240.0);
         final Size chartSize = Size(width, height);
 
         // Precompute non-overlapping leader line shelves close to the pie
-        final Map<VehicleStatus, _CalloutShelf> shelves =
+        final Map<String, _CalloutShelf> shelves =
             _computeCalloutShelves(computedSlices, chartSize);
 
         return AnimatedBuilder(
@@ -220,68 +290,87 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
 
                   // ── 2. Interactive Callout Labels on Leader Lines ────────
                   for (final PieSliceData slice in computedSlices)
-                    if (slice.status != null &&
-                        shelves.containsKey(slice.status))
+                    if (shelves.containsKey(slice.id))
                       _buildCalloutLabel(
                         slice: slice,
-                        shelf: shelves[slice.status!]!,
+                        shelf: shelves[slice.id]!,
                         isDark: isDark,
                       ),
 
-                  // ── 3. Subtle Bottom Center Fleet Badge ──────────────────
-                  Align(
-                    alignment: const Alignment(0.0, 0.99),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1E293B).withValues(alpha: 0.90)
-                            : Colors.white.withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isDark
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFE2E8F0),
-                          width: 1,
+                  // ── 3. Bottom Center Dynamic Category / Fleet Badge ──────
+                  // Only displayed when an operator clicks on a category (Idle, Moving, etc.)
+                  // so the total count is never duplicated between top and bottom.
+                  if (hasActiveFilter)
+                    Align(
+                      alignment: const Alignment(0.0, 0.99),
+                      child: GestureDetector(
+                        onTap: () {
+                          ref.read(fleetFilterProvider.notifier).state = null;
+                          ref.read(fleetAlertsOnlyProvider.notifier).state = false;
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF1E293B).withValues(alpha: 0.92)
+                                : Colors.white.withValues(alpha: 0.96),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selectedColor != null
+                                  ? selectedColor.withValues(alpha: 0.5)
+                                  : (isDark
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFE2E8F0)),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (selectedColor ?? Colors.black)
+                                    .withValues(alpha: 0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: selectedColor ?? const Color(0xFF10B981),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                bottomBadgeText,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? const Color(0xFFCBD5E1)
+                                      : const Color(0xFF334155),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.close_rounded,
+                                size: 12,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ],
+                          ),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF10B981),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '$total Vehicles Total',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? const Color(0xFF94A3B8)
-                                  : const Color(0xFF475569),
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
-                  ),
                 ],
               ),
             );
@@ -292,48 +381,47 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
   }
 
   /// Calculates mathematically collision-free shelves for each slice
-  Map<VehicleStatus, _CalloutShelf> _computeCalloutShelves(
+  Map<String, _CalloutShelf> _computeCalloutShelves(
     List<PieSliceData> slices,
     Size size,
   ) {
-    // Center shifted slightly right to give ample breathing room for 3 left-side labels and exploded slice
-    final Offset center = Offset(size.width * 0.53, size.height * 0.48);
-    final double rx = size.width * 0.20;
-    final double ry = rx * 0.52;
-    const double extrusionHeight = 24.0;
+    final Offset center = Offset(size.width * 0.50, size.height * 0.46);
+    final double rx = size.width * 0.16;
+    final double ry = rx * 0.50;
+    const double extrusionHeight = 16.0;
 
     final List<PieSliceData> leftSlices = [];
     final List<PieSliceData> rightSlices = [];
 
+    // Deterministic 3-on-left and 3-on-right partition:
+    // Left: OFFLINE, MOVING, IDLE
+    // Right: UNREACHABLE, OVERSPEED, STOPPED
+    const Set<String> leftIds = {'offline', 'moving', 'idle'};
+
     for (final PieSliceData s in slices) {
-      final double midAngle = s.startAngle + (s.sweepAngle / 2);
-      if (math.cos(midAngle) < 0) {
+      if (leftIds.contains(s.id)) {
         leftSlices.add(s);
       } else {
         rightSlices.add(s);
       }
     }
 
-    // Sort top to bottom by sin of midAngle
-    leftSlices.sort((a, b) {
-      final double midA = a.startAngle + (a.sweepAngle / 2);
-      final double midB = b.startAngle + (b.sweepAngle / 2);
-      return math.sin(midA).compareTo(math.sin(midB));
-    });
+    // Fixed vertical order from top to bottom
+    const List<String> leftOrder = ['offline', 'moving', 'idle'];
+    const List<String> rightOrder = ['unreachable', 'overspeed', 'stopped'];
 
-    rightSlices.sort((a, b) {
-      final double midA = a.startAngle + (a.sweepAngle / 2);
-      final double midB = b.startAngle + (b.sweepAngle / 2);
-      return math.sin(midA).compareTo(math.sin(midB));
-    });
+    leftSlices.sort((a, b) =>
+        leftOrder.indexOf(a.id).compareTo(leftOrder.indexOf(b.id)));
+    rightSlices.sort((a, b) =>
+        rightOrder.indexOf(a.id).compareTo(rightOrder.indexOf(b.id)));
 
-    final Map<VehicleStatus, _CalloutShelf> result = {};
+    final Map<String, _CalloutShelf> result = {};
 
     // Snug bounds kept close to the pie
-    final double topBoundY = center.dy - ry - 22.0;
-    final double bottomBoundY = center.dy + ry + extrusionHeight + 20.0;
+    final double topBoundY = center.dy - ry - 14.0;
+    final double bottomBoundY = center.dy + ry + extrusionHeight + 14.0;
 
-    const double elbowMargin = 12.0;
+    const double elbowMargin = 8.0;
 
     // Generate distinct Y coordinates for left side
     final List<double> leftYs = _distributeYs(
@@ -345,39 +433,33 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
 
     for (int i = 0; i < leftSlices.length; i++) {
       final PieSliceData s = leftSlices[i];
-      if (s.status == null) continue;
-      double y = leftYs[i];
-      // Give MOVING extra downward clearance so it never collides with the exploded top-left slice
-      if (s.status == VehicleStatus.moving) {
-        y += 8.0;
-      }
+      final double y = leftYs[i];
       final double elbowX = center.dx - rx - elbowMargin;
-      result[s.status!] = _CalloutShelf(
+      result[s.id] = _CalloutShelf(
         isLeft: true,
         elbowX: elbowX,
         elbowY: y,
-        endX: 10.0,
+        endX: 8.0,
       );
     }
 
     // Generate distinct Y coordinates for right side
     final List<double> rightYs = _distributeYs(
       count: rightSlices.length,
-      topY: topBoundY + 4.0,
-      bottomY: bottomBoundY - 4.0,
+      topY: topBoundY,
+      bottomY: bottomBoundY,
       centerY: center.dy,
     );
 
     for (int i = 0; i < rightSlices.length; i++) {
       final PieSliceData s = rightSlices[i];
-      if (s.status == null) continue;
       final double y = rightYs[i];
       final double elbowX = center.dx + rx + elbowMargin;
-      result[s.status!] = _CalloutShelf(
+      result[s.id] = _CalloutShelf(
         isLeft: false,
         elbowX: elbowX,
         elbowY: y,
-        endX: size.width - 10.0,
+        endX: size.width - 8.0,
       );
     }
 
@@ -393,7 +475,7 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
     if (count == 0) return [];
     if (count == 1) return [centerY];
     if (count == 2) {
-      return [topY + 10.0, bottomY - 10.0];
+      return [topY + 6.0, bottomY - 6.0];
     }
     final List<double> ys = [];
     final double step = (bottomY - topY) / (count - 1);
@@ -408,9 +490,9 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
     Size size,
     List<PieSliceData> slices,
   ) {
-    final Offset center = Offset(size.width * 0.53, size.height * 0.48);
-    final double rx = size.width * 0.20;
-    final double ry = rx * 0.52;
+    final Offset center = Offset(size.width * 0.50, size.height * 0.46);
+    final double rx = size.width * 0.16;
+    final double ry = rx * 0.50;
 
     final double dx = (tapPos.dx - center.dx) / rx;
     final double dy = (tapPos.dy - center.dy) / ry;
@@ -431,8 +513,8 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
           hit = angle >= start || angle <= end;
         }
 
-        if (hit && s.status != null) {
-          _onSliceTapped(s.status!);
+        if (hit) {
+          _onSliceTapped(s);
           return;
         }
       }
@@ -445,80 +527,71 @@ class _Fleet3DPieChartState extends ConsumerState<Fleet3DPieChart>
     required bool isDark,
   }) {
     final bool isLeft = shelf.isLeft;
-    final Color accentColor = slice.status == VehicleStatus.noData
-        ? (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B))
+    final Color accentColor = slice.id == 'stopped'
+        ? (isDark ? Colors.white : const Color(0xFF18181B))
         : slice.topColor;
     final Color labelColor = slice.isSelected
         ? accentColor
         : (isDark ? Colors.white : const Color(0xFF0F172A));
 
     return Positioned(
-      left: isLeft ? 10.0 : null,
-      right: isLeft ? null : 10.0,
-      top: shelf.elbowY - 40.0,
+      left: isLeft ? 8.0 : null,
+      right: isLeft ? null : 8.0,
+      top: shelf.elbowY - 17.0,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {
-          if (slice.status != null) _onSliceTapped(slice.status!);
-        },
-        child: Column(
-          crossAxisAlignment:
-              isLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        onTap: () => _onSliceTapped(slice),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!isLeft && slice.isSelected) ...[
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Icon(
-                  slice.icon,
-                  size: 14,
+            if (!isLeft && slice.isSelected) ...[
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                   color: accentColor,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  slice.label,
-                  style: TextStyle(
-                    fontSize: 13.0,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.6,
-                    color: labelColor,
-                  ),
-                ),
-                if (isLeft && slice.isSelected) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor,
-                    ),
-                  ),
-                ],
-              ],
+              ),
+              const SizedBox(width: 3),
+            ],
+            Icon(
+              slice.icon,
+              size: 12.0,
+              color: accentColor,
             ),
-            const SizedBox(height: 1.5),
+            const SizedBox(width: 3),
             Text(
-              '${slice.count} (${slice.percentage.toStringAsFixed(0)}%)',
+              slice.label,
               style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: isDark
-                    ? const Color(0xFF94A3B8)
-                    : const Color(0xFF64748B),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+                color: labelColor,
               ),
             ),
+            const SizedBox(width: 3.5),
+            Text(
+              '${slice.count}',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+                color: labelColor,
+              ),
+            ),
+            if (isLeft && slice.isSelected) ...[
+              const SizedBox(width: 3),
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accentColor,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -545,6 +618,7 @@ class _CalloutShelf {
 /// ─────────────────────────────────────────────────────────────────────────
 class PieSliceData {
   const PieSliceData({
+    required this.id,
     required this.label,
     required this.subLabel,
     required this.count,
@@ -561,6 +635,7 @@ class PieSliceData {
     this.isDimmed = false,
   });
 
+  final String id;
   final String label;
   final String subLabel;
   final int count;
@@ -577,6 +652,7 @@ class PieSliceData {
   final bool isDimmed;
 
   PieSliceData copyWith({
+    String? id,
     String? label,
     String? subLabel,
     int? count,
@@ -593,6 +669,7 @@ class PieSliceData {
     bool? isDimmed,
   }) {
     return PieSliceData(
+      id: id ?? this.id,
       label: label ?? this.label,
       subLabel: subLabel ?? this.subLabel,
       count: count ?? this.count,
@@ -623,7 +700,7 @@ class _IsometricPieChartPainter extends CustomPainter {
   });
 
   final List<PieSliceData> slices;
-  final Map<VehicleStatus, _CalloutShelf> shelves;
+  final Map<String, _CalloutShelf> shelves;
   final double progress;
   final bool isDark;
 
@@ -631,16 +708,18 @@ class _IsometricPieChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (slices.isEmpty || progress <= 0) return;
 
-    final Offset center = Offset(size.width * 0.53, size.height * 0.48);
-    final double rx = size.width * 0.20 * progress;
-    final double ry = rx * 0.52; // Isometric tilt ratio
-    const double extrusionHeight = 24.0; // Cylinder thickness
-    const double explodeDist = 12.0; // Distance exploded slice detaches
-    const double explodeLift = 10.0; // Upward height exploded slice rises
+    final Offset center = Offset(size.width * 0.50, size.height * 0.46);
+    final double rx = size.width * 0.16 * progress;
+    final double ry = rx * 0.50; // Isometric tilt ratio
+    const double extrusionHeight = 16.0; // Cylinder thickness
+    const double explodeDist = 0.0; // Zero horizontal shift - solid 3D pie
+    const double explodeLift = 7.0; // Clean 3D step elevation
 
-    // Sort slices by depth (back to front) for clean 3D occlusion
+    // Sort slices by depth (back to front), drawing elevated slice on top
     final List<PieSliceData> sorted = List<PieSliceData>.from(slices)
       ..sort((a, b) {
+        if (a.isExploded && !b.isExploded) return 1;
+        if (!a.isExploded && b.isExploded) return -1;
         final double midA = a.startAngle + (a.sweepAngle / 2);
         final double midB = b.startAngle + (b.sweepAngle / 2);
         return math.sin(midA).compareTo(math.sin(midB));
@@ -648,7 +727,7 @@ class _IsometricPieChartPainter extends CustomPainter {
 
     // ── STEP 1: Ambient Base Drop Shadow ──────────────────────────────────
     final Rect baseOval = Rect.fromCenter(
-      center: center.translate(0, extrusionHeight + 6),
+      center: Offset(center.dx, center.dy + extrusionHeight + 6.0),
       width: rx * 2.12,
       height: ry * 2.12,
     );
@@ -656,24 +735,54 @@ class _IsometricPieChartPainter extends CustomPainter {
       baseOval,
       Paint()
         ..color = Colors.black.withValues(alpha: isDark ? 0.35 : 0.10)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
     );
 
-    // ── STEP 2: Render Each 3D Slice ──────────────────────────────────────
+    // ── STEP 2: Draw Contact Shadow for Exploded Slice ────────────────────
+    for (final PieSliceData slice in sorted) {
+      if (slice.isExploded) {
+        final double midAngle = slice.startAngle + (slice.sweepAngle / 2);
+        final double shadowDx = (explodeDist * 0.95) * math.cos(midAngle);
+        final double shadowDy = (explodeDist * 0.95) * math.sin(midAngle) * 0.50;
+
+        final Path shadowPath = Path();
+        final Offset sc = Offset(center.dx + shadowDx, center.dy + extrusionHeight + 3.0 + shadowDy);
+        shadowPath.moveTo(sc.dx, sc.dy);
+
+        const int steps = 18;
+        for (int i = 0; i <= steps; i++) {
+          final double t = slice.startAngle + (slice.sweepAngle * (i / steps));
+          shadowPath.lineTo(
+            sc.dx + (rx * math.cos(t)),
+            sc.dy + (ry * math.sin(t)),
+          );
+        }
+        shadowPath.close();
+
+        canvas.drawPath(
+          shadowPath,
+          Paint()
+            ..color = Colors.black.withValues(alpha: isDark ? 0.45 : 0.16)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        );
+      }
+    }
+
+    // ── STEP 3: Render 3D Cylindrical Geometry (Back-to-Front) ────────────
     for (final PieSliceData slice in sorted) {
       _drawSlice3D(
         canvas: canvas,
+        slice: slice,
         center: center,
         rx: rx,
         ry: ry,
-        h: extrusionHeight,
+        extrusionHeight: extrusionHeight,
         explodeDist: explodeDist,
         explodeLift: explodeLift,
-        slice: slice,
       );
     }
 
-    // ── STEP 3: Render Leader Lines (Pointer Dots & Callouts) ─────────────
+    // ── STEP 4: Draw Leader Lines and Connector Dots ───────────────────────
     _drawLeaderLines(
       canvas: canvas,
       center: center,
@@ -686,134 +795,127 @@ class _IsometricPieChartPainter extends CustomPainter {
 
   void _drawSlice3D({
     required Canvas canvas,
+    required PieSliceData slice,
     required Offset center,
     required double rx,
     required double ry,
-    required double h,
+    required double extrusionHeight,
     required double explodeDist,
     required double explodeLift,
-    required PieSliceData slice,
   }) {
     final double midAngle = slice.startAngle + (slice.sweepAngle / 2);
 
-    // Explode displacement offset
-    Offset sliceOffset = Offset.zero;
-    if (slice.isExploded) {
-      final double dx = explodeDist * math.cos(midAngle);
-      final double dy = (explodeDist * math.sin(midAngle) * 0.52) - explodeLift;
-      sliceOffset = Offset(dx, dy);
-    }
-
-    final Offset cTop = center + sliceOffset;
-    final Offset cBot = cTop.translate(0, h);
+    final Offset cTop = slice.isExploded
+        ? Offset(center.dx, center.dy - explodeLift)
+        : center;
+    final Offset cBot = Offset(center.dx, center.dy + extrusionHeight);
 
     final double sAngle = slice.startAngle;
     final double eAngle = slice.startAngle + slice.sweepAngle;
 
-    // Keep all slices at 100% solid, full original vibrancy (never dim or lighten)
-    final Color topColor = slice.topColor;
-    final Color sideColor = slice.sideColor;
-    final Color innerWallColor = slice.innerWallColor;
-
-    // ── A. Exploded Slice Contact Shadow ──────────────────────────────────
-    if (slice.isExploded) {
-      final Path shadowPath = Path();
-      const int steps = 16;
-      shadowPath.moveTo(
-        center.dx + (explodeDist * math.cos(midAngle)),
-        center.dy + (explodeDist * math.sin(midAngle) * 0.52) + h + 2,
-      );
-      for (int i = 0; i <= steps; i++) {
-        final double t = sAngle + (slice.sweepAngle * (i / steps));
-        final double x = center.dx +
-            (explodeDist * math.cos(midAngle)) +
-            (rx * math.cos(t));
-        final double y = center.dy +
-            (explodeDist * math.sin(midAngle) * 0.52) +
-            (ry * math.sin(t)) +
-            h +
-            2;
-        shadowPath.lineTo(x, y);
-      }
-      shadowPath.close();
-
-      canvas.drawPath(
-        shadowPath,
-        Paint()
-          ..color = Colors.black.withValues(alpha: isDark ? 0.28 : 0.12)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
-    }
-
-    // ── B. Radial Cut Walls ────────────────────────────────────────────────
     final Offset pStartTop = Offset(
       cTop.dx + (rx * math.cos(sAngle)),
       cTop.dy + (ry * math.sin(sAngle)),
     );
-    final Offset pStartBot = pStartTop.translate(0, h);
-
     final Offset pEndTop = Offset(
       cTop.dx + (rx * math.cos(eAngle)),
       cTop.dy + (ry * math.sin(eAngle)),
     );
-    final Offset pEndBot = pEndTop.translate(0, h);
 
-    // Wall 1: Start Wall Quad
-    final double startWallNormalX = math.sin(sAngle);
-    if (slice.isExploded || startWallNormalX > -0.1) {
-      final Path wallStart = Path()
+    final Offset pBaseStartTop = Offset(
+      center.dx + (rx * math.cos(sAngle)),
+      center.dy + (ry * math.sin(sAngle)),
+    );
+    final Offset pBaseEndTop = Offset(
+      center.dx + (rx * math.cos(eAngle)),
+      center.dy + (ry * math.sin(eAngle)),
+    );
+
+    final Offset pStartBot = Offset(
+      center.dx + (rx * math.cos(sAngle)),
+      center.dy + extrusionHeight + (ry * math.sin(sAngle)),
+    );
+    final Offset pEndBot = Offset(
+      center.dx + (rx * math.cos(eAngle)),
+      center.dy + extrusionHeight + (ry * math.sin(eAngle)),
+    );
+
+    final Color topColor = slice.isDimmed
+        ? slice.topColor.withValues(alpha: 0.35)
+        : slice.topColor;
+    final Color sideColor = slice.isDimmed
+        ? slice.sideColor.withValues(alpha: 0.35)
+        : slice.sideColor;
+    final Color innerWallColor = slice.isDimmed
+        ? slice.innerWallColor.withValues(alpha: 0.35)
+        : slice.innerWallColor;
+
+    // ── A. Radial Start Cut Wall ─────────────────────────────────────────
+    final double sinStart = math.sin(sAngle);
+    final double cosStart = math.cos(sAngle);
+    final bool showStart = slice.isExploded
+        ? (sinStart > 0 || cosStart < -0.1)
+        : (sinStart > 0);
+
+    if (showStart) {
+      final Path startWall = Path()
         ..moveTo(cTop.dx, cTop.dy)
         ..lineTo(pStartTop.dx, pStartTop.dy)
-        ..lineTo(pStartBot.dx, pStartBot.dy)
-        ..lineTo(cBot.dx, cBot.dy)
+        ..lineTo(
+          slice.isExploded ? pBaseStartTop.dx : pStartBot.dx,
+          slice.isExploded ? pBaseStartTop.dy : pStartBot.dy,
+        )
+        ..lineTo(
+          slice.isExploded ? center.dx : cBot.dx,
+          slice.isExploded ? center.dy : cBot.dy,
+        )
         ..close();
 
-      final Color shadedStart = Color.lerp(
-        innerWallColor,
-        Colors.black,
-        startWallNormalX > 0 ? 0.15 : 0.30,
-      )!;
-
       canvas.drawPath(
-        wallStart,
+        startWall,
         Paint()
-          ..color = shadedStart
+          ..color = innerWallColor
           ..style = PaintingStyle.fill,
       );
     }
 
-    // Wall 2: End Wall Quad
-    final double endWallNormalX = -math.sin(eAngle);
-    if (slice.isExploded || endWallNormalX > -0.1) {
-      final Path wallEnd = Path()
-        ..moveTo(pEndTop.dx, pEndTop.dy)
-        ..lineTo(cTop.dx, cTop.dy)
-        ..lineTo(cBot.dx, cBot.dy)
-        ..lineTo(pEndBot.dx, pEndBot.dy)
+    // ── B. Radial End Cut Wall ───────────────────────────────────────────
+    final double sinEnd = math.sin(eAngle);
+    final double cosEnd = math.cos(eAngle);
+    final bool showEnd = slice.isExploded
+        ? (sinEnd < 0 || cosEnd > 0.1)
+        : (sinEnd < 0);
+
+    if (showEnd) {
+      final Path endWall = Path()
+        ..moveTo(cTop.dx, cTop.dy)
+        ..lineTo(pEndTop.dx, pEndTop.dy)
+        ..lineTo(
+          slice.isExploded ? pBaseEndTop.dx : pEndBot.dx,
+          slice.isExploded ? pBaseEndTop.dy : pEndBot.dy,
+        )
+        ..lineTo(
+          slice.isExploded ? center.dx : cBot.dx,
+          slice.isExploded ? center.dy : cBot.dy,
+        )
         ..close();
 
-      final Color shadedEnd = Color.lerp(
-        innerWallColor,
-        Colors.black,
-        endWallNormalX > 0 ? 0.12 : 0.28,
-      )!;
-
       canvas.drawPath(
-        wallEnd,
+        endWall,
         Paint()
-          ..color = shadedEnd
+          ..color = Color.lerp(innerWallColor, Colors.black, 0.18)!
           ..style = PaintingStyle.fill,
       );
     }
 
-    // ── C. Outer Cylindrical Rim ──────────────────────────────────────────
-    const int rimSteps = 24;
+    // ── C. Outer Curved Cylinder Rim ─────────────────────────────────────
     final Path rimPath = Path();
+    const int rimSteps = 24;
     bool rimVisible = false;
 
     for (int i = 0; i <= rimSteps; i++) {
       final double t = sAngle + (slice.sweepAngle * (i / rimSteps));
-      if (math.sin(t) >= -0.05 || slice.isExploded) {
+      if (math.sin(t) > -0.05) {
         rimVisible = true;
         break;
       }
@@ -832,8 +934,8 @@ class _IsometricPieChartPainter extends CustomPainter {
       for (int i = rimSteps - 1; i >= 0; i--) {
         final double t = sAngle + (slice.sweepAngle * (i / rimSteps));
         rimPath.lineTo(
-          cBot.dx + (rx * math.cos(t)),
-          cBot.dy + (ry * math.sin(t)),
+          center.dx + (rx * math.cos(t)),
+          center.dy + extrusionHeight + (ry * math.sin(t)),
         );
       }
       rimPath.close();
@@ -848,7 +950,7 @@ class _IsometricPieChartPainter extends CustomPainter {
 
     // ── D. Top Elliptical Face ───────────────────────────────────────────
     final Path topPath = Path()..moveTo(cTop.dx, cTop.dy);
-    const int topSteps = 28;
+    const int topSteps = 26;
     for (int i = 0; i <= topSteps; i++) {
       final double t = sAngle + (slice.sweepAngle * (i / topSteps));
       topPath.lineTo(
@@ -873,7 +975,7 @@ class _IsometricPieChartPainter extends CustomPainter {
     canvas.drawPath(topPath, topPaint);
 
     final Paint edgeStroke = Paint()
-      ..color = Colors.white.withValues(alpha: isDark ? 0.20 : 0.40)
+      ..color = Colors.white.withValues(alpha: isDark ? 0.20 : 0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8;
     canvas.drawPath(topPath, edgeStroke);
@@ -891,15 +993,15 @@ class _IsometricPieChartPainter extends CustomPainter {
       ..color = isDark
           ? const Color(0xFF64748B).withValues(alpha: 0.85)
           : const Color(0xFF94A3B8).withValues(alpha: 0.90)
-      ..strokeWidth = 1.3
+      ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final Paint dotPaint = Paint()..style = PaintingStyle.fill;
 
     for (final PieSliceData slice in slices) {
-      if (slice.status == null || !shelves.containsKey(slice.status)) continue;
-      final _CalloutShelf shelf = shelves[slice.status!]!;
+      if (!shelves.containsKey(slice.id)) continue;
+      final _CalloutShelf shelf = shelves[slice.id]!;
 
       final double midAngle = slice.startAngle + (slice.sweepAngle / 2);
 
@@ -907,23 +1009,28 @@ class _IsometricPieChartPainter extends CustomPainter {
       if (slice.isExploded) {
         final double dx = explodeDist * math.cos(midAngle);
         final double dy =
-            (explodeDist * math.sin(midAngle) * 0.52) - explodeLift;
+            (explodeDist * math.sin(midAngle) * 0.50) - explodeLift;
         sliceOffset = Offset(dx, dy);
       }
 
       final Offset cTop = center + sliceOffset;
 
-      // 1. Anchor dot resting on slice top surface
+      // Anchor dot resting on slice top surface
+      final double dotDx = !shelf.isLeft && math.cos(midAngle) < 0.05
+          ? cTop.dx + 2.0
+          : cTop.dx + (rx * 0.65 * math.cos(midAngle));
       final Offset anchorDot = Offset(
-        cTop.dx + (rx * 0.65 * math.cos(midAngle)),
+        dotDx,
         cTop.dy + (ry * 0.65 * math.sin(midAngle)),
       );
 
-      // Draw anchor dot
-      dotPaint.color = isDark
-          ? const Color(0xFFCBD5E1)
-          : const Color(0xFF475569);
-      canvas.drawCircle(anchorDot, 3.2, dotPaint);
+      final Color sliceColor = slice.id == 'stopped'
+          ? (isDark ? Colors.white : const Color(0xFF18181B))
+          : slice.topColor;
+
+      // Draw anchor dot filled with respective slice color
+      dotPaint.color = sliceColor;
+      canvas.drawCircle(anchorDot, 2.6, dotPaint);
 
       // Draw angled connector & horizontal shelf
       final Path leaderPath = Path()

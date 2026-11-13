@@ -26,6 +26,17 @@
         antialias: true
     });
 
+    const mapCanvas = map.getCanvas();
+    if (mapCanvas) {
+        mapCanvas.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            console.warn('[Map3D] WebGL context lost. Awaiting restoration...');
+        }, false);
+        mapCanvas.addEventListener('webglcontextrestored', () => {
+            console.info('[Map3D] WebGL context restored.');
+        }, false);
+    }
+
     let tb;
     let vehicleModels = {};
     let isMapLoaded = false;
@@ -65,7 +76,7 @@
             vehicles.forEach(vehicle => {
                 // Determine model file and scale based on type
                 const isBike = vehicle.type === 'bike' || vehicle.type === 'scooter';
-                const modelFile = isBike ? 'vespa.glb' : 'classic_muscle_car.glb';
+                const modelFile = 'classic_muscle_car.glb';
                 const scale = isBike ? 2.5 : 5; // Vespa might need different scaling
                 const rotation = { x: 90, y: vehicle.heading || 0, z: 0 };
 

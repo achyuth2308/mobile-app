@@ -58,11 +58,11 @@ class ApiClient {
       dio.interceptors.add(
         PrettyDioLogger(
           requestHeader: false,
-          requestBody: true,
+          requestBody: false,
           responseBody: false,
           responseHeader: false,
           compact: true,
-          maxWidth: 100,
+          maxWidth: 90,
         ),
       );
     }

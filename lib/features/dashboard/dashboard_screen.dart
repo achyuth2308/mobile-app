@@ -57,10 +57,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // ── Header ─────────────────────────────────────────────
             SliverAppBar(
               pinned: true,
+              automaticallyImplyLeading: false,
               toolbarHeight: 88,
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
-              titleSpacing: Gap.lg,
+              titleSpacing: Gap.md,
               title: Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Column(
@@ -68,6 +69,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           _timeGreeting(),
@@ -101,6 +103,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                     const SizedBox(height: 2),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.calendar_today_rounded,
@@ -128,49 +131,42 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               actions: <Widget>[
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Direct Bell Icon (No card, bold rounded bell)
-                      IconButton(
-                        tooltip: 'Alerts',
-                        onPressed: () => context.push('/alerts'),
-                        icon: Badge(
-                          isLabelVisible: alertCount > 0,
-                          backgroundColor: const Color(0xFFEF4444),
-                          textColor: Colors.white,
-                          textStyle: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          label: Text(alertCount > 99 ? '99+' : '$alertCount'),
-                          child: Icon(
-                            alertCount > 0
-                                ? Icons.notifications_active_rounded
-                                : Icons.notifications_rounded,
-                            size: 24,
-                            color: isDark
-                                ? const Color(0xFFFBBF24) // Radiant Gold
-                                : const Color(0xFFD97706), // Rich Metallic Gold
-                          ),
-                        ),
+                  child: IconButton(
+                    tooltip: 'Alerts',
+                    onPressed: () => context.push('/alerts'),
+                    icon: Badge(
+                      isLabelVisible: alertCount > 0,
+                      backgroundColor: const Color(0xFFEF4444),
+                      textColor: Colors.white,
+                      textStyle: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                       ),
-                      const SizedBox(width: 4),
-
-                      // Direct Person Icon (No letter avatar, no card box)
-                      IconButton(
-                        tooltip: 'Profile',
-                        onPressed: () => context.push('/profile-settings'),
-                        icon: Icon(
-                          Icons.person_rounded,
-                          size: 26,
-                          color: isDark ? const Color(0xFF818CF8) : AppColors.brand,
-                        ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      label: Text(alertCount > 99 ? '99+' : '$alertCount'),
+                      child: Icon(
+                        alertCount > 0
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_rounded,
+                        size: 24,
+                        color: isDark
+                            ? const Color(0xFFFBBF24) // Radiant Gold
+                            : const Color(0xFFD97706), // Rich Metallic Gold
                       ),
-                      const SizedBox(width: Gap.md),
-                    ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, right: Gap.sm),
+                  child: IconButton(
+                    tooltip: 'Profile',
+                    onPressed: () => context.push('/profile-settings'),
+                    icon: Icon(
+                      Icons.person_rounded,
+                      size: 26,
+                      color: isDark ? const Color(0xFF818CF8) : AppColors.brand,
+                    ),
                   ),
                 ),
               ],
@@ -184,9 +180,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     const OfflineNotice(),
-                    // ── Search Bar directly above Total Fleet card ───────
+                    const FleetOverviewCard()
+                        .animate()
+                        .fadeIn(duration: 400.ms)
+                        .slideY(begin: 0.08),
+                    // ── Search Bar directly after Fleet Overview card ────
                     Container(
-                      margin: const EdgeInsets.only(top: 2, bottom: Gap.sm),
+                      margin: const EdgeInsets.only(top: Gap.md, bottom: Gap.xs),
                       padding: const EdgeInsets.fromLTRB(7, 5, 14, 5),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF162036) : Colors.white,
@@ -272,14 +272,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               },
                             ),
                           ),
-
-                          ],
+                        ],
                       ),
                     ),
-                    const FleetOverviewCard()
-                        .animate()
-                        .fadeIn(duration: 400.ms)
-                        .slideY(begin: 0.08),
                     const AttentionStrip(),
                   ],
                 ),

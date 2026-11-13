@@ -869,7 +869,12 @@ final Provider<List<Vehicle>> filteredVehiclesProvider =
         return false;
       }
     }
-    if (alertsOnly && !v.isOverspeeding) return false;
+    if (alertsOnly &&
+        (!v.isOverspeeding ||
+            v.status == VehicleStatus.offline ||
+            v.status == VehicleStatus.noData)) {
+      return false;
+    }
     if (query.isEmpty) return true;
     return v.displayName.toLowerCase().contains(query) ||
         v.name.toLowerCase().contains(query) ||

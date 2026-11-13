@@ -30,27 +30,27 @@ class FleetOverviewCard extends ConsumerWidget {
     final int overspeedCount = ref.watch(unreadOverspeedCountProvider);
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: Gap.sm),
-      padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.md),
+      margin: const EdgeInsets.symmetric(vertical: Gap.xs),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF131C31) : Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: isDark
-              ? AppColors.brand.withValues(alpha: 0.38)
-              : AppColors.brand.withValues(alpha: 0.28),
-          width: 1.5,
+              ? AppColors.brand.withValues(alpha: 0.32)
+              : AppColors.brand.withValues(alpha: 0.22),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.brand.withValues(alpha: isDark ? 0.25 : 0.08),
-            blurRadius: 18,
+            color: AppColors.brand.withValues(alpha: isDark ? 0.20 : 0.06),
+            blurRadius: 14,
             spreadRadius: 1,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.035),
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.03),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -60,162 +60,118 @@ class FleetOverviewCard extends ConsumerWidget {
         children: <Widget>[
           // ── Section Header ───────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 8,
-                      height: 8,
+                      width: 7,
+                      height: 7,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: Color(0xFF10B981),
                         boxShadow: [
                           BoxShadow(
                             color: Color(0x6610B981),
-                            blurRadius: 6,
+                            blurRadius: 5,
                             spreadRadius: 1,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 7),
                     Text(
                       'FLEET OVERVIEW',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
+                        letterSpacing: 1.2,
                         color: isDark
                             ? Colors.white
                             : const Color(0xFF0F172A),
                       ),
                     ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (overspeedCount > 0)
-                      Material(
-                        color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(16),
-                        child: InkWell(
-                          onTap: () => context.push('/alerts?type=overspeed'),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3.5,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.speed_rounded,
-                                  size: 12,
-                                  color: Color(0xFFF43F5E),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$overspeedCount alert',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFFF43F5E),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand.withValues(
+                          alpha: isDark ? 0.20 : 0.08,
                         ),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
                           color: AppColors.brand.withValues(
-                            alpha: isDark ? 0.20 : 0.08,
+                            alpha: isDark ? 0.38 : 0.20,
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.brand.withValues(
-                              alpha: isDark ? 0.38 : 0.20,
-                            ),
-                            width: 1.0,
-                          ),
-                        ),
-                        child: Text(
-                          '${stats.total} total',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? const Color(0xFF818CF8)
-                                : AppColors.brand,
-                          ),
+                          width: 1.0,
                         ),
                       ),
+                      child: Text(
+                        '${stats.total} total',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isDark
+                              ? const Color(0xFF818CF8)
+                              : AppColors.brand,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
+                if (active != null || ref.watch(fleetAlertsOnlyProvider))
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        ref.read(fleetFilterProvider.notifier).state = null;
+                        ref.read(fleetAlertsOnlyProvider.notifier).state = false;
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2.5,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Reset',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            Icon(
+                              Icons.refresh_rounded,
+                              size: 13,
+                              color: isDark
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: Gap.xs),
+          const SizedBox(height: Gap.xxs),
 
           // ── Hero Visualization: 3D Isometric Pie Chart ─────────────
           const Fleet3DPieChart(),
-
-          // ── Active Filter Bar / Reset Badge ───────────────────────
-          if (active != null)
-            Padding(
-              padding: const EdgeInsets.only(top: Gap.xs),
-              child: Material(
-                color: _getStatusColor(active).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: () =>
-                      ref.read(fleetFilterProvider.notifier).state = null,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 5,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.filter_alt_rounded,
-                          size: 12,
-                          color: _getStatusColor(active),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Showing ${_getStatusName(active)} • Tap to reset',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _getStatusColor(active),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.close_rounded,
-                          size: 12,
-                          color: _getStatusColor(active),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -553,15 +509,6 @@ class AttentionStrip extends ConsumerWidget {
         icon: Icons.event_busy_rounded,
         label: '${stats.expiringSoon} expiring soon',
         color: AppColors.idle,
-        onTap: () {},
-      ));
-    }
-
-    if (stats.totalDistanceToday > 0) {
-      items.add(_AttentionChip(
-        icon: Icons.route_rounded,
-        label: '${Fmt.distance(stats.totalDistanceToday)} today',
-        color: AppColors.signal,
         onTap: () {},
       ));
     }
