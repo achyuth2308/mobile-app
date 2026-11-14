@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -291,6 +292,14 @@ class _FuelTracksAppState extends ConsumerState<FuelTracksApp> {
       title: 'FuelTracks',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.trackpad,
+        },
+      ),
       theme: AppTheme.light(),
       darkTheme: AppTheme.light(),
       themeMode: ThemeMode.light,
