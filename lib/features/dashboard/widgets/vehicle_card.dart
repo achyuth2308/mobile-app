@@ -40,6 +40,18 @@ class VehicleCard extends ConsumerWidget {
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
+    final String cleanName = () {
+      final String raw = vehicle.displayName.trim();
+      if (raw.contains('_')) {
+        return raw.replaceFirst('_', '\n').replaceAll('_', ' ').toUpperCase();
+      }
+      final List<String> parts = raw.split(RegExp(r'\s+'));
+      if (parts.length >= 2) {
+        return '${parts.first}\n${parts.sublist(1).join(' ')}'.toUpperCase();
+      }
+      return raw.toUpperCase();
+    }();
+
     final Widget content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
       child: Column(
@@ -50,7 +62,7 @@ class VehicleCard extends ConsumerWidget {
             children: [
               // LEFT COLUMN: Image & Name
               SizedBox(
-                width: 86,
+                width: 102,
                 child: Column(
                   children: [
                     Image.asset(
@@ -68,37 +80,28 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
+                    const SizedBox(height: 3),
+                    SizedBox(
+                      height: 32,
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
                           child: Text(
-                            vehicle.displayName.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            cleanName,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
                             style: TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w800,
-                              color: isDark
-                                  ? Color.lerp(statusColor, Colors.white, 0.4)
-                                  : (statusColor == AppColors.idle
-                                      ? const Color(0xFFB45309)
-                                      : statusColor),
+                              height: 1.15,
                               letterSpacing: 0.2,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1E293B),
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Container(
@@ -116,25 +119,39 @@ class VehicleCard extends ConsumerWidget {
                           width: 1.0,
                         ),
                       ),
-                      child: Text(
-                        vehicle.status.label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2,
-                          color: isDark
-                              ? Color.lerp(statusColor, Colors.white, 0.25)
-                              : (statusColor == AppColors.idle
-                                  ? const Color(0xFFB45309)
-                                  : statusColor),
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: statusColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            vehicle.status.label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                              color: isDark
+                                  ? Color.lerp(statusColor, Colors.white, 0.25)
+                                  : (statusColor == AppColors.idle
+                                      ? const Color(0xFFB45309)
+                                      : statusColor),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
 
               // RIGHT COLUMN: Metrics Grid
               Expanded(
@@ -150,10 +167,10 @@ class VehicleCard extends ConsumerWidget {
                             'Last update • ${_formatDateTimeShort(vehicle.lastPacketAt)}',
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                               color: isDark
                                   ? Colors.grey.shade400
-                                  : Colors.grey.shade500,
+                                  : const Color(0xFF0F172A),
                             ),
                             maxLines: 2,
                           ),
@@ -395,9 +412,9 @@ class VehicleCard extends ConsumerWidget {
                     vehicle: vehicle,
                     style: TextStyle(
                       fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color:
-                          isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                          isDark ? Colors.grey.shade300 : const Color(0xFF0F172A),
                       height: 1.25,
                     ),
                   ),
@@ -705,7 +722,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
                     text: ' ($durStr)',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white70 : const Color(0xFF475569),
+                      color: isDark ? Colors.white70 : const Color(0xFF0F172A),
                     ),
                   ),
                 ],
@@ -752,9 +769,9 @@ class _MetricItem extends StatelessWidget {
                 style: TextStyle(
                   color: isDark
                       ? Colors.grey.shade200
-                      : const Color(0xFF2E3355),
+                      : const Color(0xFF0F172A),
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -768,9 +785,9 @@ class _MetricItem extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+              color: isDark ? Colors.grey.shade400 : const Color(0xFF0F172A),
               fontSize: 10,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

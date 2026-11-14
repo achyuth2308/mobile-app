@@ -37,6 +37,7 @@ class VehicleRepository {
     required String vehicleId,
     required DateTime start,
     required DateTime end,
+    int limit = 20000,
     CancelToken? cancelToken,
   }) async {
     final dynamic res = await _api.get<dynamic>(
@@ -46,7 +47,7 @@ class VehicleRepository {
         'endDate': end.toUtc().toIso8601String(),
         'from': start.toUtc().toIso8601String(),
         'to': end.toUtc().toIso8601String(),
-        'limit': 100000,
+        'limit': limit,
       },
       cancelToken: cancelToken,
     );

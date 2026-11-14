@@ -233,7 +233,37 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
         v != null && (v.speed <= 2.0 || v.status != VehicleStatus.moving);
     final double minMoveThreshold = isStationary ? 25.0 : 1.5;
 
-    if (trail.isEmpty || d(trail.last, pos) >= minMoveThreshold) {
+    if (trail.isEmpty) {
+      trail.add(pos);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+
+    final double distFromLast = d(trail.last, pos);
+
+    // Filter urban multipath jumps in real-time:
+    // If trail already has points, detect sharp V-spikes into buildings:
+    if (trail.length >= 2) {
+      final double distToPrev = d(trail[trail.length - 2], pos);
+      // If previous point spiked outward (> 50m) but current point returned back near prev (< 40m)
+      if (d(trail[trail.length - 2], trail.last) > 50.0 && distToPrev < 40.0) {
+        trail.removeLast(); // Remove the spike point
+        trail.add(pos);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+        return;
+      }
+    }
+
+    // Suppress stationary jitter or absurd live jumps (> 1500m)
+    if (distFromLast >= minMoveThreshold && distFromLast < 1500.0) {
+      // Reject single-fix impossible jumps while moving slowly or stationary
+      if (distFromLast > 80.0 && (v == null || v.speed < 20.0)) {
+        return; // Ignore multipath jump
+      }
       trail.add(pos);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() {});

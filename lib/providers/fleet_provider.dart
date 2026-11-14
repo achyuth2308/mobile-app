@@ -271,17 +271,20 @@ class FleetController extends Notifier<FleetState> {
           return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
         });
       }
-      final List<Vehicle> calibratedList = await _syncConsolidatedFuel(cleanMerged);
-      _rebuildIndexes(calibratedList);
+      // 1. Immediately index and render vehicles so the app opens instantly (< 1 second)
+      _rebuildIndexes(cleanMerged);
 
       if (!_mounted) return;
       _safeSetState(state.copyWith(
-        vehicles: calibratedList,
+        vehicles: cleanMerged,
         isLoading: false,
         isRefreshing: false,
         lastSyncedAt: DateTime.now(),
         clearError: true,
       ));
+
+      // 2. Perform consolidated fuel calibration in background so it never stalls startup
+      unawaited(_asyncCalibrateFuel(cleanMerged));
 
       // For small fleets (<= 25), joining individual vehicle rooms is fine.
       // For large fleets (e.g. 568+), the org/user room already streams all telemetry
@@ -319,6 +322,19 @@ class FleetController extends Notifier<FleetState> {
         isRefreshing: false,
         error: e.toString(),
       ));
+    }
+  }
+
+  Future<void> _asyncCalibrateFuel(List<Vehicle> list) async {
+    try {
+      final List<Vehicle> calibratedList = await _syncConsolidatedFuel(list);
+      if (!_mounted) return;
+      _rebuildIndexes(calibratedList);
+      _safeSetState(state.copyWith(
+        vehicles: calibratedList,
+      ));
+    } catch (e) {
+      debugPrint('[FleetController] Background fuel calibration skipped: $e');
     }
   }
 
