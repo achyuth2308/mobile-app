@@ -53,46 +53,18 @@ class VehicleCard extends ConsumerWidget {
                 width: 86,
                 child: Column(
                   children: [
-                    // Dynamic Status Ambient Pod
-                    Container(
-                      height: 52,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            statusColor.withValues(alpha: isDark ? 0.22 : 0.12),
-                            statusColor.withValues(alpha: isDark ? 0.08 : 0.04),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: statusColor.withValues(alpha: isDark ? 0.45 : 0.25),
-                          width: 1.0,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: statusColor.withValues(alpha: isDark ? 0.25 : 0.10),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Image.asset(
-                          vehicle.statusAssetPath,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => Image.asset(
-                            'assets/images/vehicles/${vehicle.displayType}.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              VehicleIcons.forType(vehicle.displayType),
-                              size: 34,
-                              color: statusColor,
-                            ),
-                          ),
+                    Image.asset(
+                      vehicle.statusAssetPath,
+                      height: 46,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        'assets/images/vehicles/${vehicle.displayType}.png',
+                        height: 46,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          VehicleIcons.forType(vehicle.displayType),
+                          size: 36,
+                          color: statusColor,
                         ),
                       ),
                     ),

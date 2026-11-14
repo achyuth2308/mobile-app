@@ -467,45 +467,20 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      height: 64,
-                      width: 84,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            statusColor.withValues(alpha: isDark ? 0.22 : 0.12),
-                            statusColor.withValues(alpha: isDark ? 0.08 : 0.04),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: statusColor.withValues(alpha: isDark ? 0.45 : 0.25),
-                          width: 1.0,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: statusColor.withValues(alpha: isDark ? 0.25 : 0.10),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(5.0),
-                        child: Image.asset(
-                          vehicle.statusAssetPath,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => Image.asset(
-                            'assets/images/vehicles/${vehicle.displayType}.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              VehicleIcons.forType(vehicle.displayType),
-                              size: 40,
-                              color: statusColor,
-                            ),
-                          ),
+                    Image.asset(
+                      vehicle.statusAssetPath,
+                      height: 60,
+                      width: 80,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        'assets/images/vehicles/${vehicle.displayType}.png',
+                        height: 60,
+                        width: 80,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          VehicleIcons.forType(vehicle.displayType),
+                          size: 40,
+                          color: statusColor,
                         ),
                       ),
                     ),
