@@ -112,6 +112,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   DateTime? _lastTickTime;
   StoppageEvent? _lastEncounteredStoppage;
   double _stoppagePauseRemaining = 0.0;
+  int? _lastZeroSpeedStopIdx;
 
   static List<StoppageEvent> _computeStoppages(List<TrackPoint> points) {
     if (points.isEmpty) return <StoppageEvent>[];
@@ -316,6 +317,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       _playing = false;
       _animController.stop();
       _lastTickTime = null;
+      _lastEncounteredStoppage = null;
+      _lastZeroSpeedStopIdx = null;
+      _stoppagePauseRemaining = 0.0;
     });
 
     try {
@@ -353,12 +357,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         return !utcTime.isBefore(startQuery) && !utcTime.isAfter(endQuery);
       }).toList();
 
-      // Compute actual stoppages from full in-range points before downsampling
-      final List<StoppageEvent> computedStops = _computeStoppages(inRangePoints);
-
-      // Filter consecutive duplicates & stationary GPS drift / jitter
+      // Clean trajectory from GPS multipath spikes (over buildings) and stationary jitter
       final List<TrackPoint> cleanPoints =
-          GpsFilter.filterStationaryDrift(inRangePoints);
+          GpsFilter.cleanTrajectory(inRangePoints);
+
+      // Compute actual stoppages from clean trajectory so multipath spikes don't break stop intervals
+      final List<StoppageEvent> computedStops = _computeStoppages(cleanPoints);
 
       final List<LatLng> cachedLatLng = cleanPoints.map((TrackPoint p) => p.latLng).toList(growable: false);
       const Distance distanceCalc = Distance();
@@ -465,6 +469,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     if (_playing) {
       _animController.stop();
       _lastTickTime = null;
+      _lastEncounteredStoppage = null;
+      _lastZeroSpeedStopIdx = null;
+      _stoppagePauseRemaining = 0.0;
       setState(() => _playing = false);
       return;
     }
@@ -495,6 +502,24 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     }
   }
 
+  int _findNextMovingIndex(int fromIdx) {
+    if (_points.isEmpty) return 0;
+    final StoppageEvent? s = _currentStoppage;
+    if (s != null) {
+      for (int i = fromIdx + 1; i < _points.length; i++) {
+        if (_points[i].timestamp.isAfter(s.endTime) || _points[i].speed > 2.0) {
+          return i;
+        }
+      }
+    }
+    for (int i = fromIdx + 1; i < _points.length; i++) {
+      if (_points[i].speed > 2.0) {
+        return i;
+      }
+    }
+    return _points.length - 1;
+  }
+
   void _onAnimationTick() {
     if (!_playing || _points.isEmpty || !mounted) return;
 
@@ -512,12 +537,45 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
       if (_stoppagePauseRemaining > 0) {
         _followCamera();
         return;
+      } else {
+        // 2-second zero speed pause finished: immediately advance to resume moving
+        final int curr = _playbackProgress.floor().clamp(0, _points.length - 1);
+        final int nextMoving = _findNextMovingIndex(curr);
+        if (nextMoving > curr) {
+          _playbackProgress = nextMoving.toDouble();
+          _progressNotifier.value = _playbackProgress;
+        }
+        _stoppagePauseRemaining = 0.0;
+      }
+    }
+
+    final int currentIdx = _playbackProgress.floor().clamp(0, _points.length - 1);
+
+    // If entering a zero-speed stop (speed <= 2.0 or official stoppage event):
+    // Hold at 0 speed for exactly 2 seconds, then resume moving.
+    final bool isZeroSpeed = _points[currentIdx].speed <= 2.0;
+    final StoppageEvent? s = _isCurrentlyStopped ? _currentStoppage : null;
+
+    if (isZeroSpeed || s != null) {
+      final bool isNewStoppage = s != null && s != _lastEncounteredStoppage;
+      final bool isNewZeroCluster = isZeroSpeed &&
+          (_lastZeroSpeedStopIdx == null || currentIdx > _lastZeroSpeedStopIdx!);
+
+      if (isNewStoppage || isNewZeroCluster) {
+        final int nextMoving = _findNextMovingIndex(currentIdx);
+        // Only pause if there is an upcoming moving point to move toward
+        if (nextMoving > currentIdx) {
+          if (s != null) _lastEncounteredStoppage = s;
+          _lastZeroSpeedStopIdx = nextMoving;
+          _stoppagePauseRemaining = 2.0; // Show 0 speed for only 2 seconds then move
+          _followCamera();
+          return;
+        }
       }
     }
 
     // Progression step per VSYNC frame:
     // If transitioning across a missing telemetry gap, glide slowly and smoothly across the red line.
-    final int currentIdx = _playbackProgress.floor().clamp(0, _points.length - 1);
     double step;
     if (currentIdx < _points.length - 1 &&
         currentIdx + 1 < _pointGaps.length &&
@@ -538,17 +596,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         _playing = false;
         _animController.stop();
         _lastTickTime = null;
+      _lastEncounteredStoppage = null;
+      _lastZeroSpeedStopIdx = null;
+      _stoppagePauseRemaining = 0.0;
       });
     }
     _progressNotifier.value = _playbackProgress;
-
-    if (_isCurrentlyStopped) {
-      final StoppageEvent? s = _currentStoppage;
-      if (s != null && s != _lastEncounteredStoppage) {
-        _lastEncounteredStoppage = s;
-        _stoppagePauseRemaining = 3.5; // Pause for 3.5 seconds so user can read card
-      }
-    }
 
     _followCamera();
   }
@@ -1118,6 +1171,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                             onSeek: (double v) {
                               _playbackProgress = v;
                               _lastEncounteredStoppage = null;
+                              _lastZeroSpeedStopIdx = null;
                               _stoppagePauseRemaining = 0.0;
                               _progressNotifier.value = _playbackProgress;
                             },
@@ -1130,6 +1184,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                               setState(() {
                                 _playbackProgress = 0.0;
                                 _playing = false;
+                                _lastEncounteredStoppage = null;
+                                _lastZeroSpeedStopIdx = null;
+                                _stoppagePauseRemaining = 0.0;
                                 _progressNotifier.value = _playbackProgress;
                               });
                             },

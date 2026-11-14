@@ -13,6 +13,7 @@ import 'widgets/map_tiles.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/utils/formatters.dart';
 import '../../data/models/vehicle.dart';
 import '../../data/models/report_models.dart';
 import '../../providers/core_providers.dart';
@@ -66,6 +67,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
   bool _showTodayHistoryRoute = false;
   final ValueNotifier<double> _sheetExtentNotifier = ValueNotifier(0.32);
   AnimationController? _recenterAnimController;
+  Timer? _liveClockTimer;
+  DateTime _now = DateTime.now();
 
   /// India-centred default until the first fix arrives.
   static const LatLng _fallbackCenter = LatLng(17.385, 78.4867);
@@ -214,6 +217,11 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
     _followingId = widget.focusVehicleId;
     _pendingFocusId = widget.focusVehicleId;
     _style = MapStyleX.fromKey(ref.read(secureStoreProvider).mapType);
+    _liveClockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _now = DateTime.now());
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.read(activeFollowingVehicleIdProvider.notifier).state =
@@ -224,6 +232,7 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
 
   @override
   void dispose() {
+    _liveClockTimer?.cancel();
     _recenterAnimController?.dispose();
     _sheetExtentNotifier.dispose();
     super.dispose();
@@ -880,7 +889,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                 child: _MapHeader(
                   locatedCount: located,
                   totalCount: vehicles.length,
-                  followingName: following?.displayName,
+                  following: following,
+                  currentTime: _now,
                   isHistoryMode: _isHistoryMode,
                   onStopFollowing: _handleBack,
                   onBack: _handleBack,
@@ -931,7 +941,8 @@ class _MapHeader extends StatelessWidget {
   const _MapHeader({
     required this.locatedCount,
     required this.totalCount,
-    required this.followingName,
+    this.following,
+    required this.currentTime,
     required this.isHistoryMode,
     required this.onStopFollowing,
     required this.onToggleHistoryMode,
@@ -942,7 +953,8 @@ class _MapHeader extends StatelessWidget {
 
   final int locatedCount;
   final int totalCount;
-  final String? followingName;
+  final Vehicle? following;
+  final DateTime currentTime;
   final bool isHistoryMode;
   final VoidCallback onStopFollowing;
   final VoidCallback? onBack;
@@ -954,11 +966,37 @@ class _MapHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    if (followingName != null) {
+    if (following != null) {
+      final DateTime? packetTime =
+          following!.lastPacketAt ?? following!.statusChangedAt;
+      final String liveTimeStr = packetTime != null
+          ? Fmt.time12Sec(packetTime)
+          : Fmt.time12Sec(currentTime);
+      final String relStr =
+          packetTime != null ? Fmt.relative(packetTime) : 'live';
+
+      final Color statusColor = switch (following!.status) {
+        VehicleStatus.moving => const Color(0xFF22C55E),
+        VehicleStatus.idle => const Color(0xFFF59E0B),
+        VehicleStatus.stopped => const Color(0xFF94A3B8),
+        VehicleStatus.offline => const Color(0xFFEF4444),
+        VehicleStatus.noData => const Color(0xFF64748B),
+      };
+
+      final String statusText = switch (following!.status) {
+        VehicleStatus.moving =>
+          'Moving ${following!.speed.toStringAsFixed(0)} km/h',
+        VehicleStatus.idle => 'Idle',
+        VehicleStatus.stopped => 'Stopped',
+        VehicleStatus.offline => 'No Data',
+        VehicleStatus.noData => 'Offline',
+      };
+
       return Align(
         alignment: Alignment.centerLeft,
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             // White Circular Back button matching reference image
             Material(
@@ -988,78 +1026,176 @@ class _MapHeader extends StatelessWidget {
             ),
             const SizedBox(width: 12),
 
-            // Vehicle Name & Trip Details Subtitle
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  followingName!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    shadows: <Shadow>[
-                      Shadow(
-                          color: Colors.black,
-                          blurRadius: 6,
-                          offset: Offset(0, 1)),
-                      Shadow(
-                          color: Colors.black,
-                          blurRadius: 12,
-                          offset: Offset(0, 2)),
-                    ],
+            // Vehicle Name & Live Telemetry Time Badge
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    following!.displayName.replaceAll('_', ' ').toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      shadows: <Shadow>[
+                        Shadow(
+                            color: Colors.black,
+                            blurRadius: 6,
+                            offset: Offset(0, 1)),
+                        Shadow(
+                            color: Colors.black,
+                            blurRadius: 12,
+                            offset: Offset(0, 2)),
+                      ],
+                    ),
                   ),
-                ),
-                const Text(
-                  'Trip Details',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                    shadows: <Shadow>[
-                      Shadow(
-                          color: Colors.black,
-                          blurRadius: 6,
-                          offset: Offset(0, 1)),
-                    ],
+                  const SizedBox(height: 3),
+                  // Live Time Pill Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        width: 0.8,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black38,
+                          blurRadius: 4,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withValues(alpha: 0.8),
+                                blurRadius: 4,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'LIVE $liveTimeStr • $relStr ($statusText)',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
       );
     }
 
-    // Fleet view — back button
+    // Fleet view — back button with LIVE FLEET clock badge
     return Align(
       alignment: Alignment.centerLeft,
-      child: Material(
-        shape: const CircleBorder(),
-        color: theme.colorScheme.surface,
-        elevation: 4,
-        shadowColor: Colors.black26,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () {
-            debugPrint('[LiveMapScreen] Fleet view back button tapped!');
-            (onBack ?? onStopFollowing)();
-          },
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Center(
-              child: Icon(
-                Icons.arrow_back_rounded,
-                size: 24,
-                color: theme.colorScheme.onSurface,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Material(
+            shape: const CircleBorder(),
+            color: theme.colorScheme.surface,
+            elevation: 4,
+            shadowColor: Colors.black26,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () {
+                debugPrint('[LiveMapScreen] Fleet view back button tapped!');
+                (onBack ?? onStopFollowing)();
+              },
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: Icon(
+                    Icons.arrow_back_rounded,
+                    size: 24,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+                width: 0.8,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black38,
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x9922C55E),
+                        blurRadius: 5,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'LIVE ${Fmt.time12Sec(currentTime)} • $locatedCount/$totalCount Active',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

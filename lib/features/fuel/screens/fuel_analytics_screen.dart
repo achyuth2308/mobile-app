@@ -38,14 +38,16 @@ class FuelAnalyticsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
+        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
         elevation: 0,
         title: const Text(
           'Fuel Report',
           style: TextStyle(
+            color: Color(0xFF0F172A),
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
             letterSpacing: 0.3,
           ),
         ),
@@ -59,7 +61,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
               state.viewMode == FuelViewMode.chart
                   ? Icons.table_chart_rounded
                   : Icons.show_chart_rounded,
-              color: Colors.white,
+              color: const Color(0xFF0F172A),
             ),
             onPressed: notifier.toggleViewMode,
           ),
@@ -69,7 +71,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
             tooltip: 'Filter Date & Interval',
             icon: const Icon(
               Icons.calendar_month_rounded,
-              color: Colors.white,
+              color: Color(0xFF0F172A),
             ),
             onPressed: () {
               FuelFilterSheet.show(
@@ -89,59 +91,109 @@ class FuelAnalyticsScreen extends ConsumerWidget {
           ),
           const SizedBox(width: 4),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+        ),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Vehicle Selector Header Bar
-          Container(
+          // 1. Vehicle Selector Header Bar with Search
+          Material(
             color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.local_shipping_rounded,
-                  size: 18,
-                  color: Color(0xFF0284C7),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: state.selectedVehicleId,
-                      isExpanded: true,
-                      hint: Text(
-                        vehicleLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
+            child: InkWell(
+              onTap: () {
+                _showVehiclePickerSheet(
+                  context: context,
+                  vehicles: vehicles,
+                  selectedId: state.selectedVehicleId,
+                  onSelect: (String newId) {
+                    notifier.selectVehicle(newId);
+                  },
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      items: vehicles.map((Vehicle v) {
-                        return DropdownMenuItem<String>(
-                          value: v.id,
-                          child: Text(
-                            '${v.displayName} (${v.registrationNumber})',
+                      child: const Icon(
+                        Icons.local_shipping_rounded,
+                        size: 16,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'ACTIVE VEHICLE',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF64748B),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            vehicleLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
                               color: Color(0xFF0F172A),
                             ),
                           ),
-                        );
-                      }).toList(),
-                      onChanged: (String? newId) {
-                        if (newId != null) notifier.selectVehicle(newId);
-                      },
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.search_rounded,
+                            size: 14,
+                            color: Color(0xFF0284C7),
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Search',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0284C7),
+                            ),
+                          ),
+                          SizedBox(width: 2),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: Color(0xFF64748B),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
@@ -482,6 +534,369 @@ class FuelAnalyticsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  static Future<void> _showVehiclePickerSheet({
+    required BuildContext context,
+    required List<Vehicle> vehicles,
+    required String? selectedId,
+    required ValueChanged<String> onSelect,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      constraints: const BoxConstraints(maxWidth: 580),
+      builder: (BuildContext ctx) => _FuelVehicleSearchSheet(
+        vehicles: vehicles,
+        selectedId: selectedId,
+        onSelect: onSelect,
+      ),
+    );
+  }
+}
+
+class _FuelVehicleSearchSheet extends StatefulWidget {
+  const _FuelVehicleSearchSheet({
+    required this.vehicles,
+    required this.selectedId,
+    required this.onSelect,
+  });
+
+  final List<Vehicle> vehicles;
+  final String? selectedId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  State<_FuelVehicleSearchSheet> createState() => _FuelVehicleSearchSheetState();
+}
+
+class _FuelVehicleSearchSheetState extends State<_FuelVehicleSearchSheet> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String q = _query.trim().toLowerCase();
+    final List<Vehicle> filtered = widget.vehicles.where((Vehicle v) {
+      if (q.isEmpty) return true;
+      final String name = v.displayName.toLowerCase();
+      final String plate = v.registrationNumber.toLowerCase();
+      final String rawName = v.name.toLowerCase();
+      final String id = v.id.toLowerCase();
+      return name.contains(q) ||
+          plate.contains(q) ||
+          rawName.contains(q) ||
+          id.contains(q);
+    }).toList();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.45,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (BuildContext context, ScrollController scrollController) =>
+          Column(
+        children: [
+          // Drag handle
+          Container(
+            margin: const EdgeInsets.only(top: 10, bottom: 6),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Header & Search Field
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_shipping_rounded,
+                      color: Color(0xFF0284C7),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Select Vehicle',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Text(
+                        '${filtered.length} of ${widget.vehicles.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Search Bar with AutoFocus & Clear button
+                TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search by vehicle name or plate number...',
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 20,
+                      color: Color(0xFF0284C7),
+                    ),
+                    suffixIcon: _query.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            color: const Color(0xFF64748B),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF0284C7),
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  onChanged: (String v) => setState(() => _query = v),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+          // Vehicle List or Empty State
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF1F5F9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.search_off_rounded,
+                              size: 28,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No vehicles match "$_query"',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Check the spelling or try searching by registration plate.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      indent: 64,
+                      color: Color(0xFFF1F5F9),
+                    ),
+                    itemBuilder: (BuildContext context, int index) {
+                      final Vehicle v = filtered[index];
+                      final bool isSelected = v.id == widget.selectedId;
+
+                      final String initials = v.displayName.isNotEmpty
+                          ? v.displayName.characters
+                              .take(2)
+                              .toString()
+                              .toUpperCase()
+                          : 'VH';
+
+                      return InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                          widget.onSelect(v.id);
+                        },
+                        child: Container(
+                          color: isSelected
+                              ? const Color(0xFF0284C7).withOpacity(0.06)
+                              : Colors.transparent,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: isSelected
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFFE2E8F0),
+                                child: Text(
+                                  initials,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      v.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        color: isSelected
+                                            ? const Color(0xFF0284C7)
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        if (v.registrationNumber.isNotEmpty)
+                                          Text(
+                                            v.registrationNumber,
+                                            style: const TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF64748B),
+                                            ),
+                                          )
+                                        else
+                                          const Text(
+                                            'No Plate',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontStyle: FontStyle.italic,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        if (v.type.isNotEmpty) ...[
+                                          const Text(
+                                            ' • ',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFFCBD5E1),
+                                            ),
+                                          ),
+                                          Text(
+                                            v.type.toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF0284C7),
+                                  size: 20,
+                                )
+                              else
+                                const Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Color(0xFFCBD5E1),
+                                  size: 14,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

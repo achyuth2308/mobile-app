@@ -284,24 +284,27 @@ class _FitmentCertificateScreenState
     final String imeiLast10 =
         cleanImei.length >= 10 ? cleanImei.substring(cleanImei.length - 10) : '';
 
-    final String rawSerial = _remoteCertData?['deviceSerialNo'] ??
-        metadata['deviceSerialNo'] ??
+    final String rawRemoteSerial = _remoteCertData?['deviceSerialNo']?.toString().trim() ??
+        _remoteCertData?['serialNo']?.toString().trim() ??
+        '';
+    final String rawMetaSerial = (metadata['deviceSerialNo'] ??
         metadata['serialNo'] ??
         metadata['vlttdSlno'] ??
         metadata['vltdSlno'] ??
         metadata['device_serial_no'] ??
-        '';
+        '').toString().trim();
+    final String rawSerial = rawRemoteSerial.isNotEmpty ? rawRemoteSerial : rawMetaSerial;
 
-    final String rawMfr = _remoteCertData?['vltdManufacturer'] ??
+    final String rawMfr = (_remoteCertData?['vltdManufacturer'] ??
         metadata['vltdManufacturer'] ??
         metadata['manufacturer'] ??
-        '';
+        '').toString().trim();
 
-    final String rawModel = _remoteCertData?['modelName'] ??
+    final String rawModel = (_remoteCertData?['modelName'] ??
         _remoteCertData?['deviceModel'] ??
         metadata['modelName'] ??
         metadata['deviceModel'] ??
-        '';
+        '').toString().trim();
 
     final String manufacturer =
         _resolveManufacturer(rawModel, rawSerial, rawMfr);
@@ -365,10 +368,11 @@ class _FitmentCertificateScreenState
         ? 'Commercial Vehicle'
         : 'Mining Vehicle';
 
-    final String iccid = _remoteCertData?['iccid'] ??
-        metadata['iccid'] ??
-        metadata['sim_number'] ??
-        '89917360980002459242';
+    final String rawRemoteIccid = _remoteCertData?['iccid']?.toString().trim() ?? '';
+    final String rawMetaIccid = (metadata['iccid'] ?? metadata['sim_number'] ?? '').toString().trim();
+    final String iccid = rawRemoteIccid.isNotEmpty
+        ? rawRemoteIccid
+        : (rawMetaIccid.isNotEmpty ? rawMetaIccid : '89917360980002459242');
 
     final String simProvider = _remoteCertData?['simProvider'] ??
         metadata['simProvider'] ??

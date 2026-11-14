@@ -50,6 +50,7 @@ final vehicleDailyHistoryProvider =
       vehicleId: vehicleId,
       start: startQuery,
       end: endQuery,
+      limit: 5000,
     );
   } catch (e) {
     debugPrint('[vehicleDailyHistoryProvider] Error fetching history for $vehicleId: $e');
@@ -177,7 +178,7 @@ final vehicleDailyHistoryProvider =
     }
   }
 
-  final List<TrackPoint> cleanRoute = GpsFilter.filterStationaryDrift(pts);
+  final List<TrackPoint> cleanRoute = GpsFilter.cleanTrajectory(pts);
 
   return VehicleDailyData(
     route: cleanRoute,
