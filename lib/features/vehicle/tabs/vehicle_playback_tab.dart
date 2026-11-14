@@ -5,6 +5,7 @@ import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,10 +15,12 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/trip.dart';
+import '../../../data/models/vehicle.dart';
 import '../../../providers/core_providers.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/fleet_provider.dart';
 import '../../../shared/widgets/app_states.dart';
+import '../../../shared/widgets/vehicle_marker_callout_card.dart';
 import '../../live_map/widgets/map_tiles.dart';
 import '../../geofences/geofence_editor_sheet.dart';
 import '../../../core/utils/gps_filter.dart';
@@ -112,6 +115,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   DateTime? _lastTickTime;
   StoppageEvent? _lastEncounteredStoppage;
   double _stoppagePauseRemaining = 0.0;
+  bool _showMarkerCallout = true;
 
   static List<StoppageEvent> _computeStoppages(List<TrackPoint> points) {
     if (points.isEmpty) return <StoppageEvent>[];
@@ -945,40 +949,47 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                 ),
               ),
               
-              const Spacer(),
+              const SizedBox(width: 8),
               
               // VEHICLE NAME PILL (Center)
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: const Color(0xFF00E5FF),
-                    width: 1.5,
-                  ),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.4),
-                      blurRadius: 12,
-                      spreadRadius: 2,
+              Expanded(
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: const Color(0xFF00E5FF),
+                      width: 1.5,
                     ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Text(
-                    vehicle?.displayName.toUpperCase() ?? 'VEHICLE',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                      color: Colors.white,
-                      fontSize: 14,
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF00E5FF).withOpacity(0.4),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        vehicle?.displayName.toUpperCase() ?? 'VEHICLE',
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          color: Colors.white,
+                          fontSize: 12.5,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
               
-              const Spacer(),
+              const SizedBox(width: 8),
 
               // SET GEOFENCE BUTTON PILL (Right-Center)
               if (_points.isNotEmpty && !_loading)
@@ -987,7 +998,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                   child: BackdropFilter(
                     filter: dart_ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                     child: Container(
-                      margin: const EdgeInsets.only(right: 12),
+                      margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
                         color: isDarkMap ? Colors.black.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
@@ -1044,8 +1055,9 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               builder: (context, _, __) {
                 return Stack(
                   children: [
-                    // FLOATING INFO CARD
-                    Positioned(
+                    // FLOATING INFO CARD (Displayed when marker callout is dismissed and vehicle is not stopped)
+                    if (!_showMarkerCallout && !_isCurrentlyStopped)
+                      Positioned(
                       top: MediaQuery.of(context).padding.top + Gap.md + 64 + Gap.md,
                       left: Gap.md,
                       right: Gap.md,
@@ -1345,35 +1357,84 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
 
   List<Marker> _routeMarkers(ThemeData theme) {
+    final vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
+
     if (_points.isEmpty) {
-      final vehicle = ref.read(vehicleByIdProvider(widget.vehicleId));
       if (vehicle != null &&
           vehicle.latitude != null &&
           vehicle.longitude != null &&
           vehicle.latitude != 0 &&
           vehicle.longitude != 0) {
         final Color statusColor = AppColors.forStatus(vehicle.status.name);
+        final LatLng pos = LatLng(vehicle.latitude!, vehicle.longitude!);
         return <Marker>[
           Marker(
-            point: LatLng(vehicle.latitude!, vehicle.longitude!),
+            point: pos,
             width: 44,
             height: 44,
-            child: Container(
-              decoration: BoxDecoration(
-                color: statusColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: statusColor.withOpacity(0.4),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                  ),
-                ],
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () =>
+                  setState(() => _showMarkerCallout = !_showMarkerCallout),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: statusColor.withOpacity(0.4),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.directions_car_rounded,
+                    color: Colors.white, size: 22),
               ),
-              child: const Icon(Icons.directions_car_rounded, color: Colors.white, size: 22),
             ),
           ),
+          if (_showMarkerCallout)
+            Marker(
+              key: const ValueKey<String>('empty_playback_callout'),
+              point: pos,
+              width: 236,
+              height: 160,
+              alignment: const Alignment(0.0, -1.0),
+              child: Transform.translate(
+                offset: const Offset(0, -28),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: VehicleMarkerCalloutCard(
+                    vehicleName: vehicle.displayName,
+                    vehicleType: vehicle.displayType,
+                    status: vehicle.status,
+                    speed: vehicle.speed,
+                    ignition: vehicle.ignition,
+                    todayDistanceKm: vehicle.todayDistanceKm,
+                    odometerKm: vehicle.odometer,
+                    locTime: vehicle.lastPacketAt,
+                    commTime: vehicle.lastPacketAt,
+                    lat: vehicle.latitude,
+                    lng: vehicle.longitude,
+                    isPlayback: true,
+                    onClose: () => setState(() => _showMarkerCallout = false),
+                    onTrack: () {
+                      GoRouter.of(context)
+                          .push('/vehicle-map?focus=${widget.vehicleId}');
+                    },
+                    onReports: () {
+                      GoRouter.of(context)
+                          .push('/reports?vehicle=${widget.vehicleId}');
+                    },
+                    onDetails: () {
+                      GoRouter.of(context)
+                          .push('/vehicle/${widget.vehicleId}/info');
+                    },
+                  ),
+                ),
+              ),
+            ),
         ];
       }
       return const <Marker>[];
@@ -1420,12 +1481,68 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
         width: 48,
         height: 48,
         alignment: Alignment.center,
-        child: _PlaybackVehicleMarker(
-          speed: cursor.speed,
-          bearingRad: _currentBearing,
-          playing: _playing,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () =>
+              setState(() => _showMarkerCallout = !_showMarkerCallout),
+          child: _PlaybackVehicleMarker(
+            speed: cursor.speed,
+            bearingRad: _currentBearing,
+            playing: _playing,
+            isStopped: _isCurrentlyStopped || (cursor.speed <= 3 && !cursor.ignition),
+            isIdle: !_isCurrentlyStopped && cursor.speed <= 3 && cursor.ignition,
+          ),
         ),
       ),
+      if (_showMarkerCallout && !_isCurrentlyStopped)
+        Marker(
+          key: const ValueKey<String>('playback_callout_marker'),
+          point: cursor.latLng,
+          width: 236,
+          height: 160,
+          alignment: const Alignment(0.0, -1.0),
+          child: Transform.translate(
+            offset: const Offset(0, -28),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: VehicleMarkerCalloutCard(
+                vehicleName: vehicle?.displayName ?? 'Vehicle',
+                vehicleType: vehicle?.displayType,
+                status: cursor.speed > 3
+                    ? VehicleStatus.moving
+                    : (cursor.ignition
+                        ? VehicleStatus.idle
+                        : VehicleStatus.stopped),
+                speed: cursor.speed,
+                ignition: cursor.ignition,
+                todayDistanceKm: _distanceCovered,
+                odometerKm: (vehicle?.odometer != null && vehicle!.odometer! > 0)
+                    ? (vehicle.odometer! -
+                        math.max(0.0, _totalRouteDistanceKm - _distanceCovered))
+                    : null,
+                locTime: cursor.timestamp,
+                commTime: cursor.timestamp,
+                initialAddress: cursor.address,
+                lat: cursor.latitude,
+                lng: cursor.longitude,
+                isPlayback: true,
+                onClose: () => setState(() => _showMarkerCallout = false),
+                onTrack: () {
+                  GoRouter.of(context)
+                      .push('/vehicle-map?focus=${widget.vehicleId}');
+                },
+                onReports: () {
+                  GoRouter.of(context)
+                      .push('/reports?vehicle=${widget.vehicleId}');
+                },
+                onDetails: () {
+                  GoRouter.of(context)
+                      .push('/vehicle/${widget.vehicleId}/info');
+                },
+              ),
+            ),
+          ),
+        ),
     ];
   }
 
@@ -1777,32 +1894,38 @@ class _PlaybackVehicleMarker extends StatelessWidget {
     required this.speed,
     required this.bearingRad,
     required this.playing,
+    this.isStopped = false,
+    this.isIdle = false,
   });
 
   final double speed;
   final double bearingRad;
   final bool playing;
+  final bool isStopped;
+  final bool isIdle;
 
   @override
   Widget build(BuildContext context) {
-    final bool isMoving = speed > 3;
-    final bool isIdle = speed > 0 && speed <= 3;
-    final Color markerColor = isMoving
-        ? const Color(0xFF00C853) // Green (Moving)
-        : isIdle
-            ? const Color(0xFFFFAB00) // Amber (Idle)
-            : const Color(0xFF2979FF); // Blue (Stopped)
+    final bool effectiveStopped = isStopped || speed <= 1.5;
+    final bool effectiveIdle = !effectiveStopped && (isIdle || (speed > 1.5 && speed <= 3));
+    final bool effectiveMoving = !effectiveStopped && !effectiveIdle;
+
+    final Color markerColor = effectiveStopped
+        ? const Color(0xFFDC2626) // Red (Stopped)
+        : effectiveIdle
+            ? const Color(0xFFF59E0B) // Amber (Idle)
+            : const Color(0xFF00A651); // Green (Moving)
 
     return Stack(
       alignment: Alignment.center,
       children: <Widget>[
-        if (playing && isMoving)
+        if (playing && effectiveMoving)
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: markerColor.withOpacity(0.25),
+              color: markerColor.withValues(alpha: 0.25),
             ),
           ),
         Container(
@@ -1814,20 +1937,26 @@ class _PlaybackVehicleMarker extends StatelessWidget {
             border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: Transform.rotate(
-            angle: bearingRad,
-            child: const Icon(
-              Icons.navigation_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
+          child: effectiveStopped
+              ? const Icon(
+                  Icons.pan_tool_rounded,
+                  color: Colors.white,
+                  size: 16,
+                )
+              : Transform.rotate(
+                  angle: bearingRad,
+                  child: const Icon(
+                    Icons.navigation_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
         ),
       ],
     );
@@ -3012,6 +3141,8 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
                               const Expanded(
                                 child: Text(
                                   'Vehicle Stopped',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -3019,41 +3150,13 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
                                   ),
                                 ),
                               ),
-                              // Set Geofence Quick Button Chip
-                              InkWell(
-                                onTap: _handleSetGeofence,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFBFDBFE)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: const <Widget>[
-                                      Icon(Icons.fence_rounded, size: 13, color: Color(0xFF2563EB)),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Set Geofence',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2563EB),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               // Red Stopped Badge
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFEE2E2), // Light red
-                                  borderRadius: BorderRadius.circular(12),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFEE2E2), // Light red
+                                  borderRadius: BorderRadius.all(Radius.circular(12)),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -3102,51 +3205,87 @@ class _ActiveStoppageBottomCardState extends State<_ActiveStoppageBottomCard> {
                 const SizedBox(height: 16),
                 const Divider(height: 1, color: Color(0xFFE5E7EB)),
                 
-                // Stopped For
+                // Stopped For & Stopped At (Compact 2-Column Row)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Row(
                     children: <Widget>[
-                      const Icon(Icons.timer_outlined, size: 20, color: Colors.black87),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Stopped For',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
+                      // Col 1: Stopped For
+                      Expanded(
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(Icons.timer_outlined, size: 18, color: Colors.black87),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Text(
+                                    'Stopped For',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    formattedDur,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2563EB), // Blue
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Text(
-                        formattedDur,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2563EB), // Blue
-                        ),
+                      Container(
+                        height: 24,
+                        width: 1,
+                        color: const Color(0xFFE5E7EB),
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
                       ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                
-                // Stopped At
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
-                    children: <Widget>[
-                      const Icon(Icons.access_time_rounded, size: 20, color: Colors.black87),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Stopped At',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87),
-                        ),
-                      ),
-                      Text(
-                        stoppedAt,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                      // Col 2: Stopped At
+                      Expanded(
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(Icons.access_time_rounded, size: 18, color: Colors.black87),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Text(
+                                    'Stopped At',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    stoppedAt,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

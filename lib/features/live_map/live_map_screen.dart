@@ -699,8 +699,10 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
                     },
                   ),
                   child: DraggableScrollableSheet(
-                    initialChildSize: 0.32,
-                    minChildSize: 0.12,
+                    key: ValueKey<String>(
+                        'sheet_${following.id}_${_selectedId != null}'),
+                    initialChildSize: _selectedId != null ? 0.10 : 0.32,
+                    minChildSize: 0.08,
                     maxChildSize: 0.85,
                     builder: (ctx, scrollController) {
                       return VehiclePeekSheet(

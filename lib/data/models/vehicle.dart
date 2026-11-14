@@ -168,6 +168,22 @@ class Vehicle extends Equatable {
     return 'truck';
   }
 
+  /// Resolves the state-specific asset image path (e.g. truck_moving.png, truck_idle.png,
+  /// truck_stopped.png), matching the vehicle's live operating state.
+  String get statusAssetPath {
+    final String base = displayType;
+    switch (status) {
+      case VehicleStatus.moving:
+        return 'assets/images/vehicles/${base}_moving.png';
+      case VehicleStatus.idle:
+        return 'assets/images/vehicles/${base}_idle.png';
+      case VehicleStatus.stopped:
+      case VehicleStatus.offline:
+      case VehicleStatus.noData:
+        return 'assets/images/vehicles/${base}_stopped.png';
+    }
+  }
+
   bool get hasLocation =>
       latitude != null &&
       longitude != null &&

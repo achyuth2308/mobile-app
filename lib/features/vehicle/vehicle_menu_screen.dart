@@ -467,15 +467,46 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Image.asset(
-                      'assets/images/vehicles/${vehicle.displayType}.png',
-                      height: 60,
-                      width: 80,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        VehicleIcons.forType(vehicle.displayType),
-                        size: 40,
-                        color: statusColor,
+                    Container(
+                      height: 64,
+                      width: 84,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            statusColor.withValues(alpha: isDark ? 0.22 : 0.12),
+                            statusColor.withValues(alpha: isDark ? 0.08 : 0.04),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: isDark ? 0.45 : 0.25),
+                          width: 1.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withValues(alpha: isDark ? 0.25 : 0.10),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5.0),
+                        child: Image.asset(
+                          vehicle.statusAssetPath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => Image.asset(
+                            'assets/images/vehicles/${vehicle.displayType}.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              VehicleIcons.forType(vehicle.displayType),
+                              size: 40,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -489,11 +520,12 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                                 child: Text(
                                   vehicle.displayName.toUpperCase(),
                                   overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                    letterSpacing: 0.3,
+                                    fontSize: 14.5,
+                                    height: 1.2,
+                                    letterSpacing: 0.2,
                                   ),
                                 ),
                               ),
@@ -535,18 +567,49 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                               ),
                             ],
                           ),
-                          if (vehicle.type.isNotEmpty) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              vehicle.type.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
-                                letterSpacing: 0.5,
+                          () {
+                            final String rawType = vehicle.type.trim();
+                            final bool isGenericType = rawType.isEmpty ||
+                                rawType.toLowerCase() == 'general' ||
+                                rawType.toLowerCase() == 'default';
+
+                            String? subtitle;
+                            if (vehicle.driverName != null &&
+                                vehicle.driverName!.trim().isNotEmpty) {
+                              subtitle = 'Driver: ${vehicle.driverName!.trim()}';
+                            } else if (vehicle.registrationNumber.trim().isNotEmpty &&
+                                vehicle.name.trim().isNotEmpty &&
+                                vehicle.registrationNumber.trim() !=
+                                    vehicle.name.trim()) {
+                              subtitle = vehicle.displayName ==
+                                      vehicle.registrationNumber.trim()
+                                  ? vehicle.name.trim().toUpperCase()
+                                  : vehicle.registrationNumber.trim().toUpperCase();
+                            } else if (!isGenericType) {
+                              subtitle = rawType.toUpperCase();
+                            }
+
+                            if (subtitle == null || subtitle.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 3.5),
+                              child: Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? Colors.grey.shade400
+                                      : const Color(0xFF64748B),
+                                  letterSpacing: 0.3,
+                                ),
                               ),
-                            ),
-                          ],
+                            );
+                          }(),
                         ],
                       ),
                     ),

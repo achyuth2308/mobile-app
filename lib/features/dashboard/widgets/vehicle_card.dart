@@ -50,41 +50,79 @@ class VehicleCard extends ConsumerWidget {
             children: [
               // LEFT COLUMN: Image & Name
               SizedBox(
-                width: 82,
+                width: 86,
                 child: Column(
                   children: [
-                    Image.asset(
-                      'assets/images/vehicles/${vehicle.displayType}.png',
-                      height: 44,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        VehicleIcons.forType(vehicle.displayType),
-                        size: 40,
-                        color: statusColor.withOpacity(0.5),
+                    // Dynamic Status Ambient Pod
+                    Container(
+                      height: 52,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            statusColor.withValues(alpha: isDark ? 0.22 : 0.12),
+                            statusColor.withValues(alpha: isDark ? 0.08 : 0.04),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: isDark ? 0.45 : 0.25),
+                          width: 1.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withValues(alpha: isDark ? 0.25 : 0.10),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Image.asset(
+                          vehicle.statusAssetPath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => Image.asset(
+                            'assets/images/vehicles/${vehicle.displayType}.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              VehicleIcons.forType(vehicle.displayType),
+                              size: 34,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 5),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.circle,
-                          size: 10,
-                          color: statusColor,
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              vehicle.displayName.toUpperCase(),
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF2E3355),
-                              ),
+                          child: Text(
+                            vehicle.displayName.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark
+                                  ? Color.lerp(statusColor, Colors.white, 0.4)
+                                  : (statusColor == AppColors.idle
+                                      ? const Color(0xFFB45309)
+                                      : statusColor),
+                              letterSpacing: 0.2,
                             ),
                           ),
                         ),

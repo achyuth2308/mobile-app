@@ -3,11 +3,13 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../data/models/report_models.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/vehicle.dart';
+import '../../../shared/widgets/vehicle_marker_callout_card.dart';
 import 'animated_vehicle_marker.dart';
 import 'map_tiles.dart';
 import 'vehicle_marker.dart';
@@ -537,6 +539,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                 vehicle: v,
                 selected: v.id == widget.selectedId,
                 showLabel: false,
+                showSpeed: v.id != widget.selectedId,
                 useSprite: true,
                 headingOverride: heading,
               ),
@@ -544,6 +547,64 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
           ),
         ),
       );
+    }
+
+    // ── Selected Vehicle Callout Card Marker ─────────────────────────
+    if (widget.selectedId != null) {
+      final Vehicle? selectedV = widget.vehicles
+          .where((Vehicle v) => v.id == widget.selectedId)
+          .firstOrNull;
+      if (selectedV != null && selectedV.hasLocation) {
+        final bool isSelectedActive = (selectedV.id == activeId);
+        final LatLng calloutPos = (isSelectedActive && activeVisualPos != null)
+            ? activeVisualPos
+            : LatLng(selectedV.latitude!, selectedV.longitude!);
+
+        vehicleMarkers.add(
+          Marker(
+            key: ValueKey<String>('callout_${selectedV.id}'),
+            point: calloutPos,
+            width: 236,
+            height: 160,
+            alignment: const Alignment(0.0, -1.0),
+            child: Transform.translate(
+              offset: const Offset(0, -40),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: VehicleMarkerCalloutCard(
+                vehicleName: selectedV.displayName,
+                vehicleType: selectedV.displayType,
+                status: selectedV.status,
+                speed: selectedV.speed,
+                ignition: selectedV.ignition,
+                todayDistanceKm: selectedV.todayDistanceKm,
+                odometerKm: selectedV.odometer,
+                locTime: selectedV.lastPacketAt,
+                commTime: selectedV.lastPacketAt,
+                lat: selectedV.latitude,
+                lng: selectedV.longitude,
+                onClose: widget.onTapMap,
+                onTrack: () {
+                  widget.onSelectVehicle(selectedV);
+                },
+                onHistory: () {
+                  GoRouter.of(context)
+                      .push('/vehicle/${selectedV.id}?tab=history');
+                },
+                onReports: () {
+                  GoRouter.of(context)
+                      .push('/reports?vehicle=${selectedV.id}');
+                },
+                onDetails: () {
+                  GoRouter.of(context)
+                      .push('/vehicle/${selectedV.id}/info');
+                },
+              ),
+            ),
+          ),
+        ),
+        );
+      }
     }
 
     // ── Resolve initial center directly on active vehicle on frame 0 ─────────
