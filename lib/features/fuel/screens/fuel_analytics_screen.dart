@@ -359,21 +359,12 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 12),
 
-                                // 5 Web App Series Toggles
+                                // Series Toggles (Filtered Fuel, Engine, Speed)
                                 SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   child: Row(
                                     children: [
-                                      // 1. All Fuel Data
-                                      _webToggleChip(
-                                        label: 'All Fuel Data',
-                                        isSelected: state.showAllFuel,
-                                        activeColor: const Color(0xFF475569),
-                                        onTap: notifier.toggleAllFuel,
-                                      ),
-                                      const SizedBox(width: 8),
-
-                                      // 2. Filtered Fuel Data (Default Active)
+                                      // 1. Filtered Fuel Data (Default Active)
                                       _webToggleChip(
                                         label: 'Filtered Fuel Data',
                                         isSelected: state.showFilteredFuel,
@@ -382,16 +373,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(width: 8),
 
-                                      // 3. Normalize (Default Active)
-                                      _webToggleChip(
-                                        label: 'Normalize',
-                                        isSelected: state.showNormalize,
-                                        activeColor: const Color(0xFFEF4444),
-                                        onTap: notifier.toggleNormalize,
-                                      ),
-                                      const SizedBox(width: 8),
-
-                                      // 4. Engine
+                                      // 2. Engine
                                       _webToggleChip(
                                         label: 'Engine',
                                         isSelected: state.showEngine,
@@ -400,7 +382,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(width: 8),
 
-                                      // 5. Speed
+                                      // 3. Speed
                                       _webToggleChip(
                                         label: 'Speed',
                                         isSelected: state.showSpeed,

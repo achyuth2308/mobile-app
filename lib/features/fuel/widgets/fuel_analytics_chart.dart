@@ -87,9 +87,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
 
     final double plotMaxSpeed = max(60.0, (maxSpeed / 20.0).ceil() * 20.0);
 
-    final List<FlSpot> rawFuelSpots = <FlSpot>[];
     final List<FlSpot> filteredFuelSpots = <FlSpot>[];
-    final List<FlSpot> normalizeFuelSpots = <FlSpot>[];
     final List<FlSpot> speedSpots = <FlSpot>[];
     final List<FlSpot> engineSpots = <FlSpot>[];
 
@@ -97,19 +95,9 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
       final FuelTelemetryPoint pt = widget.points[i];
       final double x = i.toDouble();
 
-      // Raw Fuel spots (dashed line with dots)
-      if (widget.showAllFuel) {
-        rawFuelSpots.add(FlSpot(x, pt.fuel));
-      }
-
       // Filtered Fuel spots (cyan / sky blue area line)
       if (widget.showFilteredFuel) {
         filteredFuelSpots.add(FlSpot(x, pt.filteredFuel > 0 ? pt.filteredFuel : pt.displayFuel));
-      }
-
-      // Normalized Fuel spots (red line matching web app screenshot 1)
-      if (widget.showNormalize) {
-        normalizeFuelSpots.add(FlSpot(x, pt.normalizedFuel > 0 ? pt.normalizedFuel : pt.displayFuel));
       }
 
       // Speed is mapped from [0..plotMaxSpeed] to [plotMinFuel..plotMaxFuel]
@@ -410,37 +398,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                       ),
                     ),
 
-                  // 2. All Fuel Data (Raw Unfiltered Sensor dashed line with small dots)
-                  if (widget.showAllFuel && rawFuelSpots.isNotEmpty)
-                    LineChartBarData(
-                      spots: rawFuelSpots,
-                      isCurved: false,
-                      color: const Color(0xFF64748B).withValues(alpha: 0.55),
-                      barWidth: 1.2,
-                      dashArray: const [3, 3],
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
-                          radius: 1.5,
-                          color: const Color(0xFF64748B).withValues(alpha: 0.55),
-                          strokeWidth: 0,
-                        ),
-                      ),
-                    ),
-
-                  // 3. Normalize (Smooth Red curve matching Web App Screenshot 1)
-                  if (widget.showNormalize && normalizeFuelSpots.isNotEmpty)
-                    LineChartBarData(
-                      spots: normalizeFuelSpots,
-                      isCurved: true,
-                      curveSmoothness: 0.18,
-                      color: const Color(0xFFEF4444),
-                      barWidth: 2.0,
-                      isStrokeCapRound: true,
-                      dotData: const FlDotData(show: false),
-                    ),
-
-                  // 4. Engine Running / Ignition step line
+                  // 2. Engine Running / Ignition step line
                   if (widget.showEngine && engineSpots.isNotEmpty)
                     LineChartBarData(
                       spots: engineSpots,
@@ -450,7 +408,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                       dotData: const FlDotData(show: false),
                     ),
 
-                  // 5. Speed curve (Cyan / Orange line)
+                  // 3. Speed curve (Cyan / Orange line)
                   if (widget.showSpeed && speedSpots.isNotEmpty)
                     LineChartBarData(
                       spots: speedSpots,
