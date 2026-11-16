@@ -55,17 +55,17 @@ class AppColors {
   static const Color idle = Color(0xFFEAB308);
   static const Color idleSoft = Color(0xFF3A2A0A);
 
-  /// Ignition off but reporting — parked (Gray).
-  static const Color stopped = Color(0xFF64748B);
-  static const Color stoppedSoft = Color(0xFF1E2637);
+  /// Ignition off but reporting — parked (Solid Black).
+  static const Color stopped = Color(0xFF18181B);
+  static const Color stoppedSoft = Color(0xFF09090B);
 
   /// No packet within the offline threshold — (Red).
   static const Color offline = Color(0xFFEF4444);
   static const Color offlineSoft = Color(0xFF3B1122);
 
-  /// No telemetry or GPS data ever received / unavailable — (Slate Gray).
-  static const Color noData = Color(0xFFBE123C);
-  static const Color noDataSoft = Color(0xFF1E293B);
+  /// No telemetry or GPS data ever received / unavailable — Unreachable (Purple / Lavender).
+  static const Color noData = Color(0xFF7C3AED);
+  static const Color noDataSoft = Color(0xFF2E1065);
 
   /// Alerts / overspeed / SOS.
   static const Color danger = Color(0xFFFF4D6D);

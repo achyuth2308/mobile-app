@@ -71,11 +71,11 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
       case VehicleStatus.idle:
         return const Color(0xFFF59E0B); // Yellow (Idle)
       case VehicleStatus.stopped:
-        return const Color(0xFF64748B); // Gray (Parking)
+        return const Color(0xFF18181B); // Black (Stopped)
       case VehicleStatus.offline:
         return const Color(0xFFEF4444); // Red (Offline)
       case VehicleStatus.noData:
-        return const Color(0xFF94A3B8); // Slate Gray (No Data)
+        return const Color(0xFF7C3AED); // Purple / Lavender (Unreachable)
     }
   }
 

@@ -749,8 +749,12 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                   title: 'Live Tracking',
                   subtitle: 'Real-time GPS trail',
                   badgeText: 'GPS LIVE',
-                  badgeColor: const Color(0xFF10B981),
-                  accentColor: const Color(0xFF10B981),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF047857), Color(0xFF10B981)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  glowColor: const Color(0xFF10B981),
                   icon: Icons.navigation_rounded,
                   onTap: () => context.push('/vehicle-map?focus=${widget.vehicleId}'),
                 ),
@@ -758,12 +762,16 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: _TrackDockButton(
-                  title: 'Trip History',
+                  title: 'History',
                   subtitle: 'Past routes & stops',
                   badgeText: 'REPLAY',
-                  badgeColor: const Color(0xFFF59E0B),
-                  accentColor: const Color(0xFFF59E0B),
-                  icon: Icons.history_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  glowColor: const Color(0xFFF59E0B),
+                  icon: Icons.play_circle_fill_rounded,
                   onTap: () => context.push('/vehicle/${widget.vehicleId}/detail?tab=1'),
                 ),
               ),
@@ -937,9 +945,9 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                                   ? 'Siren triggers if moved or ignition ON'
                                   : !canArm
                                       ? (vehicle.speed > 0
-                                          ? 'Unavailable while moving • Park first'
-                                          : 'Unavailable while engine ON • Turn OFF')
-                                      : 'Anti-theft guard • Tap to arm',
+                                          ? 'Unavailable while moving'
+                                          : 'Unavailable while engine ON')
+                                      : 'Anti-theft guard',
                               style: TextStyle(
                                 fontSize: 10.5,
                                 color: isArmed
@@ -1062,58 +1070,58 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
 
           _MenuItemCard(
             title: 'Vehicle Detail',
-            subtitle: 'Live telemetry, real-time gauges & tabbed overview',
+            subtitle: 'Live telemetry & gauges',
             icon: Icons.space_dashboard_rounded,
             accentColor: const Color(0xFF3B82F6),
             badgeText: 'LIVE',
             badgeColor: const Color(0xFF3B82F6),
             onTap: () => context.push('/vehicle/${widget.vehicleId}/detail'),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           _MenuItemCard(
             title: 'Alerts & Events',
-            subtitle: 'View overspeed, geofence, ignition & battery logs',
+            subtitle: 'Overspeed, geofence & ignition logs',
             icon: Icons.notifications_active_rounded,
             accentColor: const Color(0xFFEF4444),
             onTap: () =>
                 context.push('/vehicle/${widget.vehicleId}/detail?tab=2'),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           _MenuItemCard(
             title: 'Geofences',
-            subtitle: 'Virtual boundaries, entry/exit zones & alerts',
+            subtitle: 'Boundaries & zone alerts',
             icon: Icons.fence_rounded,
             accentColor: const Color(0xFF059669),
             onTap: () =>
                 context.push('/vehicle/${widget.vehicleId}/geofences'),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           _MenuItemCard(
             title: 'Fitment Certificate',
-            subtitle: 'View, verify & download official AIS-140 certificate (PDF)',
+            subtitle: 'AIS-140 compliance PDF',
             icon: Icons.verified_user_rounded,
             accentColor: const Color(0xFF10B981),
             onTap: () =>
                 context.push('/vehicle/${widget.vehicleId}/fitment-certificate'),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           _MenuItemCard(
             title: 'Vehicle Info & Specs',
-            subtitle: 'Hardware details, IMEI, driver assignment & docs',
+            subtitle: 'Hardware, IMEI & driver info',
             icon: Icons.info_outline_rounded,
             accentColor: const Color(0xFF06B6D4),
             onTap: () =>
                 context.push('/vehicle/${widget.vehicleId}/detail?tab=3'),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           _MenuItemCard(
-            title: 'Alert & Notification Configuration',
-            subtitle: 'Speed limits, alert thresholds & notification toggles',
+            title: 'Alert Settings',
+            subtitle: 'Speed limits & alert toggles',
             icon: Icons.tune_rounded,
             accentColor: const Color(0xFF64748B),
             onTap: () => context.push('/vehicle/${widget.vehicleId}/settings'),
@@ -1214,8 +1222,8 @@ class _TrackDockButton extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.badgeText,
-    required this.badgeColor,
-    required this.accentColor,
+    required this.gradient,
+    required this.glowColor,
     required this.icon,
     required this.onTap,
   });
@@ -1223,8 +1231,8 @@ class _TrackDockButton extends StatelessWidget {
   final String title;
   final String subtitle;
   final String badgeText;
-  final Color badgeColor;
-  final Color accentColor;
+  final LinearGradient gradient;
+  final Color glowColor;
   final IconData icon;
   final VoidCallback onTap;
 
@@ -1234,28 +1242,31 @@ class _TrackDockButton extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E2238) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: accentColor.withOpacity(isDark ? 0.18 : 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: glowColor.withValues(alpha: isDark ? 0.38 : 0.28),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            spreadRadius: 0.5,
           ),
         ],
         border: Border.all(
-          color: accentColor.withOpacity(isDark ? 0.35 : 0.2),
+          color: Colors.white.withValues(alpha: isDark ? 0.20 : 0.28),
           width: 1.0,
         ),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.white24,
+          highlightColor: Colors.white10,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -1264,63 +1275,85 @@ class _TrackDockButton extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      width: 28,
-                      height: 28,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            accentColor.withOpacity(0.20),
-                            accentColor.withOpacity(0.06),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: accentColor.withOpacity(0.25),
-                          width: 1,
+                          color: Colors.white.withValues(alpha: 0.35),
+                          width: 1.2,
                         ),
                       ),
-                      child: Icon(icon, color: accentColor, size: 15),
+                      child: Icon(icon, color: Colors.white, size: 21),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: badgeColor.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        badgeText,
-                        style: TextStyle(
-                          fontSize: 7.5,
-                          fontWeight: FontWeight.w900,
-                          color: badgeColor,
-                          letterSpacing: 0.3,
+                        color: Colors.black.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          width: 0.8,
                         ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (badgeText.contains('LIVE')) ...[
+                            Container(
+                              width: 5.5,
+                              height: 5.5,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF6EE7B7),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0xFF6EE7B7),
+                                    blurRadius: 4,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            badgeText,
+                            style: const TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF1E293B),
-                    letterSpacing: 0.1,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
                   ),
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 1.5),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.90),
                   ),
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -1334,14 +1367,12 @@ class _TrackDockButton extends StatelessWidget {
 class _ModernReportTile extends StatelessWidget {
   const _ModernReportTile({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.accentColor,
     required this.onTap,
   });
 
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color accentColor;
   final VoidCallback onTap;
@@ -1373,48 +1404,30 @@ class _ModernReportTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(10),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6.5),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
             child: Row(
               children: [
                 Container(
-                  width: 26,
-                  height: 26,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: accentColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(7),
                   ),
-                  child: Icon(icon, color: accentColor, size: 14),
+                  child: Icon(icon, color: accentColor, size: 15),
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF1E293B),
-                          height: 1.15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
-                          height: 1.1,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF1E293B),
+                      height: 1.15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -1527,56 +1540,48 @@ class _ReportsHubSectionState extends State<_ReportsHubSection> {
 
     final tripReport = _ModernReportTile(
       title: 'Trip Report',
-      subtitle: 'Routes & distance logs',
       icon: Icons.route_rounded,
       accentColor: const Color(0xFF8B5CF6),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=trip'),
     );
     final fullDayTrip = _ModernReportTile(
       title: 'Full Day Trip',
-      subtitle: 'Daily distance & runtime',
       icon: Icons.today_rounded,
       accentColor: const Color(0xFF6366F1),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=dailyTrip'),
     );
     final geofenceTrips = _ModernReportTile(
       title: 'Geofence Trips',
-      subtitle: 'Zone entry & exit logs',
       icon: Icons.alt_route_rounded,
       accentColor: const Color(0xFF0D9488),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=geofenceTransit'),
     );
     final stoppageReport = _ModernReportTile(
       title: 'Stoppage Report',
-      subtitle: 'Halt locations & duration',
       icon: Icons.pause_circle_rounded,
       accentColor: const Color(0xFFEA580C),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=stoppages'),
     );
     final idleReport = _ModernReportTile(
       title: 'Idle Report',
-      subtitle: 'Idle runtime & fuel waste',
       icon: Icons.access_time_rounded,
       accentColor: const Color(0xFFD97706),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=idle'),
     );
     final primaryEngineOn = _ModernReportTile(
       title: 'Primary Engine On',
-      subtitle: 'Ignition duration & locations',
       icon: Icons.power_settings_new_rounded,
       accentColor: const Color(0xFF059669),
       onTap: () => context.push('/vehicle/${widget.vehicleId}/engine-on'),
     );
     final overspeeding = _ModernReportTile(
       title: 'Overspeeding',
-      subtitle: 'Speed threshold violations',
       icon: Icons.speed_rounded,
       accentColor: const Color(0xFFE11D48),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=overspeeding'),
     );
     final consolidated = _ModernReportTile(
       title: 'Consolidated',
-      subtitle: 'Performance audit summary',
       icon: Icons.group_work_rounded,
       accentColor: const Color(0xFF16A34A),
       onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=consolidated'),
@@ -1648,28 +1653,24 @@ class _FuelReportsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final kmplReport = _ModernReportTile(
       title: 'KMPL Report',
-      subtitle: 'Distance & mileage efficiency',
       icon: Icons.speed_rounded,
       accentColor: const Color(0xFF0284C7),
       onTap: () => context.push('/vehicle/$vehicleId/fuel-analytics'),
     );
     final lphReport = _ModernReportTile(
       title: 'LPH Report',
-      subtitle: 'Hourly fuel burn rate',
       icon: Icons.timelapse_rounded,
       accentColor: const Color(0xFFD97706),
       onTap: () => context.push('/vehicle/$vehicleId/fuel-analytics'),
     );
     final refillReport = _ModernReportTile(
       title: 'Refill Report',
-      subtitle: 'Fills, pump locations & liters',
       icon: Icons.local_gas_station_rounded,
       accentColor: const Color(0xFF16A34A),
       onTap: () => context.go('/reports?vehicle=$vehicleId&type=fuelConsolidated'),
     );
     final theftReport = _ModernReportTile(
       title: 'Theft Report',
-      subtitle: 'Siphons, sudden drops & drains',
       icon: Icons.warning_amber_rounded,
       accentColor: const Color(0xFFE11D48),
       onTap: () => context.go('/reports?vehicle=$vehicleId&type=fuelConsolidated'),
@@ -1728,15 +1729,15 @@ class _MenuItemCard extends StatelessWidget {
     final bool isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 0),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E2238) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.2 : 0.035),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 6,
+            offset: const Offset(0, 1.5),
           ),
         ],
         border: Border.all(
@@ -1746,17 +1747,17 @@ class _MenuItemCard extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8.5),
             child: Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -1766,15 +1767,15 @@ class _MenuItemCard extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: accentColor.withOpacity(0.2),
                       width: 1,
                     ),
                   ),
-                  child: Icon(icon, color: accentColor, size: 20),
+                  child: Icon(icon, color: accentColor, size: 18),
                 ),
-                const SizedBox(width: 13),
+                const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1785,7 +1786,7 @@ class _MenuItemCard extends StatelessWidget {
                             child: Text(
                               title,
                               style: TextStyle(
-                                fontSize: 13.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: isDark ? Colors.white : const Color(0xFF1E293B),
                                 letterSpacing: 0.1,
@@ -1814,11 +1815,11 @@ class _MenuItemCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1.5),
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
                         ),
                         maxLines: 1,
@@ -1828,15 +1829,15 @@ class _MenuItemCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(3.5),
                   decoration: BoxDecoration(
                     color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(7),
                   ),
                   child: Icon(
                     Icons.chevron_right_rounded,
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
-                    size: 18,
+                    size: 16,
                   ),
                 ),
               ],
@@ -1964,9 +1965,7 @@ class _EngineCutSpecialBanner extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        isCut
-                            ? 'Circuit disabled • Tap to restore'
-                            : 'Emergency cut • Tap to immobilize',
+                        isCut ? 'Circuit disabled' : 'Emergency cut',
                         style: TextStyle(
                           fontSize: 10.5,
                           color: isCut
@@ -2146,9 +2145,7 @@ class _AcControlSpecialBanner extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        isAcOff
-                            ? 'AC relay cut • Tap to turn ON'
-                            : 'AC running • Tap to turn OFF',
+                        isAcOff ? 'AC relay cut' : 'AC running',
                         style: TextStyle(
                           fontSize: 10.5,
                           color: isAcOff

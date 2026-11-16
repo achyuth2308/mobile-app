@@ -135,7 +135,10 @@ class Vehicle extends Equatable {
     if (lowerType == 'tipper' || lowerType == 'dumper') {
       return 'tipper';
     }
-    if (lowerType == 'tractor' || lowerType == 'jcb' || lowerType == 'harvester') {
+    if (lowerType == 'jcb' || lowerType == 'excavator' || lowerType == 'backhoe') {
+      return 'jcb';
+    }
+    if (lowerType == 'tractor' || lowerType == 'harvester') {
       return 'tractor';
     }
     if (lowerType == 'bike' ||
@@ -151,7 +154,10 @@ class Vehicle extends Equatable {
 
     // 2. Next, check name clues if type is generic/empty
     if (lowerName.contains('tipper')) return 'tipper';
-    if (lowerName.contains('tractor') || lowerName.contains('jcb')) return 'tractor';
+    if (lowerName.contains('jcb') || lowerName.contains('excavator') || lowerName.contains('backhoe')) {
+      return 'jcb';
+    }
+    if (lowerName.contains('tractor')) return 'tractor';
     if (lowerName.contains('car')) return 'car';
     if (lowerName.contains('bike') ||
         lowerName.contains('activa') ||
@@ -178,9 +184,11 @@ class Vehicle extends Equatable {
       case VehicleStatus.idle:
         return 'assets/images/vehicles/${base}_idle.png';
       case VehicleStatus.stopped:
-      case VehicleStatus.offline:
-      case VehicleStatus.noData:
         return 'assets/images/vehicles/${base}_stopped.png';
+      case VehicleStatus.offline:
+        return 'assets/images/vehicles/${base}_offline.png';
+      case VehicleStatus.noData:
+        return 'assets/images/vehicles/${base}_unreachable.png';
     }
   }
 

@@ -142,9 +142,11 @@ class _VehicleMarkerCalloutCardState extends State<VehicleMarkerCalloutCard> {
       case VehicleStatus.idle:
         return AppColors.idle;
       case VehicleStatus.stopped:
+        return const Color(0xFF18181B);
       case VehicleStatus.offline:
+        return const Color(0xFFEF4444);
       case VehicleStatus.noData:
-        return AppColors.stopped;
+        return const Color(0xFF7C3AED);
     }
   }
 
@@ -155,9 +157,11 @@ class _VehicleMarkerCalloutCardState extends State<VehicleMarkerCalloutCard> {
       case VehicleStatus.idle:
         return isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
       case VehicleStatus.stopped:
+        return isDark ? const Color(0xFFF4F4F5) : const Color(0xFF18181B);
       case VehicleStatus.offline:
+        return const Color(0xFFEF4444);
       case VehicleStatus.noData:
-        return isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+        return isDark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED);
     }
   }
 

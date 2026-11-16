@@ -620,11 +620,11 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
         icon = Icons.key_rounded;
         statusTitle = 'Idle';
       case VehicleStatus.stopped:
-        color = const Color(0xFF475569);
+        color = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF18181B);
         bg = isDark
-            ? const Color(0xFF1E293B).withValues(alpha: 0.6)
-            : const Color(0xFFF8FAFC);
-        border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+            ? const Color(0xFF18181B).withValues(alpha: 0.8)
+            : const Color(0xFFF4F4F5);
+        border = isDark ? const Color(0xFF27272A) : const Color(0xFFD4D4D8);
         icon = Icons.local_parking_rounded;
         statusTitle = 'Stopped';
       case VehicleStatus.offline:
@@ -636,9 +636,11 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
         icon = Icons.cloud_off_rounded;
         statusTitle = 'No Data';
       case VehicleStatus.noData:
-        color = const Color(0xFF64748B);
-        bg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
-        border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+        color = const Color(0xFF7C3AED);
+        bg = isDark
+            ? const Color(0xFF2E1065).withValues(alpha: 0.6)
+            : const Color(0xFFF5F3FF);
+        border = isDark ? const Color(0xFF5B21B6) : const Color(0xFFDDD6FE);
         icon = Icons.sensors_off_rounded;
         statusTitle = 'Unreachable';
     }

@@ -9,7 +9,9 @@ class VehicleIcons {
         'bus' || 'coach' || 'van' => Icons.directions_bus_rounded,
         'bike' || 'motorcycle' || 'scooter' || 'scooty' || 'two-wheeler' =>
           Icons.two_wheeler_rounded,
-        'tractor' || 'harvester' || 'excavator' || 'jcb' =>
+        'jcb' || 'excavator' || 'backhoe' =>
+          Icons.construction_rounded,
+        'tractor' || 'harvester' =>
           Icons.agriculture_rounded,
         'generator' || 'genset' => Icons.electrical_services_rounded,
         'ambulance' => Icons.emergency_rounded,

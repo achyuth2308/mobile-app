@@ -764,6 +764,7 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
     final DateTime? sinceTime = vehicle.statusChangedAt ?? vehicle.lastPacketAt;
     final String durationStr = Fmt.statusDuration(sinceTime);
     final String timeStr = Fmt.time12Sec(sinceTime);
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     IconData icon;
     Color iconBg;
@@ -787,8 +788,8 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
             : 'Idling';
       case VehicleStatus.stopped:
         icon = Icons.local_parking_rounded;
-        iconBg = const Color(0xFF64748B);
-        textCol = const Color(0xFF64748B);
+        iconBg = const Color(0xFF18181B);
+        textCol = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF18181B);
         statusTitle = sinceTime != null
             ? 'Parking Since $timeStr ($durationStr)'
             : 'Parking';
@@ -801,12 +802,10 @@ class _VehicleStatusCardState extends ConsumerState<_VehicleStatusCard>
             : 'No Data';
       case VehicleStatus.noData:
         icon = Icons.sensors_off_rounded;
-        iconBg = const Color(0xFF94A3B8);
-        textCol = const Color(0xFF94A3B8);
+        iconBg = const Color(0xFF7C3AED);
+        textCol = const Color(0xFF7C3AED);
         statusTitle = 'No Data Available';
     }
-
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(12),

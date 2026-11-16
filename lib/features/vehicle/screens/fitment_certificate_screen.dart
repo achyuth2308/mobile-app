@@ -217,7 +217,9 @@ class _FitmentCertificateScreenState
         text.contains('NAV 140')) {
       return 'TRANSYNC TELEMATICS';
     }
-    return 'VOLTY IOT SOLUTIONS PRIVATE LIMITED';
+    return (explicitMfr != null && explicitMfr.trim().isNotEmpty)
+        ? explicitMfr.trim()
+        : 'AIS-140 CERTIFIED TELEMATICS';
   }
 
   String _formatDate(DateTime d) {
@@ -281,68 +283,143 @@ class _FitmentCertificateScreenState
 
     final String imei = _remoteCertData?['imei'] ?? vehicle.imei;
     final String cleanImei = imei.replaceAll(RegExp(r'\D'), '');
-    final String imeiLast10 =
-        cleanImei.length >= 10 ? cleanImei.substring(cleanImei.length - 10) : '';
 
-    final String rawSerial = _remoteCertData?['deviceSerialNo'] ??
-        metadata['deviceSerialNo'] ??
-        metadata['serialNo'] ??
-        metadata['vlttdSlno'] ??
-        metadata['vltdSlno'] ??
-        metadata['device_serial_no'] ??
-        '';
+    final String rawSerial = (_remoteCertData?['deviceSerialNo'] ??
+            metadata['deviceSerialNo'] ??
+            metadata['serialNo'] ??
+            metadata['vlttdSlno'] ??
+            metadata['vltdSlno'] ??
+            metadata['device_serial_no'] ??
+            '')
+        .toString()
+        .trim();
 
-    final String rawMfr = _remoteCertData?['vltdManufacturer'] ??
-        metadata['vltdManufacturer'] ??
-        metadata['manufacturer'] ??
-        '';
+    final String rawPort = (_remoteCertData?['portNo'] ??
+            _remoteCertData?['port'] ??
+            metadata['portNo'] ??
+            metadata['port'] ??
+            metadata['tcpPort'] ??
+            metadata['communicatingPort'] ??
+            vehicle.raw['port'] ??
+            vehicle.raw['port_no'] ??
+            '')
+        .toString()
+        .trim();
 
-    final String rawModel = _remoteCertData?['modelName'] ??
-        _remoteCertData?['deviceModel'] ??
-        metadata['modelName'] ??
-        metadata['deviceModel'] ??
-        '';
+    String portMfr = '';
+    String portModel = '';
+    String portSimProvider = 'AIRTEL';
 
-    final String manufacturer =
-        _resolveManufacturer(rawModel, rawSerial, rawMfr);
-    final bool isVolty = manufacturer.contains('VOLTY');
-    final bool isApm = manufacturer.contains('APM');
-
-    // Genuine certified model name as per vendor approvals
-    String modelName = rawModel;
-    if (modelName.isEmpty ||
-        modelName.toLowerCase().contains('tracker') ||
-        modelName.toLowerCase().contains('general') ||
-        modelName.toLowerCase().contains('car')) {
-      modelName = isVolty ? 'NAV140' : (isApm ? '1819001A' : 'AIS140');
+    switch (rawPort) {
+      case '5000':
+        portMfr = 'BHARAT SATELLITE TRACKING PVT LTD';
+        portModel = 'BSTPL-17';
+        break;
+      case '5001':
+        portMfr = 'TRACKNOW SOLUTIONS PRIVATE LIMITED';
+        portModel = 'AIS140 V1';
+        break;
+      case '5002':
+        portMfr = 'CONCOX / JIMI IOT';
+        portModel = 'VL149';
+        break;
+      case '5003':
+        portMfr = 'APM KINGSTRACK PRIVATE LIMITED';
+        portModel = '1819001A';
+        portSimProvider = 'AIRTEL';
+        break;
+      case '5004':
+        portMfr = 'VOLTY IOT SOLUTIONS PRIVATE LIMITED';
+        portModel = 'VOLTY AIS-140';
+        portSimProvider = 'VOLTY';
+        break;
+      case '5005':
+        portMfr = 'TELTONIKA TELEMATICS';
+        portModel = 'FMB920';
+        break;
+      case '5006':
+        portMfr = 'PT06 TELEMATICS';
+        portModel = 'PT06';
+        break;
+      case '5007':
+        portMfr = 'CONCOX / JIMI IOT';
+        portModel = 'GT06N';
+        break;
+      case '5008':
+        portMfr = 'PN02 TELEMATICS';
+        portModel = 'PN02';
+        break;
+      case '5009':
+        portMfr = 'CONCOX / JIMI IOT';
+        portModel = 'V5 4G';
+        break;
+      case '5010':
+        portMfr = 'BHARAT SATELLITE TRACKING PVT LTD';
+        portModel = 'BSTPL-17IS';
+        break;
+      case '5011':
+        portMfr = 'TRANSYNC TELEMATICS';
+        portModel = 'NAV 140';
+        break;
+      case '5012':
+        portMfr = 'APM KINGSTRACK PRIVATE LIMITED';
+        portModel = 'APMK';
+        portSimProvider = 'APM';
+        break;
     }
 
-    final String defaultSerial = isVolty
-        ? (imeiLast10.isNotEmpty
-            ? 'VLY2N2I$imeiLast10'
-            : 'VLY2N2I052685364850')
-        : (isApm
-            ? (imeiLast10.isNotEmpty
-                ? 'APM1K2I$imeiLast10'
-                : 'APM1K2I102690315456')
-            : (imeiLast10.isNotEmpty ? 'SN-$imeiLast10' : 'SN-102690315456'));
+    final String rawMfr = (_remoteCertData?['vltdManufacturer'] ??
+            metadata['vltdManufacturer'] ??
+            metadata['manufacturer'] ??
+            '')
+        .toString()
+        .trim();
 
-    final String deviceSerialNo =
-        rawSerial.isNotEmpty ? rawSerial : defaultSerial;
+    final String rawModel = (_remoteCertData?['modelName'] ??
+            _remoteCertData?['deviceModel'] ??
+            metadata['modelName'] ??
+            metadata['deviceModel'] ??
+            '')
+        .toString()
+        .trim();
+
+    final String manufacturer = (rawMfr.isNotEmpty &&
+            !rawMfr.toUpperCase().contains('FUELTRACKS'))
+        ? _resolveManufacturer(rawModel, rawSerial, rawMfr)
+        : (portMfr.isNotEmpty
+            ? portMfr
+            : _resolveManufacturer(rawModel, rawSerial, rawMfr));
+
+    String modelName = rawModel.isNotEmpty &&
+            !rawModel.toLowerCase().contains('tracker') &&
+            !rawModel.toLowerCase().contains('general') &&
+            !rawModel.toLowerCase().contains('car')
+        ? rawModel
+        : (portModel.isNotEmpty
+            ? portModel
+            : (rawModel.isNotEmpty ? rawModel : 'AIS140'));
+
+    // Option 3: NO auto-generated serial numbers. Only real serial numbers from DB.
+    final String deviceSerialNo = rawSerial;
 
     // Vehicle's official certificate format (assigned by platform/state)
+    final bool isTelangana = plateUp.startsWith('TS') ||
+        plateUp.startsWith('TG') ||
+        plateUp.contains('TS') ||
+        plateUp.contains('TG') ||
+        rawVehicleLabel.toUpperCase().contains('TS') ||
+        rawVehicleLabel.toUpperCase().contains('TG');
+
     final String activeCategory = _remoteCertData?['certFormat'] ??
         metadata['certFormat'] ??
-        (plateUp.startsWith('TS') || plateUp.startsWith('TG')
+        (isTelangana
             ? 'telangana_mining'
             : (plateUp.startsWith('TN')
                 ? 'tamilnadu_mining'
                 : 'tamilnadu_mining'));
 
     // District & State
-    final String districtState = (activeCategory == 'telangana_mining' ||
-            plateUp.startsWith('TS') ||
-            plateUp.startsWith('TG'))
+    final String districtState = (activeCategory == 'telangana_mining' || isTelangana)
         ? (_remoteCertData?['districtState'] ??
             metadata['districtState'] ??
             'Telangana')
@@ -365,14 +442,19 @@ class _FitmentCertificateScreenState
         ? 'Commercial Vehicle'
         : 'Mining Vehicle';
 
-    final String iccid = _remoteCertData?['iccid'] ??
-        metadata['iccid'] ??
-        metadata['sim_number'] ??
-        '89917360980002459242';
+    final String iccid = (_remoteCertData?['iccid'] ??
+            metadata['iccid'] ??
+            metadata['sim_number'] ??
+            metadata['simNo'] ??
+            metadata['sim'] ??
+            '')
+        .toString()
+        .trim();
 
     final String simProvider = _remoteCertData?['simProvider'] ??
         metadata['simProvider'] ??
-        (isVolty ? 'VOLTY' : (isApm ? 'APM' : 'AIRTEL'));
+        metadata['simOperator'] ??
+        portSimProvider;
 
     final DateTime now = DateTime.now();
     final DateTime oneYearLater = DateTime(now.year + 1, now.month, now.day - 1);
@@ -389,9 +471,25 @@ class _FitmentCertificateScreenState
         metadata['activationDate'] ??
         installationDate;
 
+    String computeSimValidity(String installStr) {
+      try {
+        final List<String> parts = installStr.split(RegExp(r'[\/\-]'));
+        if (parts.length == 3) {
+          final int d = int.parse(parts[0]);
+          final int m = int.parse(parts[1]);
+          final int y = int.parse(parts[2]);
+          final DateTime end = DateTime(y + 1, m, d - 1);
+          final String endD = end.day.toString().padLeft(2, '0');
+          final String endM = end.month.toString().padLeft(2, '0');
+          return '$installStr TO $endD/$endM/${end.year}';
+        }
+      } catch (_) {}
+      return '$installStr TO $oneYearFormatted';
+    }
+
     final String simValidity = _remoteCertData?['simValidity'] ??
         metadata['simValidity'] ??
-        '$installationDate TO $oneYearFormatted';
+        computeSimValidity(installationDate);
 
     final String certNumber = _remoteCertData?['certNumber'] ??
         metadata['certSerialNo'] ??
@@ -551,7 +649,8 @@ class _FitmentCertificateScreenState
                   _buildDocTable(<List<String>>[
                     <String>['VLTD Manufacturer Name', manufacturer],
                     <String>['Model Name / Number', modelName],
-                    <String>['Device Serial Number', deviceSerialNo],
+                    if (deviceSerialNo.isNotEmpty)
+                      <String>['Device Serial Number', deviceSerialNo],
                     <String>['IMEI Number', imei],
                   ]),
                   const SizedBox(height: 12),
@@ -559,7 +658,8 @@ class _FitmentCertificateScreenState
                   // ── 3. CONNECTIVITY & ACTIVATION DETAILS ─────────────
                   _buildSectionHeading('3. CONNECTIVITY & ACTIVATION DETAILS'),
                   _buildDocTable(<List<String>>[
-                    <String>['ICCID Number', iccid],
+                    if (iccid.isNotEmpty)
+                      <String>['ICCID Number', iccid],
                     <String>['SIM Service Provider', simProvider],
                     <String>['SIM Validity Upto', simValidity],
                     <String>['Date of Installation', installationDate],
