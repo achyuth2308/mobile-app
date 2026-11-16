@@ -542,7 +542,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      vehicle.status.label.toUpperCase(),
+                                      vehicle.effectiveStatusLabel.toUpperCase(),
                                       style: TextStyle(
                                         fontSize: 9,
                                         fontWeight: FontWeight.w900,

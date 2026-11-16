@@ -132,41 +132,123 @@ class Vehicle extends Equatable {
     if (lowerType == 'car' || lowerType == 'taxi' || lowerType == 'cab') {
       return 'car';
     }
+    if (lowerType == 'generator' ||
+        lowerType == 'genset' ||
+        lowerType == 'dg_set' ||
+        lowerType == 'dgset') {
+      return 'generator';
+    }
+    if (lowerType == 'ambulance') {
+      return 'ambulance';
+    }
+    if (lowerType == 'auto' ||
+        lowerType == 'rickshaw' ||
+        lowerType == 'autorickshaw' ||
+        lowerType == 'tuk-tuk' ||
+        lowerType == 'tuktuk' ||
+        lowerType == 'three-wheeler' ||
+        lowerType == '3-wheeler') {
+      return 'auto';
+    }
+    if (lowerType == 'borewell' ||
+        lowerType == 'drilling' ||
+        lowerType == 'drilling_rig' ||
+        lowerType == 'rig') {
+      return 'borewell';
+    }
+    if (lowerType == 'crane' ||
+        lowerType == 'crawler_crane' ||
+        lowerType == 'mobile_crane') {
+      return 'crane';
+    }
     if (lowerType == 'tipper' || lowerType == 'dumper') {
       return 'tipper';
     }
-    if (lowerType == 'jcb' || lowerType == 'excavator' || lowerType == 'backhoe') {
+    if (lowerType == 'hitachi' ||
+        lowerType == 'excavator' ||
+        lowerType == 'poclain') {
+      return 'hitachi';
+    }
+    if (lowerType == 'jcb' || lowerType == 'backhoe') {
       return 'jcb';
     }
     if (lowerType == 'tractor' || lowerType == 'harvester') {
       return 'tractor';
     }
-    if (lowerType == 'bike' ||
-        lowerType == 'scooter' ||
-        lowerType == 'motorcycle' ||
+    if (lowerType == 'scooter' ||
         lowerType == 'scooty' ||
+        lowerType == 'vespa' ||
+        lowerType == 'activa') {
+      return 'scooter';
+    }
+    if (lowerType == 'bike' ||
+        lowerType == 'motorcycle' ||
         lowerType == 'two-wheeler') {
       return 'bike';
     }
-    if (lowerType == 'truck' || lowerType == 'lorry' || lowerType == 'trailer' || lowerType == 'container') {
+    if (lowerType == 'truck' ||
+        lowerType == 'lorry' ||
+        lowerType == 'trailer' ||
+        lowerType == 'container' ||
+        lowerType == 'multi-axle' ||
+        lowerType == 'multiaxle' ||
+        lowerType == 'cargo_truck' ||
+        lowerType == 'heavy_truck') {
       return 'truck';
     }
 
     // 2. Next, check name clues if type is generic/empty
+    if (lowerName.contains('generator') ||
+        lowerName.contains('genset') ||
+        lowerName.contains('dg set') ||
+        lowerName.contains('dgset') ||
+        lowerName.contains('dg_set')) {
+      return 'generator';
+    }
+    if (lowerName.contains('ambulance')) return 'ambulance';
+    if (lowerName.contains('rickshaw') ||
+        lowerName.contains('auto ') ||
+        lowerName.contains(' auto') ||
+        lowerName.startsWith('auto') ||
+        lowerName.endsWith('auto') ||
+        lowerName.contains('tuktuk') ||
+        lowerName.contains('tuk-tuk') ||
+        lowerName.contains('three-wheeler') ||
+        lowerName.contains('3-wheeler')) {
+      return 'auto';
+    }
+    if (lowerName.contains('borewell') ||
+        lowerName.contains('drilling') ||
+        lowerName.contains(' rig')) {
+      return 'borewell';
+    }
+    if (lowerName.contains('crane')) return 'crane';
     if (lowerName.contains('tipper')) return 'tipper';
-    if (lowerName.contains('jcb') || lowerName.contains('excavator') || lowerName.contains('backhoe')) {
+    if (lowerName.contains('hitachi') ||
+        lowerName.contains('excavator') ||
+        lowerName.contains('poclain')) {
+      return 'hitachi';
+    }
+    if (lowerName.contains('jcb') || lowerName.contains('backhoe')) {
       return 'jcb';
     }
     if (lowerName.contains('tractor')) return 'tractor';
     if (lowerName.contains('car')) return 'car';
-    if (lowerName.contains('bike') ||
+    if (lowerName.contains('scooter') ||
+        lowerName.contains('scooty') ||
+        lowerName.contains('vespa') ||
         lowerName.contains('activa') ||
-        lowerName.contains('scoot') ||
+        lowerName.contains('scoot')) {
+      return 'scooter';
+    }
+    if (lowerName.contains('bike') ||
         lowerName.contains('motorcycle') ||
         lowerName.contains('motor')) {
       return 'bike';
     }
-    if (lowerName.contains('truck') || lowerName.contains('dumper') || lowerName.contains('lorry')) {
+    if (lowerName.contains('truck') ||
+        lowerName.contains('dumper') ||
+        lowerName.contains('lorry')) {
       return 'truck';
     }
 
@@ -200,6 +282,31 @@ class Vehicle extends Equatable {
   /// True only if this vehicle has calibrated fuel telemetry from its device/sensor.
   bool get hasFuel =>
       fuelLevel != null && fuelLevel! > 0 && fuelLevel! <= 1000;
+
+  /// True if this asset is a stationary Diesel Generator / Genset.
+  bool get isGenerator =>
+      displayType == 'generator' ||
+      type.toLowerCase().trim() == 'generator' ||
+      type.toLowerCase().trim() == 'genset';
+
+  /// Human-friendly operating status label (e.g. "Running" / "Standby" for generators, "Moving" / "Stopped" for vehicles).
+  String get effectiveStatusLabel {
+    if (isGenerator) {
+      switch (status) {
+        case VehicleStatus.moving:
+          return 'Running';
+        case VehicleStatus.idle:
+          return 'Idle';
+        case VehicleStatus.stopped:
+          return 'Standby';
+        case VehicleStatus.offline:
+          return 'No Data';
+        case VehicleStatus.noData:
+          return 'Offline';
+      }
+    }
+    return status.label;
+  }
 
   /// True if Safety Parking (Theft Alarm) is armed for this vehicle.
   bool get isSafetyParkActive {

@@ -7,9 +7,23 @@ class VehicleIcons {
   static IconData forType(String type) => switch (type.toLowerCase().trim()) {
         'truck' || 'lorry' || 'hgv' || 'trailer' => Icons.local_shipping_rounded,
         'bus' || 'coach' || 'van' => Icons.directions_bus_rounded,
-        'bike' || 'motorcycle' || 'scooter' || 'scooty' || 'two-wheeler' =>
+        'scooter' || 'scooty' || 'vespa' || 'activa' =>
+          Icons.moped_rounded,
+        'bike' || 'motorcycle' || 'two-wheeler' =>
           Icons.two_wheeler_rounded,
-        'jcb' || 'excavator' || 'backhoe' =>
+        'auto' ||
+        'rickshaw' ||
+        'autorickshaw' ||
+        'tuk-tuk' ||
+        'tuktuk' ||
+        'three-wheeler' ||
+        '3-wheeler' =>
+          Icons.electric_rickshaw_rounded,
+        'borewell' || 'drilling' || 'drilling_rig' || 'rig' =>
+          Icons.hardware_rounded,
+        'crane' || 'crawler_crane' || 'mobile_crane' =>
+          Icons.precision_manufacturing_rounded,
+        'jcb' || 'hitachi' || 'excavator' || 'poclain' || 'backhoe' =>
           Icons.construction_rounded,
         'tractor' || 'harvester' =>
           Icons.agriculture_rounded,

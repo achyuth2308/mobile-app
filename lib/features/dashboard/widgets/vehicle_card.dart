@@ -117,7 +117,7 @@ class VehicleCard extends ConsumerWidget {
                         ),
                       ),
                       child: Text(
-                        vehicle.status.label,
+                        vehicle.effectiveStatusLabel,
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
