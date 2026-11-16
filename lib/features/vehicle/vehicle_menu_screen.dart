@@ -1099,15 +1099,17 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           ),
           const SizedBox(height: 5),
 
-          _MenuItemCard(
-            title: 'Fitment Certificate',
-            subtitle: 'AIS-140 compliance PDF',
-            icon: Icons.verified_user_rounded,
-            accentColor: const Color(0xFF10B981),
-            onTap: () =>
-                context.push('/vehicle/${widget.vehicleId}/fitment-certificate'),
-          ),
-          const SizedBox(height: 5),
+          if (vehicle.isTamilNadu) ...[
+            _MenuItemCard(
+              title: 'Fitment Certificate',
+              subtitle: 'AIS-140 compliance PDF',
+              icon: Icons.verified_user_rounded,
+              accentColor: const Color(0xFF10B981),
+              onTap: () =>
+                  context.push('/vehicle/${widget.vehicleId}/fitment-certificate'),
+            ),
+            const SizedBox(height: 5),
+          ],
 
           _MenuItemCard(
             title: 'Vehicle Info & Specs',

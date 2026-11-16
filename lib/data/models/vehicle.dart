@@ -319,6 +319,54 @@ class Vehicle extends Equatable {
     return sp == 'YES' || sp == true;
   }
 
+  /// True only if this vehicle is registered or operating in Tamil Nadu (e.g. TN plate).
+  /// Fitment certificates are strictly reserved for Tamil Nadu vehicles.
+  bool get isTamilNadu {
+    // 1. Direct registration number check (e.g. TN38AB1234, TN-01-1234)
+    final String reg = registrationNumber.trim().toUpperCase();
+    if (reg.isNotEmpty) {
+      final String cleanReg = reg.replaceAll(RegExp(r'[\s\-_]+'), '');
+      if (cleanReg.startsWith('TN')) return true;
+      if (RegExp(r'\bTN[\s\-_]*[0-9]{1,2}', caseSensitive: false).hasMatch(reg)) return true;
+    }
+
+    // 2. Name / Display label check (e.g. "TN 38 BK 1234" or "DURGESH_TN01AD9169")
+    final String n = name.trim().toUpperCase();
+    if (n.isNotEmpty) {
+      final String cleanName = n.replaceAll(RegExp(r'[\s\-_]+'), '');
+      if (cleanName.startsWith('TN')) return true;
+      if (RegExp(r'TN[0-9]{1,2}', caseSensitive: false).hasMatch(cleanName)) return true;
+    }
+
+    // 3. Metadata attributes check (state, districtState, certFormat)
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      final String state = (meta['state'] ??
+              meta['districtState'] ??
+              meta['stateName'] ??
+              meta['rtoState'] ??
+              meta['rto_state'] ??
+              '')
+          .toString()
+          .toLowerCase()
+          .trim();
+      if (state.contains('tamil') || state.contains('tamilnadu') || state == 'tn') {
+        return true;
+      }
+      if (meta['certFormat'] == 'tamilnadu_mining') {
+        return true;
+      }
+    }
+
+    final dynamic rawState = raw['state'] ?? raw['districtState'] ?? raw['stateName'];
+    if (rawState != null) {
+      final String s = rawState.toString().toLowerCase().trim();
+      if (s.contains('tamil') || s.contains('tamilnadu') || s == 'tn') return true;
+    }
+
+    return false;
+  }
+
   /// Returns a copy of this vehicle with Safety Parking updated.
   Vehicle withSafetyPark(bool armed) {
     final Map<String, dynamic> newRaw = Map<String, dynamic>.from(raw);

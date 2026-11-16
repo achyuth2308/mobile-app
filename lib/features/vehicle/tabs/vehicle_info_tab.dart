@@ -127,23 +127,24 @@ class _VehicleInfoTabState extends ConsumerState<VehicleInfoTab> {
           ],
         ),
 
-        const SizedBox(height: Gap.lg),
-
-        FilledButton.tonalIcon(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981).withOpacity(0.12),
-            foregroundColor: const Color(0xFF059669),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            side: BorderSide(color: const Color(0xFF10B981).withOpacity(0.3)),
+        if (v.isTamilNadu) ...[
+          const SizedBox(height: Gap.lg),
+          FilledButton.tonalIcon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981).withOpacity(0.12),
+              foregroundColor: const Color(0xFF059669),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              side: BorderSide(color: const Color(0xFF10B981).withOpacity(0.3)),
+            ),
+            onPressed: () =>
+                context.push('/vehicle/${v.id}/fitment-certificate'),
+            icon: const Icon(Icons.verified_user_rounded, size: 18),
+            label: const Text(
+              'View & Download Fitment Certificate',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
-          onPressed: () =>
-              context.push('/vehicle/${v.id}/fitment-certificate'),
-          icon: const Icon(Icons.verified_user_rounded, size: 18),
-          label: const Text(
-            'View & Download Fitment Certificate',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
+        ],
 
         const SizedBox(height: Gap.xxl),
 

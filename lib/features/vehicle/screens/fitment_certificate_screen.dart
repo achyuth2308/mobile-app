@@ -262,6 +262,88 @@ class _FitmentCertificateScreenState
       );
     }
 
+    // Fitment certificate is strictly for Tamil Nadu vehicles
+    if (!vehicle.isTamilNadu) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+        appBar: AppBar(
+          title: const Text('Fitment Certificate'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/vehicle/${widget.vehicleId}');
+              }
+            },
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.verified_user_outlined,
+                    size: 56,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Certificate Not Available',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'AIS-140 Fitment Certificates are only issued for Tamil Nadu (TN) registered vehicles.\n\nVehicle: ${vehicle.displayName}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/vehicle/${widget.vehicleId}');
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Back to Vehicle'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final Map<String, dynamic> metadata =
         vehicle.raw['metadata'] as Map<String, dynamic>? ??
             <String, dynamic>{};
@@ -279,7 +361,6 @@ class _FitmentCertificateScreenState
 
     final String vehiclePlate = cleaned['plate']!;
     final String ownerName = cleaned['owner']!;
-    final String plateUp = vehiclePlate.toUpperCase();
 
     final String imei = _remoteCertData?['imei'] ?? vehicle.imei;
     final String cleanImei = imei.replaceAll(RegExp(r'\D'), '');
@@ -402,30 +483,13 @@ class _FitmentCertificateScreenState
     // Option 3: NO auto-generated serial numbers. Only real serial numbers from DB.
     final String deviceSerialNo = rawSerial;
 
-    // Vehicle's official certificate format (assigned by platform/state)
-    final bool isTelangana = plateUp.startsWith('TS') ||
-        plateUp.startsWith('TG') ||
-        plateUp.contains('TS') ||
-        plateUp.contains('TG') ||
-        rawVehicleLabel.toUpperCase().contains('TS') ||
-        rawVehicleLabel.toUpperCase().contains('TG');
-
-    final String activeCategory = _remoteCertData?['certFormat'] ??
-        metadata['certFormat'] ??
-        (isTelangana
-            ? 'telangana_mining'
-            : (plateUp.startsWith('TN')
-                ? 'tamilnadu_mining'
-                : 'tamilnadu_mining'));
+    // Vehicle's official certificate format - strictly Tamil Nadu Mining Vehicle
+    const String activeCategory = 'tamilnadu_mining';
 
     // District & State
-    final String districtState = (activeCategory == 'telangana_mining' || isTelangana)
-        ? (_remoteCertData?['districtState'] ??
-            metadata['districtState'] ??
-            'Telangana')
-        : (_remoteCertData?['districtState'] ??
-            metadata['districtState'] ??
-            'Tamil Nadu');
+    final String districtState = _remoteCertData?['districtState'] ??
+        metadata['districtState'] ??
+        'Tamil Nadu';
 
     // Vehicle Type (Mining tipper/lorry)
     String vehicleType = _remoteCertData?['vehicleType'] ??
@@ -438,9 +502,7 @@ class _FitmentCertificateScreenState
       vehicleType = 'LORRY';
     }
 
-    final String vehicleCategory = activeCategory == 'normal_tracking'
-        ? 'Commercial Vehicle'
-        : 'Mining Vehicle';
+    const String vehicleCategory = 'Mining Vehicle';
 
     final String iccid = (_remoteCertData?['iccid'] ??
             metadata['iccid'] ??
@@ -569,14 +631,10 @@ class _FitmentCertificateScreenState
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    activeCategory == 'telangana_mining'
-                        ? 'FITMENT CERTIFICATE – TELANGANA MINING VEHICLE'
-                        : (activeCategory == 'tamilnadu_mining'
-                            ? 'FITMENT CERTIFICATE – TAMILNADU MINING VEHICLE'
-                            : 'FITMENT CERTIFICATE – VEHICLE GPS TRACKING'),
+                  const Text(
+                    'FITMENT CERTIFICATE – TAMILNADU MINING VEHICLE',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.2,
@@ -620,12 +678,10 @@ class _FitmentCertificateScreenState
                   const SizedBox(height: 14),
 
                   // Official Statutory Opening Statement
-                  Text(
-                    activeCategory == 'normal_tracking'
-                        ? 'This is to certify that the Vehicle Location Tracking Device (GPS) compliant with statutory standards, as prescribed under the Central Motor Vehicle Rules, has been installed and activated in the below mentioned Vehicle'
-                        : 'This is to certify that the Vehicle Location Tracking Device (VLTD) compliant with Automotive Industry Standard (AIS-140), as prescribed under the Central Motor Vehicle Rules, has been installed and activated in the below mentioned Mining Vehicle',
+                  const Text(
+                    'This is to certify that the Vehicle Location Tracking Device (VLTD) compliant with Automotive Industry Standard (AIS-140), as prescribed under the Central Motor Vehicle Rules, has been installed and activated in the below mentioned Mining Vehicle',
                     textAlign: TextAlign.justify,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
                       height: 1.4,
                       color: Colors.black,
@@ -670,14 +726,10 @@ class _FitmentCertificateScreenState
                   // ── 4. VLTD INSTALLATION & INTEGRATION STATEMENT ─────
                   _buildSectionHeading(
                       '4. VLTD INSTALLATION & INTEGRATION STATEMENT'),
-                  Text(
-                    activeCategory == 'telangana_mining'
-                        ? 'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Mining Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. The VLTD installed in this vehicle shall be integrated with the TSMDC (Telangana State Mineral Development Corporation) / Department of Mines and Geology (Government of Telangana) Portal, as directed by the Mining / Transport Authorities, for the purpose of mining vehicle tracking, safety monitoring, permit compliance, and regulatory enforcement.\n\nThis certificate is issued for Mining Vehicle VLTD compliance and monitoring purposes, in accordance with directions issued by the competent authorities.'
-                        : (activeCategory == 'tamilnadu_mining'
-                            ? 'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Mining Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. The VLTD installed in this vehicle shall be integrated with the MiMaS (Mining Monitoring and Management System) Portal, as directed by the Mining / Transport Authorities, for the purpose of mining vehicle tracking, safety monitoring, permit compliance, and regulatory enforcement.\n\nThis certificate is issued for Mining Vehicle VLTD compliance and monitoring purposes, in accordance with directions issued by the competent authorities.'
-                            : 'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. It was physically inspected, sealed, and verified live with active GPS fix, cellular telemetry, and ignition detection for regulatory and fleet compliance.'),
+                  const Text(
+                    'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Mining Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. The VLTD installed in this vehicle shall be integrated with the MiMaS (Mining Monitoring and Management System) Portal, as directed by the Mining / Transport Authorities, for the purpose of mining vehicle tracking, safety monitoring, permit compliance, and regulatory enforcement.\n\nThis certificate is issued for Mining Vehicle VLTD compliance and monitoring purposes, in accordance with directions issued by the competent authorities.',
                     textAlign: TextAlign.justify,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       height: 1.45,
                       color: Colors.black,
