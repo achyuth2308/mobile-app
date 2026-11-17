@@ -186,12 +186,21 @@ class Vehicle extends Equatable {
         lowerType == 'two-wheeler') {
       return 'bike';
     }
+    if (lowerType == 'lorry' ||
+        lowerType == 'cargo_lorry' ||
+        lowerType == 'indian_lorry' ||
+        lowerType == 'indian_truck' ||
+        lowerType == 'multiaxle' ||
+        lowerType == 'multi-axle' ||
+        lowerType == '12_wheeler' ||
+        lowerType == '10_wheeler' ||
+        lowerType == '14_wheeler' ||
+        lowerType == '16_wheeler') {
+      return 'lorry';
+    }
     if (lowerType == 'truck' ||
-        lowerType == 'lorry' ||
         lowerType == 'trailer' ||
         lowerType == 'container' ||
-        lowerType == 'multi-axle' ||
-        lowerType == 'multiaxle' ||
         lowerType == 'cargo_truck' ||
         lowerType == 'heavy_truck') {
       return 'truck';
@@ -246,9 +255,9 @@ class Vehicle extends Equatable {
         lowerName.contains('motor')) {
       return 'bike';
     }
+    if (lowerName.contains('lorry')) return 'lorry';
     if (lowerName.contains('truck') ||
-        lowerName.contains('dumper') ||
-        lowerName.contains('lorry')) {
+        lowerName.contains('dumper')) {
       return 'truck';
     }
 
