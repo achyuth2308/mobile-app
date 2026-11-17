@@ -8,8 +8,6 @@ import '../providers/fuel_analytics_provider.dart';
 import '../services/fuel_service.dart';
 import '../widgets/fuel_analytics_chart.dart';
 import '../widgets/fuel_filter_sheet.dart';
-import '../widgets/fuel_intelligence_card.dart';
-import '../widgets/fuel_packet_table.dart';
 
 class FuelAnalyticsScreen extends ConsumerWidget {
   const FuelAnalyticsScreen({
@@ -52,20 +50,6 @@ class FuelAnalyticsScreen extends ConsumerWidget {
           ),
         ),
         actions: [
-          // Switch between Chart and Table Mode
-          IconButton(
-            tooltip: state.viewMode == FuelViewMode.chart
-                ? 'Switch to Table View'
-                : 'Switch to Chart View',
-            icon: Icon(
-              state.viewMode == FuelViewMode.chart
-                  ? Icons.table_chart_rounded
-                  : Icons.show_chart_rounded,
-              color: const Color(0xFF0F172A),
-            ),
-            onPressed: notifier.toggleViewMode,
-          ),
-
           // Date & Time Filter Sheet
           IconButton(
             tooltip: 'Filter Date & Interval',
@@ -89,7 +73,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
         ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
@@ -286,21 +270,14 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                 ),
               ),
               data: (FuelReportData data) {
-                if (state.viewMode == FuelViewMode.table) {
-                  return FuelPacketTable(points: data.points);
-                }
-
-                // Chart & Web App Dashboard View
                 return LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
-                    final bool isDesktop = constraints.maxWidth >= 960;
-
                     return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // A. Chart Card with Exact Web App Header and Toggles
+                          // Isolated Fuel Graph Card with Web App Header and Toggles
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
@@ -314,7 +291,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                                 ),
                               ],
                             ),
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(10, 14, 10, 14),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
@@ -333,14 +310,20 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                                                 size: 18,
                                               ),
                                               SizedBox(width: 8),
-                                              Text(
-                                                'Fuel vs. Speed vs. Distance Correlation',
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Color(0xFF0F172A),
-                                                ),
-                                              ),
+                                              Expanded(
+                                                 child: Expanded(
+                                                 child: Expanded(
+                                                 child: Text(
+                                                   'Fuel vs. Speed vs. Distance Correlation',
+                                                   style: TextStyle(
+                                                     fontSize: 13,
+                                                     fontWeight: FontWeight.w800,
+                                                     color: Color(0xFF0F172A),
+                                                   ),
+                                                 ),
+                                               ),
+                                               ),
+                                               ),
                                             ],
                                           ),
                                           SizedBox(height: 3),
@@ -394,64 +377,19 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Chart + Side Intelligence Layout
-                                if (isDesktop) ...[
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        flex: 7,
-                                        child: FuelAnalyticsChart(
-                                          points: data.points,
-                                          showAllFuel: state.showAllFuel,
-                                          showFilteredFuel: state.showFilteredFuel,
-                                          showNormalize: state.showNormalize,
-                                          showSpeed: state.showSpeed,
-                                          showEngine: state.showEngine,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      SizedBox(
-                                        width: 310,
-                                        child: FuelIntelligencePanel(
-                                          summary: data.summary,
-                                          rawCount: data.rawCount,
-                                          onTapRawData: () => notifier.setViewMode(FuelViewMode.table),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ] else ...[
-                                  FuelAnalyticsChart(
-                                    points: data.points,
-                                    showAllFuel: state.showAllFuel,
-                                    showFilteredFuel: state.showFilteredFuel,
-                                    showNormalize: state.showNormalize,
-                                    showSpeed: state.showSpeed,
-                                    showEngine: state.showEngine,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  FuelIntelligencePanel(
-                                    summary: data.summary,
-                                    rawCount: data.rawCount,
-                                    onTapRawData: () => notifier.setViewMode(FuelViewMode.table),
-                                  ),
-                                ],
+                                // Dedicated Fuel Analytics Chart
+                                FuelAnalyticsChart(
+                                  points: data.points,
+                                  showAllFuel: state.showAllFuel,
+                                  showFilteredFuel: state.showFilteredFuel,
+                                  showNormalize: state.showNormalize,
+                                  showSpeed: state.showSpeed,
+                                  showEngine: state.showEngine,
+                                ),
                               ],
                             ),
                           ),
-
-                          const SizedBox(height: 16),
-
-                          // B. 5 Status Cards matching Web App Screenshot 2
-                          FuelStatusCards(summary: data.summary),
-
-                          const SizedBox(height: 16),
-
-                          // C. Fuel Fill and Theft Details Table matching Web App Screenshot 2
-                          FuelFillTheftTable(summary: data.summary),
-
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
                         ],
                       ),
                     );

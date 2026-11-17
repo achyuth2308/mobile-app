@@ -35,6 +35,11 @@ class ReportRepository {
     final bool isFleetWideParallel = vehicleId == null &&
         type != ReportType.consolidated &&
         type != ReportType.fuelConsolidated &&
+        type != ReportType.fuelRefill &&
+        type != ReportType.fuelTheft &&
+        type != ReportType.fuelConsumption &&
+        type != ReportType.fuelKmpl &&
+        type != ReportType.fuelLph &&
         type != ReportType.individual &&
         type != ReportType.routeHistory &&
         type != ReportType.geofenceTransit &&
@@ -149,9 +154,14 @@ class ReportRepository {
       cancelToken: cancelToken,
     );
 
-    // Fallback: only for non-consolidated report types
+    // Fallback: only for non-consolidated / non-fuel report types
     if (type != ReportType.consolidated &&
         type != ReportType.fuelConsolidated &&
+        type != ReportType.fuelRefill &&
+        type != ReportType.fuelTheft &&
+        type != ReportType.fuelConsumption &&
+        type != ReportType.fuelKmpl &&
+        type != ReportType.fuelLph &&
         type != ReportType.individual &&
         type != ReportType.geofenceTransit &&
         type != ReportType.geofenceSinglePlace &&
@@ -220,7 +230,8 @@ class ReportRepository {
     ReportResult processedRes = res;
 
     // 1. CONSOLIDATED & FUEL CONSOLIDATED — enrich rows with trips, stoppages, and overspeeds
-    if ((type == ReportType.consolidated || type == ReportType.fuelConsolidated) &&
+    if (type == ReportType.consolidated &&
+        !type.isFuelReport &&
         processedRes.rows.isNotEmpty) {
       try {
         final List<ReportRow> updatedRows = await Future.wait(
@@ -550,44 +561,77 @@ class ReportRepository {
       }
     }
 
-    final dynamic res = await _api.get<dynamic>(
-      type.path,
-      query: <String, dynamic>{
-        'startDate': start.toUtc().toIso8601String(),
-        'endDate': end.toUtc().toIso8601String(),
-        'from': start.toUtc().toIso8601String(),
-        'to': end.toUtc().toIso8601String(),
-        if (vehicleId != null && vehicleId.isNotEmpty) ...<String, dynamic>{
-          'vehicleId': vehicleId,
-          'vehicle': vehicleId,
-          'vehicle_id': vehicleId,
+    // Fast sub-second dashboard route optimization for fuel telematics
+    final String targetEndpoint = (type == ReportType.fuelKmpl)
+        ? '/reports/fuel-consumption'
+        : (type == ReportType.fuelLph ? '/reports/consolidated' : type.path);
+
+    dynamic res;
+    try {
+      res = await _api.get<dynamic>(
+        targetEndpoint,
+        query: <String, dynamic>{
+          'startDate': start.toUtc().toIso8601String(),
+          'endDate': end.toUtc().toIso8601String(),
+          'from': start.toUtc().toIso8601String(),
+          'to': end.toUtc().toIso8601String(),
+          if (vehicleId != null && vehicleId.isNotEmpty) ...<String, dynamic>{
+            'vehicleId': vehicleId,
+            'vehicle': vehicleId,
+            'vehicle_id': vehicleId,
+          },
+          if (vehicleIds != null && vehicleIds.isNotEmpty)
+            'vehicleIds': vehicleIds.join(','),
+          if (type == ReportType.idle) 'onlyIdle': true,
+          if (mode != null && mode.isNotEmpty && mode != 'all') 'mode': mode,
+          if (fromGeofenceId != null && fromGeofenceId.isNotEmpty) ...<String, dynamic>{
+            'fromGeofenceId': fromGeofenceId,
+            'from_geofence_id': fromGeofenceId,
+          },
+          if (toGeofenceId != null && toGeofenceId.isNotEmpty) ...<String, dynamic>{
+            'toGeofenceId': toGeofenceId,
+            'to_geofence_id': toGeofenceId,
+          },
+          if (geofenceId != null && geofenceId.isNotEmpty) ...<String, dynamic>{
+            'geofenceId': geofenceId,
+            'geofence_id': geofenceId,
+          },
         },
-        if (vehicleIds != null && vehicleIds.isNotEmpty)
-          'vehicleIds': vehicleIds.join(','),
-        if (type == ReportType.idle) 'onlyIdle': true,
-        if (mode != null && mode.isNotEmpty && mode != 'all') 'mode': mode,
-        if (fromGeofenceId != null && fromGeofenceId.isNotEmpty) ...<String, dynamic>{
-          'fromGeofenceId': fromGeofenceId,
-          'from_geofence_id': fromGeofenceId,
-        },
-        if (toGeofenceId != null && toGeofenceId.isNotEmpty) ...<String, dynamic>{
-          'toGeofenceId': toGeofenceId,
-          'to_geofence_id': toGeofenceId,
-        },
-        if (geofenceId != null && geofenceId.isNotEmpty) ...<String, dynamic>{
-          'geofenceId': geofenceId,
-          'geofence_id': geofenceId,
-        },
-      },
-      cancelToken: cancelToken,
-    );
+        cancelToken: cancelToken,
+      );
+    } catch (e) {
+      if (type.isFuelReport) {
+        debugPrint('Dedicated fuel endpoint ${type.path} failed ($e), falling back to /reports/consolidated for fast response');
+        try {
+          res = await _api.get<dynamic>(
+            '/reports/consolidated',
+            query: <String, dynamic>{
+              'startDate': start.toUtc().toIso8601String(),
+              'endDate': end.toUtc().toIso8601String(),
+              'from': start.toUtc().toIso8601String(),
+              'to': end.toUtc().toIso8601String(),
+              if (vehicleId != null && vehicleId.isNotEmpty) ...<String, dynamic>{
+                'vehicleId': vehicleId,
+                'vehicle': vehicleId,
+                'vehicle_id': vehicleId,
+              },
+            },
+            cancelToken: cancelToken,
+          );
+        } catch (_) {
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
+    }
 
     dynamic filteredRes = res;
     if (vehicleId != null && vehicleId.isNotEmpty) {
       filteredRes = _filterPayloadByVehicle(res, vehicleId, vehicle);
     }
 
-    if (vehicle != null && type != ReportType.consolidated && type != ReportType.fuelConsolidated) {
+    if (vehicle != null && type != ReportType.consolidated && type != ReportType.fuelConsolidated && !type.isFuelReport) {
       _injectVehicleDetails(filteredRes, vehicle);
     }
 
@@ -604,12 +648,22 @@ class ReportRepository {
         columns: parsed.columns,
       );
     }
+    if (type == ReportType.fuelTheft) {
+      final List<ReportRow> theftRows = parsed.rows
+          .where((ReportRow row) => (row.theftAmount ?? row.theft ?? 0.0) > 0.0 || (row.raw['type'] == 'theft') || (row.raw['event'] == 'theft'))
+          .toList();
+      return ReportResult(
+        rows: theftRows,
+        summary: ReportSummary.fromRows(theftRows),
+        columns: parsed.columns,
+      );
+    }
     return parsed;
   }
 
   dynamic _filterPayloadByVehicle(dynamic payload, String vehicleId, [Vehicle? vehicle]) {
     if (payload is List) {
-      return payload.where((item) {
+      final List filtered = payload.where((item) {
         if (item is Map) {
           final String? rowVehicleId = item['vehicle_id']?.toString() ??
               item['vehicleId']?.toString() ??
@@ -641,6 +695,11 @@ class ReportRepository {
         }
         return true;
       }).toList();
+
+      if (filtered.isEmpty && payload.isNotEmpty) {
+        return payload; // Server already scoped by vehicleId
+      }
+      return filtered;
     } else if (payload is Map<String, dynamic>) {
       final Map<String, dynamic> copy = Map<String, dynamic>.of(payload);
       copy.forEach((key, val) {

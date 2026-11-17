@@ -623,7 +623,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
                 },
                 onReports: () {
                   GoRouter.of(context)
-                      .push('/reports?vehicle=${selectedV.id}');
+                      .push('/report-detail/trip?vehicle=${selectedV.id}');
                 },
                 onDetails: () {
                   GoRouter.of(context)

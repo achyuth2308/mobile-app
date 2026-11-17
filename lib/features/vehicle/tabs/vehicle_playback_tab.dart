@@ -1482,7 +1482,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     },
                     onReports: () {
                       GoRouter.of(context)
-                          .push('/reports?vehicle=${widget.vehicleId}');
+                          .push('/report-detail/trip?vehicle=${widget.vehicleId}');
                     },
                     onDetails: () {
                       GoRouter.of(context)
@@ -1590,7 +1590,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                 },
                 onReports: () {
                   GoRouter.of(context)
-                      .push('/reports?vehicle=${widget.vehicleId}');
+                      .push('/report-detail/trip?vehicle=${widget.vehicleId}');
                 },
                 onDetails: () {
                   GoRouter.of(context)

@@ -116,27 +116,14 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
 
     final double maxX = (widget.points.length - 1).toDouble();
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.fromLTRB(8, 16, 8, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 1. Chart Sub-header with Dual Axis Indicator
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -454,60 +441,66 @@ class _HoveredPacketBanner extends StatelessWidget {
         color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.touch_app_rounded,
-                  size: 14, color: Color(0xFF38BDF8)),
-              const SizedBox(width: 6),
-              Text(
-                DateFormat('HH:mm:ss').format(point.timestamp),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.touch_app_rounded,
+                    size: 14, color: Color(0xFF38BDF8)),
+                const SizedBox(width: 6),
+                Text(
+                  DateFormat('HH:mm:ss').format(point.timestamp),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Fuel: ${point.displayFuel.toStringAsFixed(1)} L',
+              style: const TextStyle(
+                color: Color(0xFF38BDF8),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Speed: ${point.speed.round()} km/h',
+              style: const TextStyle(
+                color: Color(0xFFFB923C),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: point.ignition
+                    ? const Color(0xFF16A34A).withValues(alpha: 0.2)
+                    : const Color(0xFFEF4444).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                point.ignition ? 'IGN ON' : 'IGN OFF',
+                style: TextStyle(
+                  color: point.ignition
+                      ? const Color(0xFF4ADE80)
+                      : const Color(0xFFF87171),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ],
-          ),
-          Text(
-            'Fuel: ${point.displayFuel.toStringAsFixed(1)} L',
-            style: const TextStyle(
-              color: Color(0xFF38BDF8),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
             ),
-          ),
-          Text(
-            'Speed: ${point.speed.round()} km/h',
-            style: const TextStyle(
-              color: Color(0xFFFB923C),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: point.ignition
-                  ? const Color(0xFF16A34A).withValues(alpha: 0.2)
-                  : const Color(0xFFEF4444).withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              point.ignition ? 'IGN ON' : 'IGN OFF',
-              style: TextStyle(
-                color: point.ignition
-                    ? const Color(0xFF4ADE80)
-                    : const Color(0xFFF87171),
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -518,13 +511,13 @@ class _ChartLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 14,
+      runSpacing: 6,
       children: [
         _legendItem('Fuel (L)', const Color(0xFF0284C7)),
-        const SizedBox(width: 16),
         _legendItem('Speed (km/h)', const Color(0xFFF97316)),
-        const SizedBox(width: 16),
         _legendItem('Engine Active', const Color(0xFFFBBF24)),
       ],
     );

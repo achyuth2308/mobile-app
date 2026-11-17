@@ -14,6 +14,11 @@ enum ReportType {
   idle,
   consolidated,
   fuelConsolidated,
+  fuelRefill,
+  fuelTheft,
+  fuelConsumption,
+  fuelKmpl,
+  fuelLph,
   individual,
   manualTrip,
   geofenceTransit,
@@ -33,6 +38,11 @@ extension ReportTypeX on ReportType {
         ReportType.idle => '/reports/stoppages',
         ReportType.consolidated => '/reports/consolidated',
         ReportType.fuelConsolidated => '/reports/consolidated',
+        ReportType.fuelRefill => '/reports/fuel-refill',
+        ReportType.fuelTheft => '/reports/fuel-refill',
+        ReportType.fuelConsumption => '/reports/fuel-consumption',
+        ReportType.fuelKmpl => '/reports/fuel-kmpl',
+        ReportType.fuelLph => '/reports/fuel-lph',
         ReportType.individual => '/reports/individual',
         ReportType.manualTrip => '/trips',
         ReportType.geofenceTransit => '/reports/geofence-transit',
@@ -51,6 +61,11 @@ extension ReportTypeX on ReportType {
         ReportType.idle => 'Idle Report',
         ReportType.consolidated => 'Consolidated',
         ReportType.fuelConsolidated => 'Fuel Consolidated',
+        ReportType.fuelRefill => 'Refill Report',
+        ReportType.fuelTheft => 'Theft Report',
+        ReportType.fuelConsumption => 'Consumption Report',
+        ReportType.fuelKmpl => 'KMPL Report',
+        ReportType.fuelLph => 'LPH Report',
         ReportType.individual => 'Individual Summary',
         ReportType.manualTrip => 'Manual Trips',
         ReportType.geofenceTransit => 'Geofence Trips',
@@ -69,11 +84,28 @@ extension ReportTypeX on ReportType {
         ReportType.idle => 'Engine running while stationary — wasted fuel',
         ReportType.consolidated => 'Whole-fleet operational totals in a single sheet',
         ReportType.fuelConsolidated => 'Whole-fleet fuel consumption, refuels, thefts and mileage',
+        ReportType.fuelRefill => 'Fuel fill events, station stops, timestamps and liters',
+        ReportType.fuelTheft => 'Sudden fuel drops, suspected siphon events and drain locations',
+        ReportType.fuelConsumption => 'Total fuel burned, starting/ending levels and distance covered',
+        ReportType.fuelKmpl => 'Kilometers per liter fuel economy and mileage ranking',
+        ReportType.fuelLph => 'Liters per hour burn rate and engine utilization efficiency',
         ReportType.individual => 'Deep-dive summary for one vehicle',
         ReportType.manualTrip => 'Pre-planned and manually tracked trips',
         ReportType.geofenceTransit => 'Corridor transit trips between geofences (One-Way, Two-Way & Round Trip)',
         ReportType.geofenceSinglePlace => 'Vehicle entry, exit, duration & idle time at a specific place',
         ReportType.dailyTrip => 'Consolidates the complete day\'s journey from initial departure to final arrival',
+      };
+
+  /// Whether this report requires fuel sensor telematics
+  bool get isFuelReport => switch (this) {
+        ReportType.fuelConsolidated ||
+        ReportType.fuelRefill ||
+        ReportType.fuelTheft ||
+        ReportType.fuelConsumption ||
+        ReportType.fuelKmpl ||
+        ReportType.fuelLph =>
+          true,
+        _ => false,
       };
 
   /// A single vehicle must be chosen before running these operational reports.
@@ -517,7 +549,9 @@ class ReportRow extends Equatable {
       ]);
   double? get consumption => asDoubleOrNull(raw, <String>['total_fuel_consume', 'totalFuelConsume', 'consumption', 'fuelConsumption', 'fuel_used', 'fuelUsed', 'totalConsumption', 'total_consumption', 'fuel_consumed']);
   double? get filling => asDoubleOrNull(raw, <String>['total_fuel_fill', 'totalFuelFill', 'filling', 'fuelFilling', 'fuelFilled', 'refuels', 'refuel', 'totalFilling', 'total_filling', 'total_fill']);
+  double? get refillAmount => asDoubleOrNull(raw, <String>['refill_amount', 'refillAmount', 'refill', 'refilled_liters', 'refilledLiters', 'refill_qty', 'refillQty']) ?? filling;
   double? get theft => asDoubleOrNull(raw, <String>['total_fuel_theft', 'totalFuelTheft', 'theft', 'fuelTheft', 'thefts', 'drain', 'totalTheft', 'total_theft', 'fuel_theft']);
+  double? get theftAmount => asDoubleOrNull(raw, <String>['theft_amount', 'theftAmount', 'drain_amount', 'drainAmount', 'drained_liters', 'drainedLiters']) ?? theft;
   double? get kmpl => asDoubleOrNull(raw, <String>['kmpl', 'mileage', 'average', 'fuel_economy', 'fuelEconomy']);
   double? get lph => asDoubleOrNull(raw, <String>['lph', 'litresPerHour', 'avg_fuel_consumption_hourly']);
   String? get fromLocation {

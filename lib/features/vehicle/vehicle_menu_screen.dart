@@ -1530,35 +1530,35 @@ class _ReportsHubSectionState extends State<_ReportsHubSection> {
       subtitle: 'Routes & distance logs',
       icon: Icons.route_rounded,
       accentColor: const Color(0xFF8B5CF6),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=trip'),
+      onTap: () => context.push('/report-detail/trip?vehicle=${widget.vehicleId}'),
     );
     final fullDayTrip = _ModernReportTile(
       title: 'Full Day Trip',
       subtitle: 'Daily distance & runtime',
       icon: Icons.today_rounded,
       accentColor: const Color(0xFF6366F1),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=dailyTrip'),
+      onTap: () => context.push('/report-detail/dailyTrip?vehicle=${widget.vehicleId}'),
     );
     final geofenceTrips = _ModernReportTile(
       title: 'Geofence Trips',
       subtitle: 'Zone entry & exit logs',
       icon: Icons.alt_route_rounded,
       accentColor: const Color(0xFF0D9488),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=geofenceTransit'),
+      onTap: () => context.push('/report-detail/geofenceTransit?vehicle=${widget.vehicleId}'),
     );
     final stoppageReport = _ModernReportTile(
       title: 'Stoppage Report',
       subtitle: 'Halt locations & duration',
       icon: Icons.pause_circle_rounded,
       accentColor: const Color(0xFFEA580C),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=stoppages'),
+      onTap: () => context.push('/report-detail/stoppages?vehicle=${widget.vehicleId}'),
     );
     final idleReport = _ModernReportTile(
       title: 'Idle Report',
       subtitle: 'Idle runtime & fuel waste',
       icon: Icons.access_time_rounded,
       accentColor: const Color(0xFFD97706),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=idle'),
+      onTap: () => context.push('/report-detail/idle?vehicle=${widget.vehicleId}'),
     );
     final primaryEngineOn = _ModernReportTile(
       title: 'Primary Engine On',
@@ -1572,14 +1572,14 @@ class _ReportsHubSectionState extends State<_ReportsHubSection> {
       subtitle: 'Speed threshold violations',
       icon: Icons.speed_rounded,
       accentColor: const Color(0xFFE11D48),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=overspeeding'),
+      onTap: () => context.push('/report-detail/overspeeding?vehicle=${widget.vehicleId}'),
     );
     final consolidated = _ModernReportTile(
       title: 'Consolidated',
       subtitle: 'Performance audit summary',
       icon: Icons.group_work_rounded,
       accentColor: const Color(0xFF16A34A),
-      onTap: () => context.go('/reports?vehicle=${widget.vehicleId}&type=consolidated'),
+      onTap: () => context.push('/report-detail/consolidated?vehicle=${widget.vehicleId}'),
     );
 
     switch (_activeCategory) {
@@ -1638,7 +1638,7 @@ class _ReportsHubSectionState extends State<_ReportsHubSection> {
   }
 }
 
-/// Dedicated Fuel Reports Section for fuel-equipped vehicles
+/// Dedicated Fuel Reports Section for fuel-equipped vehicles (7 Modules)
 class _FuelReportsSection extends StatelessWidget {
   const _FuelReportsSection({required this.vehicleId});
 
@@ -1646,33 +1646,67 @@ class _FuelReportsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kmplReport = _ModernReportTile(
-      title: 'KMPL Report',
-      subtitle: 'Distance & mileage efficiency',
-      icon: Icons.speed_rounded,
+    // 1. Fuel Graph (Dedicated Full Screen Chart View)
+    final fuelGraph = _ModernReportTile(
+      title: 'Fuel Graph',
+      subtitle: 'Interactive fuel level vs. speed time-series',
+      icon: Icons.show_chart_rounded,
       accentColor: const Color(0xFF0284C7),
       onTap: () => context.push('/vehicle/$vehicleId/fuel-analytics'),
     );
-    final lphReport = _ModernReportTile(
-      title: 'LPH Report',
-      subtitle: 'Hourly fuel burn rate',
-      icon: Icons.timelapse_rounded,
-      accentColor: const Color(0xFFD97706),
-      onTap: () => context.push('/vehicle/$vehicleId/fuel-analytics'),
-    );
+
+    // 2. Fuel Refill Report
     final refillReport = _ModernReportTile(
       title: 'Refill Report',
-      subtitle: 'Fills, pump locations & liters',
+      subtitle: 'Fills, pump stations & liters',
       icon: Icons.local_gas_station_rounded,
       accentColor: const Color(0xFF16A34A),
-      onTap: () => context.go('/reports?vehicle=$vehicleId&type=fuelConsolidated'),
+      onTap: () => context.push('/report-detail/fuelRefill?vehicle=$vehicleId'),
     );
+
+    // 3. Fuel Theft Report
     final theftReport = _ModernReportTile(
       title: 'Theft Report',
       subtitle: 'Siphons, sudden drops & drains',
       icon: Icons.warning_amber_rounded,
       accentColor: const Color(0xFFE11D48),
-      onTap: () => context.go('/reports?vehicle=$vehicleId&type=fuelConsolidated'),
+      onTap: () => context.push('/report-detail/fuelTheft?vehicle=$vehicleId'),
+    );
+
+    // 4. Fuel Consumption Report
+    final consumptionReport = _ModernReportTile(
+      title: 'Consumption',
+      subtitle: 'Fuel consumed vs. distance',
+      icon: Icons.water_drop_rounded,
+      accentColor: const Color(0xFF0284C7),
+      onTap: () => context.push('/report-detail/fuelConsumption?vehicle=$vehicleId'),
+    );
+
+    // 5. Fuel Consolidated
+    final consolidatedReport = _ModernReportTile(
+      title: 'Fuel Consolidated',
+      subtitle: 'Full fuel audit summary sheet',
+      icon: Icons.summarize_rounded,
+      accentColor: const Color(0xFFEA580C),
+      onTap: () => context.push('/report-detail/fuelConsolidated?vehicle=$vehicleId'),
+    );
+
+    // 6. KMPL Report
+    final kmplReport = _ModernReportTile(
+      title: 'KMPL Report',
+      subtitle: 'Distance & mileage efficiency',
+      icon: Icons.speed_rounded,
+      accentColor: const Color(0xFF0284C7),
+      onTap: () => context.push('/report-detail/fuelKmpl?vehicle=$vehicleId'),
+    );
+
+    // 7. LPH Report
+    final lphReport = _ModernReportTile(
+      title: 'LPH Report',
+      subtitle: 'Hourly fuel burn rate',
+      icon: Icons.timelapse_rounded,
+      accentColor: const Color(0xFFD97706),
+      onTap: () => context.push('/report-detail/fuelLph?vehicle=$vehicleId'),
     );
 
     return Column(
@@ -1680,22 +1714,36 @@ class _FuelReportsSection extends StatelessWidget {
       children: [
         const _SectionHeader(
           label: 'FUEL REPORTS',
-          trailing: '4 Modules',
+          trailing: '7 Modules',
         ),
         const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(child: kmplReport),
-            const SizedBox(width: 8),
-            Expanded(child: lphReport),
-          ],
-        ),
+        // 1. Featured Fuel Graph Card (Full Width)
+        fuelGraph,
         const SizedBox(height: 7),
+        // 2 & 3: Refill & Theft
         Row(
           children: [
             Expanded(child: refillReport),
             const SizedBox(width: 8),
             Expanded(child: theftReport),
+          ],
+        ),
+        const SizedBox(height: 7),
+        // 4 & 5: Consumption & Fuel Consolidated
+        Row(
+          children: [
+            Expanded(child: consumptionReport),
+            const SizedBox(width: 8),
+            Expanded(child: consolidatedReport),
+          ],
+        ),
+        const SizedBox(height: 7),
+        // 6 & 7: KMPL & LPH
+        Row(
+          children: [
+            Expanded(child: kmplReport),
+            const SizedBox(width: 8),
+            Expanded(child: lphReport),
           ],
         ),
       ],

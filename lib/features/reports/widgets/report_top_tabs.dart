@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../data/models/report_models.dart';
+import '../../../data/models/vehicle.dart';
 
 class ReportTabMeta {
   const ReportTabMeta({
@@ -85,9 +86,44 @@ const List<ReportTabMeta> kReportTabs = <ReportTabMeta>[
   ReportTabMeta(
     type: ReportType.fuelConsolidated,
     title: 'Fuel Consolidated',
-    icon: Icons.local_gas_station_rounded,
+    icon: Icons.summarize_rounded,
     color: Color(0xFFEA580C),
     bg: Color(0xFFFFF7ED),
+  ),
+  ReportTabMeta(
+    type: ReportType.fuelRefill,
+    title: 'Fuel Refill',
+    icon: Icons.local_gas_station_rounded,
+    color: Color(0xFF16A34A),
+    bg: Color(0xFFDCFCE7),
+  ),
+  ReportTabMeta(
+    type: ReportType.fuelTheft,
+    title: 'Fuel Theft',
+    icon: Icons.warning_amber_rounded,
+    color: Color(0xFFE11D48),
+    bg: Color(0xFFFFF1F2),
+  ),
+  ReportTabMeta(
+    type: ReportType.fuelConsumption,
+    title: 'Consumption',
+    icon: Icons.water_drop_rounded,
+    color: Color(0xFF0284C7),
+    bg: Color(0xFFE0F2FE),
+  ),
+  ReportTabMeta(
+    type: ReportType.fuelKmpl,
+    title: 'KMPL',
+    icon: Icons.speed_rounded,
+    color: Color(0xFF0284C7),
+    bg: Color(0xFFE0F2FE),
+  ),
+  ReportTabMeta(
+    type: ReportType.fuelLph,
+    title: 'LPH',
+    icon: Icons.timelapse_rounded,
+    color: Color(0xFFD97706),
+    bg: Color(0xFFFEF3C7),
   ),
   ReportTabMeta(
     type: ReportType.individual,
@@ -102,14 +138,26 @@ class ReportTopTabs extends StatelessWidget {
   const ReportTopTabs({
     required this.selectedType,
     required this.onTabSelected,
+    this.activeVehicle,
     super.key,
   });
 
   final ReportType selectedType;
   final ValueChanged<ReportType> onTabSelected;
+  final Vehicle? activeVehicle;
 
   @override
   Widget build(BuildContext context) {
+    // Strictly filter out fuel tabs if vehicle has no fuel sensor!
+    final List<ReportTabMeta> visibleTabs = kReportTabs.where((ReportTabMeta tab) {
+      if (tab.type.isFuelReport) {
+        if (activeVehicle != null && !activeVehicle!.hasFuel) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -117,7 +165,7 @@ class ReportTopTabs extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
-          children: kReportTabs.map((ReportTabMeta tab) {
+          children: visibleTabs.map((ReportTabMeta tab) {
             final bool isActive = tab.type == selectedType;
             return Padding(
               padding: const EdgeInsets.only(right: 8),

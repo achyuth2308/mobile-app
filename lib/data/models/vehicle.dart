@@ -190,8 +190,19 @@ class Vehicle extends Equatable {
       !(latitude == 0 && longitude == 0);
 
   /// True only if this vehicle has calibrated fuel telemetry from its device/sensor.
-  bool get hasFuel =>
-      fuelLevel != null && fuelLevel! > 0 && fuelLevel! <= 1000;
+  bool get hasFuel {
+    if (fuelLevel != null && fuelLevel! > 0 && fuelLevel! <= 1000) return true;
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      if (meta['hasFuelSensor'] == true || meta['hasFuelSensor'] == 'YES') return true;
+      if (meta['fuelSensor'] == true || meta['fuelSensor'] == 'YES') return true;
+      if (meta['fuelConfig'] != null) return true;
+      final dynamic ts = meta['tankSize'] ?? meta['tank_size'];
+      if (ts != null && ts.toString() != '0' && ts.toString().isNotEmpty) return true;
+    }
+    if (raw['hasFuelSensor'] == true || raw['fuelSensor'] == true) return true;
+    return false;
+  }
 
   /// True if Safety Parking (Theft Alarm) is armed for this vehicle.
   bool get isSafetyParkActive {

@@ -306,40 +306,6 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<FleetState>(fleetProvider, (FleetState? prev, FleetState next) {
-      if (!mounted || next.vehicles.isEmpty) return;
-
-      bool updated = false;
-      if (_vehicleId != null && _vehicleId!.isNotEmpty) {
-        final String cleanId = _vehicleId!.trim().toLowerCase();
-        final Vehicle? matched = next.vehicles.where((Vehicle v) =>
-            v.id == _vehicleId ||
-            v.id.toLowerCase() == cleanId ||
-            v.registrationNumber.toLowerCase() == cleanId).firstOrNull;
-        if (matched != null && _vehicleId != matched.id) {
-          _vehicleId = matched.id;
-          updated = true;
-        }
-      } else if (_currentType.requiresVehicle) {
-        final String? initial = widget.initialVehicleId;
-        final Vehicle? matched = initial != null
-            ? next.vehicles.where((Vehicle v) {
-                final String clean = initial.trim().toLowerCase();
-                return v.id == initial ||
-                    v.id.toLowerCase() == clean ||
-                    v.registrationNumber.toLowerCase() == clean;
-              }).firstOrNull
-            : null;
-        _vehicleId = matched?.id ?? next.vehicles.first.id;
-        updated = true;
-      }
-
-      if (updated || (_result == null && !_loading && _error != null)) {
-        setState(() {});
-        _run();
-      }
-    });
-
     final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
     final ReportResult? res = _result;
     final List<ReportRow> allRows = res?.rows ?? const <ReportRow>[];
@@ -375,10 +341,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
-            if (widget.initialVehicleId != null && widget.initialVehicleId!.isNotEmpty) {
-              context.go('/vehicle/${widget.initialVehicleId}');
-            } else if (context.canPop()) {
+            if (context.canPop()) {
               context.pop();
+            } else if (widget.initialVehicleId != null && widget.initialVehicleId!.isNotEmpty) {
+              context.go('/vehicle/${widget.initialVehicleId}');
             } else {
               context.go('/dashboard');
             }
@@ -412,9 +378,17 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             children: <Widget>[
               // Top Horizontal Tabs (only shown for global fleet reports hub)
               if (widget.initialVehicleId == null) ...[
-                ReportTopTabs(
-                  selectedType: _currentType,
-                  onTabSelected: _onTabChanged,
+                Builder(
+                  builder: (context) {
+                    final Vehicle? activeV = _vehicleId != null
+                        ? ref.watch(fleetProvider).vehicles.where((v) => v.id == _vehicleId).firstOrNull
+                        : null;
+                    return ReportTopTabs(
+                      selectedType: _currentType,
+                      onTabSelected: _onTabChanged,
+                      activeVehicle: activeV,
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
               ],
@@ -855,6 +829,49 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         ? ref.read(fleetProvider).vehicles.where((v) => v.id == _vehicleId).firstOrNull
         : null;
 
+    if (type.isFuelReport && selectedVehicle != null && !selectedVehicle.hasFuel) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEF2F2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.local_gas_station_rounded,
+                  size: 36,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No Fuel Sensor Configured',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${selectedVehicle.displayName} (${selectedVehicle.registrationNumber}) does not have calibrated fuel telematics configured.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     switch (type) {
       case ReportType.trip:
         return TripReportTable(rows: res.rows, showVehicle: showVehicle);
@@ -895,6 +912,41 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         );
       case ReportType.fuelConsolidated:
         return FuelConsolidatedReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.fuelRefill:
+        return FuelRefillReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.fuelTheft:
+        return FuelTheftReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.fuelConsumption:
+        return FuelConsumptionReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.fuelKmpl:
+        return FuelKmplReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
+      case ReportType.fuelLph:
+        return FuelLphReportTable(
           rows: res.rows,
           startDate: _startDate,
           endDate: _endDate,

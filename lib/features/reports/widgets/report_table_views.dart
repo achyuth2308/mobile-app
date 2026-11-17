@@ -1978,7 +1978,7 @@ class ConsolidatedReportTable extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// 8. FUEL CONSOLIDATED REPORT TABLE
+// 8. FUEL CONSOLIDATED REPORT TABLE (Mobile Cards & Full Telematics)
 // ═════════════════════════════════════════════════════════════════
 class FuelConsolidatedReportTable extends StatelessWidget {
   const FuelConsolidatedReportTable({
@@ -2001,7 +2001,9 @@ class FuelConsolidatedReportTable extends StatelessWidget {
           (r.endFuel != null && r.endFuel! > 0) ||
           (r.consumption != null && r.consumption! > 0) ||
           (r.filling != null && r.filling! > 0) ||
-          (r.theft != null && r.theft! > 0);
+          (r.theft != null && r.theft! > 0) ||
+          (r.kmpl != null && r.kmpl! > 0) ||
+          (r.lph != null && r.lph! > 0);
       if (hasFuelData) return true;
       final String? vId = r.vehicleId;
       if (vId != null) {
@@ -2047,13 +2049,13 @@ class FuelConsolidatedReportTable extends StatelessWidget {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Header (Vehicle Name & Fuel Consolidated Tag)
+                // Header: Vehicle Name, Plate & Status Badge
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Expanded(
                       child: Column(
@@ -2061,19 +2063,23 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             vName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
                               color: Color(0xFF0F172A),
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
-                            'Plate: $vPlate',
+                            vPlate,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 11,
                               color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -2081,31 +2087,19 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: const Color(0xFFFFEDD5)),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(
-                            Icons.local_gas_station_rounded,
-                            size: 13,
-                            color: Color(0xFFEA580C),
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Fuel Consolidated',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFEA580C),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
+                      child: const Text(
+                        'Fuel Consolidated',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFC2410C),
+                        ),
                       ),
                     ),
                   ],
@@ -2113,17 +2107,13 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Period: $dateText',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
                 ),
-                const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFFFF7ED)),
                 const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                const SizedBox(height: 10),
 
-                // 1. Fuel Inventory & Usage
+                // 1. Fuel Inventory & Usage (3 Expanded Columns - 0 Overflow)
                 const Text(
                   'FUEL INVENTORY & USAGE',
                   style: TextStyle(
@@ -2133,30 +2123,29 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     _buildStat(
                       'START FUEL',
-                      r.startFuel != null ? '${r.startFuel!.toStringAsFixed(1)} L' : '-',
+                      r.startFuel != null ? '${r.startFuel!.toStringAsFixed(1)} L' : '0 L',
                     ),
                     _buildStat(
                       'END FUEL',
-                      r.endFuel != null ? '${r.endFuel!.toStringAsFixed(1)} L' : '-',
+                      r.endFuel != null ? '${r.endFuel!.toStringAsFixed(1)} L' : '0 L',
                     ),
                     _buildStat(
                       'CONSUMPTION',
-                      r.consumption != null ? '${r.consumption!.toStringAsFixed(1)} L' : '-',
+                      r.consumption != null ? '${r.consumption!.toStringAsFixed(1)} L' : '0 L',
                       color: const Color(0xFFDC2626),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFFFF7ED)),
                 const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                const SizedBox(height: 10),
 
-                // 2. Refuels & Drain Alerts
+                // 2. Refuels & Drain Alerts (3 Expanded Columns - 0 Overflow)
                 const Text(
                   'REFUELS & THEFT / DRAIN ALERTS',
                   style: TextStyle(
@@ -2166,27 +2155,26 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     _buildStat(
                       'FUEL FILLED',
-                      r.filling != null && r.filling! > 0
+                      (r.filling != null && r.filling! > 0)
                           ? '+${r.filling!.toStringAsFixed(1)} L'
-                          : (r.filling != null ? '${r.filling!.toStringAsFixed(1)} L' : '-'),
-                      color: r.filling != null && r.filling! > 0
+                          : '0 L',
+                      color: (r.filling != null && r.filling! > 0)
                           ? const Color(0xFF16A34A)
-                          : null,
+                          : const Color(0xFF64748B),
                     ),
                     _buildStat(
                       'THEFT / DRAIN',
-                      r.theft != null && r.theft! > 0
-                          ? '${r.theft!.toStringAsFixed(1)} L'
-                          : (r.theft != null ? '${r.theft!.toStringAsFixed(1)} L' : '-'),
-                      color: r.theft != null && r.theft! > 0
+                      (r.theft != null && r.theft! > 0)
+                          ? '-${r.theft!.toStringAsFixed(1)} L'
+                          : '0 L',
+                      color: (r.theft != null && r.theft! > 0)
                           ? const Color(0xFFDC2626)
-                          : null,
+                          : const Color(0xFF64748B),
                     ),
                     _buildStat(
                       'ENGINE RUN',
@@ -2194,11 +2182,11 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFFFF7ED)),
                 const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                const SizedBox(height: 10),
 
-                // 3. Efficiency & Metrics
+                // 3. Efficiency & Metrics (3 Expanded Columns - 0 Overflow)
                 const Text(
                   'EFFICIENCY & PERFORMANCE',
                   style: TextStyle(
@@ -2208,29 +2196,28 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     _buildStat(
                       'MILEAGE',
-                      r.kmpl != null ? '${r.kmpl!.toStringAsFixed(1)} km/l' : '-',
+                      r.kmpl != null ? '${r.kmpl!.toStringAsFixed(2)} km/L' : '0 km/L',
                       color: const Color(0xFF0284C7),
                     ),
                     _buildStat(
                       'HOURLY (LPH)',
-                      r.lph != null ? '${r.lph!.toStringAsFixed(1)} L/h' : '-',
+                      r.lph != null ? '${r.lph!.toStringAsFixed(2)} L/h' : '0 L/h',
                     ),
                     _buildStat(
                       'DISTANCE',
-                      '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
+                      '${r.distanceTravelled?.toStringAsFixed(1) ?? '0.0'} km',
                     ),
                   ],
                 ),
                 if (r.fromLocation != null || r.toLocation != null || r.startLat != null) ...<Widget>[
-                  const SizedBox(height: 14),
-                  const Divider(height: 1, color: Color(0xFFFFF7ED)),
                   const SizedBox(height: 12),
+                  const Divider(height: 1, color: Color(0xFFFFF7ED)),
+                  const SizedBox(height: 10),
                   const Text(
                     'LOCATION BOUNDS',
                     style: TextStyle(
@@ -2240,11 +2227,11 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   if (r.fromLocation != null || r.startLat != null)
                     _buildLocationRow(context, 'Start Location', r.fromLocation, r.startLat, r.startLng),
                   if (r.toLocation != null || r.endLat != null) ...<Widget>[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     _buildLocationRow(context, 'End Location', r.toLocation, r.endLat, r.endLng),
                   ],
                 ],
@@ -2257,13 +2244,14 @@ class FuelConsolidatedReportTable extends StatelessWidget {
   }
 
   Widget _buildStat(String label, String value, {Color? color}) {
-    return SizedBox(
-      width: 100,
+    return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w800,
@@ -2274,6 +2262,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -2312,6 +2302,1180 @@ class FuelConsolidatedReportTable extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 8.1 FUEL REFILL REPORT TABLE (Mobile Cards & Full Web-Matching Fields)
+// ═════════════════════════════════════════════════════════════════
+class FuelRefillReportTable extends StatelessWidget {
+  const FuelRefillReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<ReportRow> refillRows = rows.where((ReportRow r) {
+      final double rawAmt = r.refillAmount ?? r.filling ?? (r.raw['refill_amount'] != null ? (r.raw['refill_amount'] as num).toDouble() : 0.0);
+      final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
+      final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
+      final bool hasRefillCalc = rawAmt > 0 || (startF != null && endF != null && endF > startF);
+      return hasRefillCalc;
+    }).toList();
+
+    if (refillRows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No fuel refill events found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: refillRows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = refillRows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+
+        final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
+        final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
+        double amount = r.refillAmount ?? r.filling ?? (r.raw['refill_amount'] != null ? (r.raw['refill_amount'] as num).toDouble() : 0.0);
+        if ((amount <= 0 || amount.isNaN) && startF != null && endF != null && endF > startF) {
+          amount = endF - startF;
+        }
+
+        final DateTime? eventTime = r.endTime ?? r.startTime ?? r.date;
+        final double? lat = r.latitude ?? r.endLat ?? r.startLat ?? (r.raw['lat'] != null ? (r.raw['lat'] as num).toDouble() : null);
+        final double? lng = r.longitude ?? r.endLng ?? r.startLng ?? (r.raw['lng'] != null ? (r.raw['lng'] as num).toDouble() : null);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFBBF7D0)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.local_gas_station_rounded,
+                        size: 18,
+                        color: Color(0xFF16A34A),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            vName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            vPlate,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF86EFAC)),
+                      ),
+                      child: Text(
+                        '+${amount.toStringAsFixed(1)} L',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF64748B)),
+                      const SizedBox(width: 6),
+                      Text(
+                        eventTime != null ? Fmt.dateTimeFilter(eventTime) : '—',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: <Widget>[
+                    _buildStat('FUEL BEFORE', startF != null ? '${startF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('FUEL AFTER', endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('REFILLED', '+${amount.toStringAsFixed(1)} L', color: const Color(0xFF16A34A)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 8),
+                _buildLocationRow(context, 'Refill Location', r.fromLocation, lat, lng),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStat(String label, String value, {Color? color}) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color ?? const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationRow(
+    BuildContext context,
+    String label,
+    String? address,
+    double? lat,
+    double? lng,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        Expanded(
+          child: AddressCell(
+            lat: lat,
+            lng: lng,
+            fallback: address,
+            maxWidth: double.infinity,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 8.2 FUEL THEFT REPORT TABLE (Mobile Cards & Full Web-Matching Fields)
+// ═════════════════════════════════════════════════════════════════
+class FuelTheftReportTable extends StatelessWidget {
+  const FuelTheftReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<ReportRow> theftRows = rows.where((ReportRow r) {
+      final double rawAmt = r.theftAmount ?? r.theft ?? (r.raw['theft_amount'] != null ? (r.raw['theft_amount'] as num).toDouble() : 0.0);
+      final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
+      final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
+      final bool hasTheftCalc = rawAmt > 0 || (startF != null && endF != null && endF < startF && r.raw['type'] == 'theft');
+      return hasTheftCalc;
+    }).toList();
+
+    if (theftRows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No fuel theft or sudden drain events detected.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: theftRows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = theftRows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+
+        final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
+        final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
+        double amount = r.theftAmount ?? r.theft ?? (r.raw['theft_amount'] != null ? (r.raw['theft_amount'] as num).toDouble() : 0.0);
+        if ((amount <= 0 || amount.isNaN) && startF != null && endF != null && endF < startF) {
+          amount = startF - endF;
+        }
+
+        final DateTime? eventTime = r.endTime ?? r.startTime ?? r.date;
+        final double? lat = r.latitude ?? r.endLat ?? r.startLat ?? (r.raw['lat'] != null ? (r.raw['lat'] as num).toDouble() : null);
+        final double? lng = r.longitude ?? r.endLng ?? r.startLng ?? (r.raw['lng'] != null ? (r.raw['lng'] as num).toDouble() : null);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFFECDD3)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE4E6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        size: 18,
+                        color: Color(0xFFE11D48),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            vName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            vPlate,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE4E6),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFDA4AF)),
+                      ),
+                      child: Text(
+                        '-${amount.toStringAsFixed(1)} L',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFBE123C),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF64748B)),
+                      const SizedBox(width: 6),
+                      Text(
+                        eventTime != null ? Fmt.dateTimeFilter(eventTime) : '—',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: <Widget>[
+                    _buildStat('FUEL BEFORE', startF != null ? '${startF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('FUEL AFTER', endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('DRAINED', '-${amount.toStringAsFixed(1)} L', color: const Color(0xFFE11D48)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 8),
+                _buildLocationRow(context, 'Drain Location', r.fromLocation, lat, lng),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStat(String label, String value, {Color? color}) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color ?? const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationRow(
+    BuildContext context,
+    String label,
+    String? address,
+    double? lat,
+    double? lng,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        Expanded(
+          child: AddressCell(
+            lat: lat,
+            lng: lng,
+            fallback: address,
+            maxWidth: double.infinity,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 8.3 FUEL CONSUMPTION REPORT TABLE (Web Matching Telematics & 0 Overflow)
+// ═════════════════════════════════════════════════════════════════
+class FuelConsumptionReportTable extends StatelessWidget {
+  const FuelConsumptionReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<ReportRow> fuelRows = rows.where((ReportRow r) {
+      final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+      final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
+      final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
+      final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
+      return consumed > 0 || startF != null || endF != null || dist > 0;
+    }).toList();
+
+    if (fuelRows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No fuel consumption records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: fuelRows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = fuelRows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+        final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+        final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
+        final double refill = r.filling ?? (r.raw['total_refill'] != null ? (r.raw['total_refill'] as num).toDouble() : 0.0);
+        final double theft = r.theft ?? (r.raw['total_theft'] != null ? (r.raw['total_theft'] as num).toDouble() : 0.0);
+        final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
+        final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
+        final double? kmpl = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+        final int engineSec = (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0) + (r.raw['engine_on_seconds'] != null ? (r.raw['engine_on_seconds'] as num).toInt() : 0);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFBAE6FD)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Vehicle Header & Net Consumed Pill
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.water_drop_rounded,
+                        size: 18,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            vName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            vPlate,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF7DD3FC)),
+                      ),
+                      child: Text(
+                        '${consumed.toStringAsFixed(1)} L Used',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0369A1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Row 1: Start Fuel, End Fuel, Net Consumed (Expanded - 0 Overflow)
+                Row(
+                  children: <Widget>[
+                    _buildStat('START FUEL', startF != null ? '${startF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('END FUEL', endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('NET CONSUMED', '${consumed.toStringAsFixed(1)} L', color: const Color(0xFF0284C7)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+
+                // Row 2: Distance, Engine ON, Mileage (Expanded - 0 Overflow)
+                Row(
+                  children: <Widget>[
+                    _buildStat('DISTANCE', '${dist.toStringAsFixed(1)} km'),
+                    _buildStat('ENGINE ON', Fmt.secsToHms(engineSec)),
+                    _buildStat('KMPL', kmpl != null ? '${kmpl.toStringAsFixed(2)}' : '0', color: const Color(0xFF15803D)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+
+                // Row 3: Explicit Refill & Theft columns (shows '0 L' when zero, as requested)
+                Row(
+                  children: <Widget>[
+                    _buildStat(
+                      'REFILL',
+                      refill > 0 ? '+${refill.toStringAsFixed(1)} L' : '0 L',
+                      color: refill > 0 ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                    ),
+                    _buildStat(
+                      'THEFT',
+                      theft > 0 ? '-${theft.toStringAsFixed(1)} L' : '0 L',
+                      color: theft > 0 ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStat(String label, String value, {Color? color}) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color ?? const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 8.4 FUEL KMPL REPORT TABLE (Kilometers per Liter - Web Matching Rankings & Ratings)
+// ═════════════════════════════════════════════════════════════════
+class FuelKmplReportTable extends StatelessWidget {
+  const FuelKmplReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<ReportRow> fuelRows = rows.where((ReportRow r) {
+      final double? k = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+      final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
+      final double cons = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+      return (k != null && k > 0) || dist > 0 || cons > 0;
+    }).toList();
+
+    if (fuelRows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No KMPL mileage records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    // Sort by KMPL descending for ranking
+    final List<ReportRow> sortedRows = List<ReportRow>.from(fuelRows)
+      ..sort((ReportRow a, ReportRow b) {
+        final double ka = a.kmpl ?? (a.raw['kmpl'] != null ? (a.raw['kmpl'] as num).toDouble() : 0.0);
+        final double kb = b.kmpl ?? (b.raw['kmpl'] != null ? (b.raw['kmpl'] as num).toDouble() : 0.0);
+        return kb.compareTo(ka);
+      });
+
+    // Compute fleet average KMPL
+    double sumKmpl = 0.0;
+    int validCount = 0;
+    for (final ReportRow r in sortedRows) {
+      final double? k = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+      if (k != null && k > 0) {
+        sumKmpl += k;
+        validCount++;
+      }
+    }
+    final double fleetAvg = validCount > 0 ? (sumKmpl / validCount) : 0.0;
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: sortedRows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = sortedRows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+        final double? kmplVal = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+        final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
+        final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+        final int rank = index + 1;
+
+        // Web Performance rating badge logic
+        String ratingText = 'Standard';
+        Color ratingBg = const Color(0xFFF1F5F9);
+        Color ratingColor = const Color(0xFF475569);
+
+        if (kmplVal != null && kmplVal > 0 && fleetAvg > 0) {
+          if (kmplVal >= fleetAvg * 1.15) {
+            final int pct = (((kmplVal - fleetAvg) / fleetAvg) * 100).round();
+            ratingText = 'Above Avg (+$pct%)';
+            ratingBg = const Color(0xFFD1FAE5);
+            ratingColor = const Color(0xFF059669);
+          } else if (kmplVal <= fleetAvg * 0.85) {
+            final int pct = (((fleetAvg - kmplVal) / fleetAvg) * 100).round();
+            ratingText = 'Below Avg (-$pct%)';
+            ratingBg = const Color(0xFFFEE2E2);
+            ratingColor = const Color(0xFFDC2626);
+          }
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFBAE6FD)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: <Widget>[
+                // Rank Badge: 🥇 #1, 🥈 #2, 🥉 #3, #N
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: rank == 1
+                        ? const Color(0xFFFEF3C7)
+                        : (rank == 2
+                            ? const Color(0xFFF1F5F9)
+                            : (rank == 3
+                                ? const Color(0xFFFFEDD5)
+                                : const Color(0xFFF8FAFC))),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: rank == 1
+                          ? const Color(0xFFFDE68A)
+                          : (rank == 2
+                              ? const Color(0xFFE2E8F0)
+                              : (rank == 3
+                                  ? const Color(0xFFFED7AA)
+                                  : const Color(0xFFE2E8F0))),
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      rank == 1
+                          ? '🥇'
+                          : (rank == 2
+                              ? '🥈'
+                              : (rank == 3 ? '🥉' : '#$rank')),
+                      style: TextStyle(
+                        fontSize: rank <= 3 ? 16 : 12,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Vehicle Info & Telematics Subtitle (Expanded - 0 Overflow)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        vName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        vPlate,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${dist.toStringAsFixed(1)} km  •  ${consumed.toStringAsFixed(1)} L',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Performance Rating Badge from Web App
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: ratingBg,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          ratingText,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: ratingColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // KMPL Metric Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF86EFAC)),
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      Text(
+                        kmplVal != null ? kmplVal.toStringAsFixed(2) : '—',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                      const Text(
+                        'km / L',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF16A34A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 8.5 FUEL LPH REPORT TABLE (Liters per Hour - Web Matching Rankings & Ratings)
+// ═════════════════════════════════════════════════════════════════
+class FuelLphReportTable extends StatelessWidget {
+  const FuelLphReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<ReportRow> fuelRows = rows.where((ReportRow r) {
+      final double? l = r.lph ?? (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
+      final int engineSec = (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0) + (r.raw['engine_on_seconds'] != null ? (r.raw['engine_on_seconds'] as num).toInt() : 0);
+      final double cons = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+      return (l != null && l > 0) || engineSec > 0 || cons > 0;
+    }).toList();
+
+    if (fuelRows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No LPH rate records found matching your criteria.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    // Sort by LPH ascending (lower burn rate = more efficient)
+    final List<ReportRow> sortedRows = List<ReportRow>.from(fuelRows)
+      ..sort((ReportRow a, ReportRow b) {
+        final double la = a.lph ?? (a.raw['lph'] != null ? (a.raw['lph'] as num).toDouble() : 9999.0);
+        final double lb = b.lph ?? (b.raw['lph'] != null ? (b.raw['lph'] as num).toDouble() : 9999.0);
+        return la.compareTo(lb);
+      });
+
+    // Compute fleet average LPH
+    double sumLph = 0.0;
+    int validCount = 0;
+    for (final ReportRow r in sortedRows) {
+      final double? l = r.lph ?? (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
+      if (l != null && l > 0) {
+        sumLph += l;
+        validCount++;
+      }
+    }
+    final double fleetAvg = validCount > 0 ? (sumLph / validCount) : 0.0;
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: sortedRows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = sortedRows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle = vId != null
+            ? vehicles.where((v) => v.id == vId).firstOrNull
+            : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+        final double? lphVal = r.lph ?? (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
+        final int engineSec = (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0) + (r.raw['engine_on_seconds'] != null ? (r.raw['engine_on_seconds'] as num).toInt() : 0);
+        final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+        final int rank = index + 1;
+
+        // Web Efficiency rating badge logic
+        String ratingText = 'Standard';
+        Color ratingBg = const Color(0xFFFEF3C7);
+        Color ratingColor = const Color(0xFFD97706);
+
+        if (lphVal != null && lphVal > 0 && fleetAvg > 0) {
+          if (lphVal <= fleetAvg * 0.85) {
+            ratingText = 'Economical';
+            ratingBg = const Color(0xFFD1FAE5);
+            ratingColor = const Color(0xFF059669);
+          } else if (lphVal >= fleetAvg * 1.25) {
+            ratingText = 'High Burn';
+            ratingBg = const Color(0xFFFEE2E2);
+            ratingColor = const Color(0xFFDC2626);
+          }
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFFED7AA)),
+          ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: <Widget>[
+                // Rank Badge: 🌟 #1, #2, #3, #N
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: rank == 1
+                        ? const Color(0xFFECFDF5)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: rank == 1
+                          ? const Color(0xFFA7F3D0)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      rank == 1 ? '🌟' : '#$rank',
+                      style: TextStyle(
+                        fontSize: rank == 1 ? 16 : 12,
+                        fontWeight: FontWeight.w800,
+                        color: rank == 1
+                            ? const Color(0xFF047857)
+                            : const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Vehicle Info & Telematics Subtitle (Expanded - 0 Overflow)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        vName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        vPlate,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${Fmt.secsToHms(engineSec)}  •  ${consumed.toStringAsFixed(1)} L',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Efficiency Rating Badge from Web App
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: ratingBg,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          ratingText,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: ratingColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // LPH Metric Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      Text(
+                        lphVal != null ? lphVal.toStringAsFixed(2) : '—',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFFD97706),
+                        ),
+                      ),
+                      const Text(
+                        'L / hr',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

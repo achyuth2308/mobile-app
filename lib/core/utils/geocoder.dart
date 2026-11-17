@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/models/json_utils.dart';
+import '../config/app_config.dart';
 
 class Geocoder {
   static final Map<String, String> _cache = <String, String>{};
@@ -15,6 +16,15 @@ class Geocoder {
       validateStatus: (int? status) => true,
     ),
   );
+
+  /// Checks if an address string is detailed (contains shop/landmark, colony, road, and/or pincode).
+  static bool _isDetailedAddress(String? addr) {
+    if (addr == null || addr.isEmpty) return false;
+    final String clean = addr.trim();
+    if (clean.startsWith('Location') || clean == '...' || clean == 'Place') return false;
+    final List<String> parts = clean.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty).toList();
+    return parts.length >= 4 || RegExp(r'\b\d{6}\b').hasMatch(clean);
+  }
 
   /// Synchronously returns a cached address for the coordinates or nearby coordinates (~100m).
   static String? getCachedAddress(double lat, double lon) {
@@ -44,28 +54,35 @@ class Geocoder {
     return null;
   }
 
-  /// Reverse geocodes coordinates to a human-readable address.
-  /// Races OpenStreetMap Nominatim and ArcGIS World Geocoder simultaneously
-  /// to resolve addresses in under 600ms, using 100m grid clustering for instant cache hits.
+  /// Reverse geocodes coordinates to a human-readable, street-level detailed address.
+  /// Prioritizes High-Definition Google Maps & Backend Proxy (with L1/L2 Redis/L3 DB cache)
+  /// for shop names, landmarks, colony, road, city, state, country, and pincode.
+  /// Falls back smoothly to ArcGIS, Photon, BigDataCloud, and Nominatim.
   static Future<String> getAddress(double lat, double lon) async {
     if (lat == 0 && lon == 0) return 'Location unavailable';
 
     final String key = '${lat.toStringAsFixed(4)},${lon.toStringAsFixed(4)}';
     final String clusterKey = '${lat.toStringAsFixed(3)},${lon.toStringAsFixed(3)}';
 
-    // 1. Check exact or cluster cache
+    // 1. Check exact or cluster cache (only return early if already detailed)
     if (_cache.containsKey(key)) {
       final String val = _cache[key]!;
-      if (val.isNotEmpty && val != 'Location unavailable') return val;
+      if (val.isNotEmpty && val != 'Location unavailable' && _isDetailedAddress(val)) {
+        return val;
+      }
     }
     if (_cache.containsKey(clusterKey)) {
       final String val = _cache[clusterKey]!;
-      if (val.isNotEmpty && val != 'Location unavailable') return val;
+      if (val.isNotEmpty && val != 'Location unavailable' && _isDetailedAddress(val)) {
+        return val;
+      }
     }
 
-    // 2. Proximity cache lookup
+    // 2. Proximity cache lookup (only return early if already detailed)
     final String? prox = getCachedAddress(lat, lon);
-    if (prox != null && prox.isNotEmpty) return prox;
+    if (prox != null && prox.isNotEmpty && _isDetailedAddress(prox)) {
+      return prox;
+    }
 
     // 3. Deduplicate in-flight requests
     if (_inFlight.containsKey(key)) {
@@ -83,7 +100,7 @@ class Geocoder {
       final String? result = await _resolveFast(lat, lon);
       final String finalAddr = (result != null && result.isNotEmpty)
           ? result
-          : 'Location unavailable';
+          : (prox ?? 'Location unavailable');
 
       if (finalAddr != 'Location unavailable') {
         _cache[key] = finalAddr;
@@ -99,13 +116,64 @@ class Geocoder {
       _inFlight.remove(key);
       _inFlight.remove(clusterKey);
       if (!completer.isCompleted) {
-        completer.complete('Location unavailable');
+        completer.complete(prox ?? 'Location unavailable');
       }
-      return 'Location unavailable';
+      return prox ?? 'Location unavailable';
     }
   }
 
   static Future<String?> _resolveFast(double lat, double lon) async {
+    // ── High-Detail Provider 1: Backend Multi-Tier Proxy (Google + Redis + Postgres) ──
+    Future<String?> fetchBackendProxy() async {
+      try {
+        final Response<dynamic> res = await _dio.get(
+          '${AppConfig.apiRoot}/geocode/reverse?lat=$lat&lng=$lon',
+        );
+        final dynamic raw = res.data;
+        final dynamic data = raw is String ? jsonDecode(raw) : raw;
+        if (res.statusCode == 200 && data is Map && data['success'] == true) {
+          final String? label = data['label']?.toString() ?? data['address']?.toString();
+          if (label != null && label.trim().isNotEmpty && label != 'Location unavailable') {
+            return formatToNearestAddress(label);
+          }
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    // ── High-Detail Provider 2: Google Maps Geocoding API ──────────────────────────
+    Future<String?> fetchGoogle() async {
+      try {
+        const String apiKey = 'AIzaSyBUfwgEy51elZbDcxVXIPJ4x8-7_oMUZDk';
+        final Response<dynamic> res = await _dio.get(
+          'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lon&key=$apiKey',
+        );
+        final dynamic raw = res.data;
+        final dynamic data = raw is String ? jsonDecode(raw) : raw;
+        if (res.statusCode == 200 && data is Map) {
+          final dynamic status = data['status'];
+          final dynamic results = data['results'];
+          if (status == 'OK' && results is List && results.isNotEmpty) {
+            for (final dynamic item in results) {
+              if (item is Map && item['formatted_address'] != null) {
+                final String formatted = item['formatted_address'].toString();
+                final String cleaned = formatToNearestAddress(formatted);
+                if (_isDetailedAddress(cleaned)) {
+                  return cleaned;
+                }
+              }
+            }
+            final dynamic first = results.first;
+            if (first is Map && first['formatted_address'] != null) {
+              return formatToNearestAddress(first['formatted_address'].toString());
+            }
+          }
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    // ── Fallback Provider 3: ArcGIS World Geocoder ────────────────────────────────
     Future<String?> fetchArcGis() async {
       try {
         final Response<dynamic> res = await _dio.get(
@@ -132,11 +200,12 @@ class Geocoder {
       return null;
     }
 
+    // ── Fallback Provider 4: OpenStreetMap Nominatim (Native only) ───────────────
     Future<String?> fetchNominatim() async {
       if (kIsWeb) return null; // Browser blocks CORS and forbids User-Agent header on web
       try {
         final Response<dynamic> res = await _dio.get(
-          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon',
+          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon&zoom=18&addressdetails=1',
           options: Options(
             headers: const <String, String>{
               'User-Agent': 'FuelTracks/1.0 (support@fueltracks.in)',
@@ -151,12 +220,16 @@ class Geocoder {
           final dynamic addr = d['address'];
           if (addr is Map) {
             final List<String> parts = <String>[];
+            final dynamic amenity = addr['amenity'] ?? addr['shop'] ?? addr['building'];
+            if (amenity != null && amenity.toString().isNotEmpty) parts.add(amenity.toString());
             final dynamic road = addr['road'] ?? addr['suburb'] ?? addr['neighbourhood'] ?? addr['residential'];
             if (road != null && road.toString().isNotEmpty) parts.add(road.toString());
             final dynamic city = addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['county'] ?? addr['state_district'];
             if (city != null && city.toString().isNotEmpty) parts.add(city.toString());
             final dynamic state = addr['state'];
             if (state != null && state.toString().isNotEmpty) parts.add(state.toString());
+            final dynamic postcode = addr['postcode'];
+            if (postcode != null && postcode.toString().isNotEmpty) parts.add(postcode.toString());
             if (parts.isNotEmpty) {
               return formatToNearestAddress(parts.join(', '));
             }
@@ -170,6 +243,7 @@ class Geocoder {
       return null;
     }
 
+    // ── Fallback Provider 5: BigDataCloud ─────────────────────────────────────────
     Future<String?> fetchBigDataCloud() async {
       try {
         final Response<dynamic> res = await _dio.get(
@@ -203,6 +277,7 @@ class Geocoder {
       return null;
     }
 
+    // ── Fallback Provider 6: Photon ──────────────────────────────────────────────
     Future<String?> fetchPhoton() async {
       try {
         final Response<dynamic> res = await _dio.get(
@@ -232,6 +307,10 @@ class Geocoder {
                 if (state != null && state.toString().isNotEmpty && !parts.contains(state.toString())) {
                   parts.add(state.toString());
                 }
+                final dynamic postcode = props['postcode'];
+                if (postcode != null && postcode.toString().isNotEmpty && !parts.contains(postcode.toString())) {
+                  parts.add(postcode.toString());
+                }
                 if (parts.isNotEmpty) {
                   return formatToNearestAddress(parts.join(', '));
                 }
@@ -243,16 +322,53 @@ class Geocoder {
       return null;
     }
 
+    // ── Stage 1: Try High-Detail Providers (Backend Proxy & Google Maps) ───────────
     try {
-      final List<Future<String?>> tasks = <Future<String?>>[
+      final List<Future<String?>> highDetailTasks = <Future<String?>>[
+        fetchBackendProxy(),
+        fetchGoogle(),
+      ];
+      final Completer<String?> highCompleter = Completer<String?>();
+      int highRemaining = highDetailTasks.length;
+      for (final Future<String?> task in highDetailTasks) {
+        task.then((String? res) {
+          if (res != null && _isDetailedAddress(res) && !highCompleter.isCompleted) {
+            highCompleter.complete(res);
+          } else {
+            highRemaining--;
+            if (highRemaining == 0 && !highCompleter.isCompleted) {
+              highCompleter.complete(res); // Accept whatever returned if both done
+            }
+          }
+        }).catchError((_) {
+          highRemaining--;
+          if (highRemaining == 0 && !highCompleter.isCompleted) {
+            highCompleter.complete(null);
+          }
+        });
+      }
+
+      final String? highResult = await highCompleter.future.timeout(
+        const Duration(milliseconds: 2800),
+        onTimeout: () => null,
+      );
+
+      if (highResult != null && highResult.isNotEmpty && !RegExp(r'^-?\d+\.\d+,\s*-?\d+\.\d+$').hasMatch(highResult)) {
+        return highResult;
+      }
+    } catch (_) {}
+
+    // ── Stage 2: Fallback to Secondary Geocoders if Google/Proxy unavailable ──────
+    try {
+      final List<Future<String?>> fallbackTasks = <Future<String?>>[
         fetchArcGis(),
         fetchBigDataCloud(),
         fetchPhoton(),
         if (!kIsWeb) fetchNominatim(),
       ];
       final Completer<String?> completer = Completer<String?>();
-      int remaining = tasks.length;
-      for (final Future<String?> task in tasks) {
+      int remaining = fallbackTasks.length;
+      for (final Future<String?> task in fallbackTasks) {
         unawaited(
           task.then((String? res) {
             if (res != null && res.isNotEmpty && !completer.isCompleted) {
@@ -273,7 +389,7 @@ class Geocoder {
       }
 
       final String? winner = await completer.future.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 4),
         onTimeout: () => null,
       );
 

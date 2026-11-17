@@ -148,7 +148,7 @@ class _VehicleInfoTabState extends ConsumerState<VehicleInfoTab> {
         const SizedBox(height: Gap.xxl),
 
         OutlinedButton.icon(
-          onPressed: () => context.go('/reports?vehicle=${v.id}'),
+          onPressed: () => context.push('/report-detail/trip?vehicle=${v.id}'),
           icon: const Icon(Icons.insights_rounded, size: 18),
           label: const Text('Run a report for this vehicle'),
         ),

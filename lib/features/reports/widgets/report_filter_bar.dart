@@ -97,6 +97,31 @@ class ReportFilterBar extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         );
+      case ReportType.fuelRefill:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFF4ADE80), Color(0xFF16A34A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case ReportType.fuelTheft:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFFFB7185), Color(0xFFE11D48)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case ReportType.fuelConsumption:
+      case ReportType.fuelKmpl:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFF38BDF8), Color(0xFF0284C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case ReportType.fuelLph:
+        return const LinearGradient(
+          colors: <Color>[Color(0xFFFBBF24), Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
       case ReportType.geofenceTransit:
         return const LinearGradient(
           colors: <Color>[Color(0xFF14B8A6), Color(0xFF0D9488)],
@@ -276,7 +301,10 @@ class ReportFilterBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
+    final List<Vehicle> allVehicles = ref.watch(fleetProvider).vehicles;
+    final List<Vehicle> vehicles = type.isFuelReport
+        ? allVehicles.where((Vehicle v) => v.hasFuel).toList()
+        : allVehicles;
     final bool isTrip = type == ReportType.trip;
     final String dateText = isTrip
         ? '${Fmt.dateTimeFilter(startDate)}   →   ${Fmt.dateTimeFilter(endDate)}'
