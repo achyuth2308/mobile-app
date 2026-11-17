@@ -184,11 +184,11 @@ class FleetOverviewCard extends ConsumerWidget {
       case VehicleStatus.idle:
         return const Color(0xFFEAB308); // Yellow
       case VehicleStatus.stopped:
-        return const Color(0xFF64748B); // Grey
+        return const Color(0xFF18181B); // Black
       case VehicleStatus.offline:
         return const Color(0xFFEF4444); // Red
       case VehicleStatus.noData:
-        return const Color(0xFF18181B); // Black
+        return const Color(0xFF7C3AED); // Purple / Lavender
     }
   }
 

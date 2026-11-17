@@ -132,35 +132,132 @@ class Vehicle extends Equatable {
     if (lowerType == 'car' || lowerType == 'taxi' || lowerType == 'cab') {
       return 'car';
     }
+    if (lowerType == 'generator' ||
+        lowerType == 'genset' ||
+        lowerType == 'dg_set' ||
+        lowerType == 'dgset') {
+      return 'generator';
+    }
+    if (lowerType == 'ambulance') {
+      return 'ambulance';
+    }
+    if (lowerType == 'auto' ||
+        lowerType == 'rickshaw' ||
+        lowerType == 'autorickshaw' ||
+        lowerType == 'tuk-tuk' ||
+        lowerType == 'tuktuk' ||
+        lowerType == 'three-wheeler' ||
+        lowerType == '3-wheeler') {
+      return 'auto';
+    }
+    if (lowerType == 'borewell' ||
+        lowerType == 'drilling' ||
+        lowerType == 'drilling_rig' ||
+        lowerType == 'rig') {
+      return 'borewell';
+    }
+    if (lowerType == 'crane' ||
+        lowerType == 'crawler_crane' ||
+        lowerType == 'mobile_crane') {
+      return 'crane';
+    }
     if (lowerType == 'tipper' || lowerType == 'dumper') {
       return 'tipper';
     }
-    if (lowerType == 'tractor' || lowerType == 'jcb' || lowerType == 'harvester') {
+    if (lowerType == 'hitachi' ||
+        lowerType == 'excavator' ||
+        lowerType == 'poclain') {
+      return 'hitachi';
+    }
+    if (lowerType == 'jcb' || lowerType == 'backhoe') {
+      return 'jcb';
+    }
+    if (lowerType == 'tractor' || lowerType == 'harvester') {
       return 'tractor';
     }
-    if (lowerType == 'bike' ||
-        lowerType == 'scooter' ||
-        lowerType == 'motorcycle' ||
+    if (lowerType == 'scooter' ||
         lowerType == 'scooty' ||
+        lowerType == 'vespa' ||
+        lowerType == 'activa') {
+      return 'scooter';
+    }
+    if (lowerType == 'bike' ||
+        lowerType == 'motorcycle' ||
         lowerType == 'two-wheeler') {
       return 'bike';
     }
-    if (lowerType == 'truck' || lowerType == 'lorry' || lowerType == 'trailer' || lowerType == 'container') {
+    if (lowerType == 'lorry' ||
+        lowerType == 'cargo_lorry' ||
+        lowerType == 'indian_lorry' ||
+        lowerType == 'indian_truck' ||
+        lowerType == 'multiaxle' ||
+        lowerType == 'multi-axle' ||
+        lowerType == '12_wheeler' ||
+        lowerType == '10_wheeler' ||
+        lowerType == '14_wheeler' ||
+        lowerType == '16_wheeler') {
+      return 'lorry';
+    }
+    if (lowerType == 'truck' ||
+        lowerType == 'trailer' ||
+        lowerType == 'container' ||
+        lowerType == 'cargo_truck' ||
+        lowerType == 'heavy_truck') {
       return 'truck';
     }
 
     // 2. Next, check name clues if type is generic/empty
+    if (lowerName.contains('generator') ||
+        lowerName.contains('genset') ||
+        lowerName.contains('dg set') ||
+        lowerName.contains('dgset') ||
+        lowerName.contains('dg_set')) {
+      return 'generator';
+    }
+    if (lowerName.contains('ambulance')) return 'ambulance';
+    if (lowerName.contains('rickshaw') ||
+        lowerName.contains('auto ') ||
+        lowerName.contains(' auto') ||
+        lowerName.startsWith('auto') ||
+        lowerName.endsWith('auto') ||
+        lowerName.contains('tuktuk') ||
+        lowerName.contains('tuk-tuk') ||
+        lowerName.contains('three-wheeler') ||
+        lowerName.contains('3-wheeler')) {
+      return 'auto';
+    }
+    if (lowerName.contains('borewell') ||
+        lowerName.contains('drilling') ||
+        lowerName.contains(' rig')) {
+      return 'borewell';
+    }
+    if (lowerName.contains('crane')) return 'crane';
     if (lowerName.contains('tipper')) return 'tipper';
-    if (lowerName.contains('tractor') || lowerName.contains('jcb')) return 'tractor';
+    if (lowerName.contains('hitachi') ||
+        lowerName.contains('excavator') ||
+        lowerName.contains('poclain')) {
+      return 'hitachi';
+    }
+    if (lowerName.contains('jcb') || lowerName.contains('backhoe')) {
+      return 'jcb';
+    }
+    if (lowerName.contains('tractor')) return 'tractor';
     if (lowerName.contains('car')) return 'car';
-    if (lowerName.contains('bike') ||
+    if (lowerName.contains('scooter') ||
+        lowerName.contains('scooty') ||
+        lowerName.contains('vespa') ||
         lowerName.contains('activa') ||
-        lowerName.contains('scoot') ||
+        lowerName.contains('scoot')) {
+      return 'scooter';
+    }
+    if (lowerName.contains('bike') ||
         lowerName.contains('motorcycle') ||
         lowerName.contains('motor')) {
       return 'bike';
     }
-    if (lowerName.contains('truck') || lowerName.contains('dumper') || lowerName.contains('lorry')) {
+    if (lowerName.contains('lorry')) return 'lorry';
+    if (lowerName.contains('truck') ||
+        lowerName.contains('dumper')) {
       return 'truck';
     }
 
@@ -178,9 +275,11 @@ class Vehicle extends Equatable {
       case VehicleStatus.idle:
         return 'assets/images/vehicles/${base}_idle.png';
       case VehicleStatus.stopped:
-      case VehicleStatus.offline:
-      case VehicleStatus.noData:
         return 'assets/images/vehicles/${base}_stopped.png';
+      case VehicleStatus.offline:
+        return 'assets/images/vehicles/${base}_offline.png';
+      case VehicleStatus.noData:
+        return 'assets/images/vehicles/${base}_unreachable.png';
     }
   }
 
@@ -204,6 +303,31 @@ class Vehicle extends Equatable {
     return false;
   }
 
+  /// True if this asset is a stationary Diesel Generator / Genset.
+  bool get isGenerator =>
+      displayType == 'generator' ||
+      type.toLowerCase().trim() == 'generator' ||
+      type.toLowerCase().trim() == 'genset';
+
+  /// Human-friendly operating status label (e.g. "Running" / "Standby" for generators, "Moving" / "Stopped" for vehicles).
+  String get effectiveStatusLabel {
+    if (isGenerator) {
+      switch (status) {
+        case VehicleStatus.moving:
+          return 'Running';
+        case VehicleStatus.idle:
+          return 'Idle';
+        case VehicleStatus.stopped:
+          return 'Standby';
+        case VehicleStatus.offline:
+          return 'No Data';
+        case VehicleStatus.noData:
+          return 'Offline';
+      }
+    }
+    return status.label;
+  }
+
   /// True if Safety Parking (Theft Alarm) is armed for this vehicle.
   bool get isSafetyParkActive {
     final dynamic meta = raw['metadata'];
@@ -213,6 +337,54 @@ class Vehicle extends Equatable {
     }
     final dynamic sp = raw['safetyPark'] ?? raw['safety_park'];
     return sp == 'YES' || sp == true;
+  }
+
+  /// True only if this vehicle is registered or operating in Tamil Nadu (e.g. TN plate).
+  /// Fitment certificates are strictly reserved for Tamil Nadu vehicles.
+  bool get isTamilNadu {
+    // 1. Direct registration number check (e.g. TN38AB1234, TN-01-1234)
+    final String reg = registrationNumber.trim().toUpperCase();
+    if (reg.isNotEmpty) {
+      final String cleanReg = reg.replaceAll(RegExp(r'[\s\-_]+'), '');
+      if (cleanReg.startsWith('TN')) return true;
+      if (RegExp(r'\bTN[\s\-_]*[0-9]{1,2}', caseSensitive: false).hasMatch(reg)) return true;
+    }
+
+    // 2. Name / Display label check (e.g. "TN 38 BK 1234" or "DURGESH_TN01AD9169")
+    final String n = name.trim().toUpperCase();
+    if (n.isNotEmpty) {
+      final String cleanName = n.replaceAll(RegExp(r'[\s\-_]+'), '');
+      if (cleanName.startsWith('TN')) return true;
+      if (RegExp(r'TN[0-9]{1,2}', caseSensitive: false).hasMatch(cleanName)) return true;
+    }
+
+    // 3. Metadata attributes check (state, districtState, certFormat)
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      final String state = (meta['state'] ??
+              meta['districtState'] ??
+              meta['stateName'] ??
+              meta['rtoState'] ??
+              meta['rto_state'] ??
+              '')
+          .toString()
+          .toLowerCase()
+          .trim();
+      if (state.contains('tamil') || state.contains('tamilnadu') || state == 'tn') {
+        return true;
+      }
+      if (meta['certFormat'] == 'tamilnadu_mining') {
+        return true;
+      }
+    }
+
+    final dynamic rawState = raw['state'] ?? raw['districtState'] ?? raw['stateName'];
+    if (rawState != null) {
+      final String s = rawState.toString().toLowerCase().trim();
+      if (s.contains('tamil') || s.contains('tamilnadu') || s == 'tn') return true;
+    }
+
+    return false;
   }
 
   /// Returns a copy of this vehicle with Safety Parking updated.

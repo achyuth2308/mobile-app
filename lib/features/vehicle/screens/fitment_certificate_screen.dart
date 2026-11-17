@@ -217,7 +217,9 @@ class _FitmentCertificateScreenState
         text.contains('NAV 140')) {
       return 'TRANSYNC TELEMATICS';
     }
-    return 'VOLTY IOT SOLUTIONS PRIVATE LIMITED';
+    return (explicitMfr != null && explicitMfr.trim().isNotEmpty)
+        ? explicitMfr.trim()
+        : 'AIS-140 CERTIFIED TELEMATICS';
   }
 
   String _formatDate(DateTime d) {
@@ -260,6 +262,88 @@ class _FitmentCertificateScreenState
       );
     }
 
+    // Fitment certificate is strictly for Tamil Nadu vehicles
+    if (!vehicle.isTamilNadu) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+        appBar: AppBar(
+          title: const Text('Fitment Certificate'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/vehicle/${widget.vehicleId}');
+              }
+            },
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.verified_user_outlined,
+                    size: 56,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Certificate Not Available',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'AIS-140 Fitment Certificates are only issued for Tamil Nadu (TN) registered vehicles.\n\nVehicle: ${vehicle.displayName}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/vehicle/${widget.vehicleId}');
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Back to Vehicle'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final Map<String, dynamic> metadata =
         vehicle.raw['metadata'] as Map<String, dynamic>? ??
             <String, dynamic>{};
@@ -277,12 +361,9 @@ class _FitmentCertificateScreenState
 
     final String vehiclePlate = cleaned['plate']!;
     final String ownerName = cleaned['owner']!;
-    final String plateUp = vehiclePlate.toUpperCase();
 
     final String imei = _remoteCertData?['imei'] ?? vehicle.imei;
     final String cleanImei = imei.replaceAll(RegExp(r'\D'), '');
-    final String imeiLast10 =
-        cleanImei.length >= 10 ? cleanImei.substring(cleanImei.length - 10) : '';
 
     final String rawRemoteSerial = _remoteCertData?['deviceSerialNo']?.toString().trim() ??
         _remoteCertData?['serialNo']?.toString().trim() ??
@@ -295,63 +376,121 @@ class _FitmentCertificateScreenState
         '').toString().trim();
     final String rawSerial = rawRemoteSerial.isNotEmpty ? rawRemoteSerial : rawMetaSerial;
 
-    final String rawMfr = (_remoteCertData?['vltdManufacturer'] ??
-        metadata['vltdManufacturer'] ??
-        metadata['manufacturer'] ??
-        '').toString().trim();
+    final String rawPort = (_remoteCertData?['portNo'] ??
+            _remoteCertData?['port'] ??
+            metadata['portNo'] ??
+            metadata['port'] ??
+            metadata['tcpPort'] ??
+            metadata['communicatingPort'] ??
+            vehicle.raw['port'] ??
+            vehicle.raw['port_no'] ??
+            '')
+        .toString()
+        .trim();
 
-    final String rawModel = (_remoteCertData?['modelName'] ??
-        _remoteCertData?['deviceModel'] ??
-        metadata['modelName'] ??
-        metadata['deviceModel'] ??
-        '').toString().trim();
+    String portMfr = '';
+    String portModel = '';
+    String portSimProvider = 'AIRTEL';
 
-    final String manufacturer =
-        _resolveManufacturer(rawModel, rawSerial, rawMfr);
-    final bool isVolty = manufacturer.contains('VOLTY');
-    final bool isApm = manufacturer.contains('APM');
-
-    // Genuine certified model name as per vendor approvals
-    String modelName = rawModel;
-    if (modelName.isEmpty ||
-        modelName.toLowerCase().contains('tracker') ||
-        modelName.toLowerCase().contains('general') ||
-        modelName.toLowerCase().contains('car')) {
-      modelName = isVolty ? 'NAV140' : (isApm ? '1819001A' : 'AIS140');
+    switch (rawPort) {
+      case '5000':
+        portMfr = 'BHARAT SATELLITE TRACKING PVT LTD';
+        portModel = 'BSTPL-17';
+        break;
+      case '5001':
+        portMfr = 'TRACKNOW SOLUTIONS PRIVATE LIMITED';
+        portModel = 'AIS140 V1';
+        break;
+      case '5002':
+        portMfr = 'CONCOX / JIMI IOT';
+        portModel = 'VL149';
+        break;
+      case '5003':
+        portMfr = 'APM KINGSTRACK PRIVATE LIMITED';
+        portModel = '1819001A';
+        portSimProvider = 'AIRTEL';
+        break;
+      case '5004':
+        portMfr = 'VOLTY IOT SOLUTIONS PRIVATE LIMITED';
+        portModel = 'VOLTY AIS-140';
+        portSimProvider = 'VOLTY';
+        break;
+      case '5005':
+        portMfr = 'TELTONIKA TELEMATICS';
+        portModel = 'FMB920';
+        break;
+      case '5006':
+        portMfr = 'PT06 TELEMATICS';
+        portModel = 'PT06';
+        break;
+      case '5007':
+        portMfr = 'CONCOX / JIMI IOT';
+        portModel = 'GT06N';
+        break;
+      case '5008':
+        portMfr = 'PN02 TELEMATICS';
+        portModel = 'PN02';
+        break;
+      case '5009':
+        portMfr = 'CONCOX / JIMI IOT';
+        portModel = 'V5 4G';
+        break;
+      case '5010':
+        portMfr = 'BHARAT SATELLITE TRACKING PVT LTD';
+        portModel = 'BSTPL-17IS';
+        break;
+      case '5011':
+        portMfr = 'TRANSYNC TELEMATICS';
+        portModel = 'NAV 140';
+        break;
+      case '5012':
+        portMfr = 'APM KINGSTRACK PRIVATE LIMITED';
+        portModel = 'APMK';
+        portSimProvider = 'APM';
+        break;
     }
 
-    final String defaultSerial = isVolty
-        ? (imeiLast10.isNotEmpty
-            ? 'VLY2N2I$imeiLast10'
-            : 'VLY2N2I052685364850')
-        : (isApm
-            ? (imeiLast10.isNotEmpty
-                ? 'APM1K2I$imeiLast10'
-                : 'APM1K2I102690315456')
-            : (imeiLast10.isNotEmpty ? 'SN-$imeiLast10' : 'SN-102690315456'));
+    final String rawMfr = (_remoteCertData?['vltdManufacturer'] ??
+            metadata['vltdManufacturer'] ??
+            metadata['manufacturer'] ??
+            '')
+        .toString()
+        .trim();
 
-    final String deviceSerialNo =
-        rawSerial.isNotEmpty ? rawSerial : defaultSerial;
+    final String rawModel = (_remoteCertData?['modelName'] ??
+            _remoteCertData?['deviceModel'] ??
+            metadata['modelName'] ??
+            metadata['deviceModel'] ??
+            '')
+        .toString()
+        .trim();
 
-    // Vehicle's official certificate format (assigned by platform/state)
-    final String activeCategory = _remoteCertData?['certFormat'] ??
-        metadata['certFormat'] ??
-        (plateUp.startsWith('TS') || plateUp.startsWith('TG')
-            ? 'telangana_mining'
-            : (plateUp.startsWith('TN')
-                ? 'tamilnadu_mining'
-                : 'tamilnadu_mining'));
+    final String manufacturer = (rawMfr.isNotEmpty &&
+            !rawMfr.toUpperCase().contains('FUELTRACKS'))
+        ? _resolveManufacturer(rawModel, rawSerial, rawMfr)
+        : (portMfr.isNotEmpty
+            ? portMfr
+            : _resolveManufacturer(rawModel, rawSerial, rawMfr));
+
+    String modelName = rawModel.isNotEmpty &&
+            !rawModel.toLowerCase().contains('tracker') &&
+            !rawModel.toLowerCase().contains('general') &&
+            !rawModel.toLowerCase().contains('car')
+        ? rawModel
+        : (portModel.isNotEmpty
+            ? portModel
+            : (rawModel.isNotEmpty ? rawModel : 'AIS140'));
+
+    // Option 3: NO auto-generated serial numbers. Only real serial numbers from DB.
+    final String deviceSerialNo = rawSerial;
+
+    // Vehicle's official certificate format - strictly Tamil Nadu Mining Vehicle
+    const String activeCategory = 'tamilnadu_mining';
 
     // District & State
-    final String districtState = (activeCategory == 'telangana_mining' ||
-            plateUp.startsWith('TS') ||
-            plateUp.startsWith('TG'))
-        ? (_remoteCertData?['districtState'] ??
-            metadata['districtState'] ??
-            'Telangana')
-        : (_remoteCertData?['districtState'] ??
-            metadata['districtState'] ??
-            'Tamil Nadu');
+    final String districtState = _remoteCertData?['districtState'] ??
+        metadata['districtState'] ??
+        'Tamil Nadu';
 
     // Vehicle Type (Mining tipper/lorry)
     String vehicleType = _remoteCertData?['vehicleType'] ??
@@ -364,19 +503,24 @@ class _FitmentCertificateScreenState
       vehicleType = 'LORRY';
     }
 
-    final String vehicleCategory = activeCategory == 'normal_tracking'
-        ? 'Commercial Vehicle'
-        : 'Mining Vehicle';
+    const String vehicleCategory = 'Mining Vehicle';
 
     final String rawRemoteIccid = _remoteCertData?['iccid']?.toString().trim() ?? '';
-    final String rawMetaIccid = (metadata['iccid'] ?? metadata['sim_number'] ?? '').toString().trim();
+    final String rawMetaIccid = (metadata['iccid'] ??
+            metadata['sim_number'] ??
+            metadata['simNo'] ??
+            metadata['sim'] ??
+            '')
+        .toString()
+        .trim();
     final String iccid = rawRemoteIccid.isNotEmpty
         ? rawRemoteIccid
         : (rawMetaIccid.isNotEmpty ? rawMetaIccid : '89917360980002459242');
 
     final String simProvider = _remoteCertData?['simProvider'] ??
         metadata['simProvider'] ??
-        (isVolty ? 'VOLTY' : (isApm ? 'APM' : 'AIRTEL'));
+        metadata['simOperator'] ??
+        portSimProvider;
 
     final DateTime now = DateTime.now();
     final DateTime oneYearLater = DateTime(now.year + 1, now.month, now.day - 1);
@@ -393,9 +537,25 @@ class _FitmentCertificateScreenState
         metadata['activationDate'] ??
         installationDate;
 
+    String computeSimValidity(String installStr) {
+      try {
+        final List<String> parts = installStr.split(RegExp(r'[\/\-]'));
+        if (parts.length == 3) {
+          final int d = int.parse(parts[0]);
+          final int m = int.parse(parts[1]);
+          final int y = int.parse(parts[2]);
+          final DateTime end = DateTime(y + 1, m, d - 1);
+          final String endD = end.day.toString().padLeft(2, '0');
+          final String endM = end.month.toString().padLeft(2, '0');
+          return '$installStr TO $endD/$endM/${end.year}';
+        }
+      } catch (_) {}
+      return '$installStr TO $oneYearFormatted';
+    }
+
     final String simValidity = _remoteCertData?['simValidity'] ??
         metadata['simValidity'] ??
-        '$installationDate TO $oneYearFormatted';
+        computeSimValidity(installationDate);
 
     final String certNumber = _remoteCertData?['certNumber'] ??
         metadata['certSerialNo'] ??
@@ -475,14 +635,10 @@ class _FitmentCertificateScreenState
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    activeCategory == 'telangana_mining'
-                        ? 'FITMENT CERTIFICATE – TELANGANA MINING VEHICLE'
-                        : (activeCategory == 'tamilnadu_mining'
-                            ? 'FITMENT CERTIFICATE – TAMILNADU MINING VEHICLE'
-                            : 'FITMENT CERTIFICATE – VEHICLE GPS TRACKING'),
+                  const Text(
+                    'FITMENT CERTIFICATE – TAMILNADU MINING VEHICLE',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.2,
@@ -526,12 +682,10 @@ class _FitmentCertificateScreenState
                   const SizedBox(height: 14),
 
                   // Official Statutory Opening Statement
-                  Text(
-                    activeCategory == 'normal_tracking'
-                        ? 'This is to certify that the Vehicle Location Tracking Device (GPS) compliant with statutory standards, as prescribed under the Central Motor Vehicle Rules, has been installed and activated in the below mentioned Vehicle'
-                        : 'This is to certify that the Vehicle Location Tracking Device (VLTD) compliant with Automotive Industry Standard (AIS-140), as prescribed under the Central Motor Vehicle Rules, has been installed and activated in the below mentioned Mining Vehicle',
+                  const Text(
+                    'This is to certify that the Vehicle Location Tracking Device (VLTD) compliant with Automotive Industry Standard (AIS-140), as prescribed under the Central Motor Vehicle Rules, has been installed and activated in the below mentioned Mining Vehicle',
                     textAlign: TextAlign.justify,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
                       height: 1.4,
                       color: Colors.black,
@@ -555,7 +709,8 @@ class _FitmentCertificateScreenState
                   _buildDocTable(<List<String>>[
                     <String>['VLTD Manufacturer Name', manufacturer],
                     <String>['Model Name / Number', modelName],
-                    <String>['Device Serial Number', deviceSerialNo],
+                    if (deviceSerialNo.isNotEmpty)
+                      <String>['Device Serial Number', deviceSerialNo],
                     <String>['IMEI Number', imei],
                   ]),
                   const SizedBox(height: 12),
@@ -563,7 +718,8 @@ class _FitmentCertificateScreenState
                   // ── 3. CONNECTIVITY & ACTIVATION DETAILS ─────────────
                   _buildSectionHeading('3. CONNECTIVITY & ACTIVATION DETAILS'),
                   _buildDocTable(<List<String>>[
-                    <String>['ICCID Number', iccid],
+                    if (iccid.isNotEmpty)
+                      <String>['ICCID Number', iccid],
                     <String>['SIM Service Provider', simProvider],
                     <String>['SIM Validity Upto', simValidity],
                     <String>['Date of Installation', installationDate],
@@ -574,14 +730,10 @@ class _FitmentCertificateScreenState
                   // ── 4. VLTD INSTALLATION & INTEGRATION STATEMENT ─────
                   _buildSectionHeading(
                       '4. VLTD INSTALLATION & INTEGRATION STATEMENT'),
-                  Text(
-                    activeCategory == 'telangana_mining'
-                        ? 'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Mining Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. The VLTD installed in this vehicle shall be integrated with the TSMDC (Telangana State Mineral Development Corporation) / Department of Mines and Geology (Government of Telangana) Portal, as directed by the Mining / Transport Authorities, for the purpose of mining vehicle tracking, safety monitoring, permit compliance, and regulatory enforcement.\n\nThis certificate is issued for Mining Vehicle VLTD compliance and monitoring purposes, in accordance with directions issued by the competent authorities.'
-                        : (activeCategory == 'tamilnadu_mining'
-                            ? 'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Mining Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. The VLTD installed in this vehicle shall be integrated with the MiMaS (Mining Monitoring and Management System) Portal, as directed by the Mining / Transport Authorities, for the purpose of mining vehicle tracking, safety monitoring, permit compliance, and regulatory enforcement.\n\nThis certificate is issued for Mining Vehicle VLTD compliance and monitoring purposes, in accordance with directions issued by the competent authorities.'
-                            : 'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. It was physically inspected, sealed, and verified live with active GPS fix, cellular telemetry, and ignition detection for regulatory and fleet compliance.'),
+                  const Text(
+                    'The Vehicle Location Tracking Device (VLTD) has been installed and activated in the above-mentioned Mining Vehicle in accordance with AIS-140 specifications and applicable statutory guidelines. The VLTD installed in this vehicle shall be integrated with the MiMaS (Mining Monitoring and Management System) Portal, as directed by the Mining / Transport Authorities, for the purpose of mining vehicle tracking, safety monitoring, permit compliance, and regulatory enforcement.\n\nThis certificate is issued for Mining Vehicle VLTD compliance and monitoring purposes, in accordance with directions issued by the competent authorities.',
                     textAlign: TextAlign.justify,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       height: 1.45,
                       color: Colors.black,
