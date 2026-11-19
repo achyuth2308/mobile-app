@@ -247,8 +247,9 @@ class VehicleCard extends ConsumerWidget {
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
-                                        value:
-                                            '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L',
+                                        value: vehicle.fuelLevel != null
+                                            ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
+                                            : '0 L',
                                         dotColor: const Color(0xFFF97316),
                                         onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),
@@ -327,8 +328,9 @@ class VehicleCard extends ConsumerWidget {
                                       _MetricItem(
                                         icon: Icons.local_gas_station_rounded,
                                         label: 'Fuel',
-                                        value:
-                                            '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L',
+                                        value: vehicle.fuelLevel != null
+                                            ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
+                                            : '0 L',
                                         dotColor: const Color(0xFFF97316),
                                         onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),

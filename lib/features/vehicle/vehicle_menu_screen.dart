@@ -1656,7 +1656,6 @@ class _FuelReportsSection extends StatelessWidget {
     // 1. Fuel Graph (Dedicated Full Screen Chart View)
     final fuelGraph = _ModernReportTile(
       title: 'Fuel Graph',
-      subtitle: 'Interactive fuel level vs. speed time-series',
       icon: Icons.show_chart_rounded,
       accentColor: const Color(0xFF0284C7),
       onTap: () => context.push('/vehicle/$vehicleId/fuel-analytics'),
@@ -1665,7 +1664,6 @@ class _FuelReportsSection extends StatelessWidget {
     // 2. Fuel Refill Report
     final refillReport = _ModernReportTile(
       title: 'Refill Report',
-      subtitle: 'Fills, pump stations & liters',
       icon: Icons.local_gas_station_rounded,
       accentColor: const Color(0xFF16A34A),
       onTap: () => context.push('/report-detail/fuelRefill?vehicle=$vehicleId'),
@@ -1682,7 +1680,6 @@ class _FuelReportsSection extends StatelessWidget {
     // 4. Fuel Consumption Report
     final consumptionReport = _ModernReportTile(
       title: 'Consumption',
-      subtitle: 'Fuel consumed vs. distance',
       icon: Icons.water_drop_rounded,
       accentColor: const Color(0xFF0284C7),
       onTap: () => context.push('/report-detail/fuelConsumption?vehicle=$vehicleId'),
@@ -1691,7 +1688,6 @@ class _FuelReportsSection extends StatelessWidget {
     // 5. Fuel Consolidated
     final consolidatedReport = _ModernReportTile(
       title: 'Fuel Consolidated',
-      subtitle: 'Full fuel audit summary sheet',
       icon: Icons.summarize_rounded,
       accentColor: const Color(0xFFEA580C),
       onTap: () => context.push('/report-detail/fuelConsolidated?vehicle=$vehicleId'),
@@ -1700,7 +1696,6 @@ class _FuelReportsSection extends StatelessWidget {
     // 6. KMPL Report
     final kmplReport = _ModernReportTile(
       title: 'KMPL Report',
-      subtitle: 'Distance & mileage efficiency',
       icon: Icons.speed_rounded,
       accentColor: const Color(0xFF0284C7),
       onTap: () => context.push('/report-detail/fuelKmpl?vehicle=$vehicleId'),
@@ -1709,7 +1704,6 @@ class _FuelReportsSection extends StatelessWidget {
     // 7. LPH Report
     final lphReport = _ModernReportTile(
       title: 'LPH Report',
-      subtitle: 'Hourly fuel burn rate',
       icon: Icons.timelapse_rounded,
       accentColor: const Color(0xFFD97706),
       onTap: () => context.push('/report-detail/fuelLph?vehicle=$vehicleId'),

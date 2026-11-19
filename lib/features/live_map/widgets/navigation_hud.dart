@@ -207,7 +207,7 @@ class _FuelLevelWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool hasFuel = vehicle.fuelLevel != null &&
         vehicle.fuelLevel! > 0 &&
-        vehicle.fuelLevel! <= 400;
+        vehicle.fuelLevel! <= 1500;
     final double fuel = hasFuel ? vehicle.fuelLevel! : 0.0;
     
     return Row(

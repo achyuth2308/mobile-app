@@ -60,7 +60,7 @@ class TelemetryGrid extends StatelessWidget {
       ),
       if (vehicle.fuelLevel != null &&
           vehicle.fuelLevel! > 0 &&
-          vehicle.fuelLevel! <= 400)
+          vehicle.fuelLevel! <= 1500)
         _Cell(
           icon: Icons.local_gas_station_rounded,
           label: 'Fuel',

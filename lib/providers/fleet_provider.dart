@@ -376,13 +376,13 @@ class FleetController extends Notifier<FleetState> {
           'fuelLevel',
           'fuel_level',
         ]);
-        if (val != null && val > 0 && val <= 400) return val;
+        if (val != null && val > 0 && val <= 1500) return val;
         return null;
       }
 
       void indexRow(ReportRow row) {
         final double? ef = parseCalibrated(row.raw) ??
-            (row.endFuel != null && row.endFuel! > 0 && row.endFuel! <= 400
+            (row.endFuel != null && row.endFuel! > 0 && row.endFuel! <= 1500
                 ? row.endFuel
                 : null);
         if (ef == null) return;

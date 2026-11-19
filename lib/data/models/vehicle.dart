@@ -288,18 +288,55 @@ class Vehicle extends Equatable {
       longitude != null &&
       !(latitude == 0 && longitude == 0);
 
-  /// True only if this vehicle has calibrated fuel telemetry from its device/sensor.
+  /// True only if this individual vehicle has fuel monitoring hardware/calibration configured.
+  /// For non-fuel vehicles, strictly returns false so NO fuel metrics or fuel reports are displayed.
   bool get hasFuel {
-    if (fuelLevel != null && fuelLevel! > 0 && fuelLevel! <= 1000) return true;
     final dynamic meta = raw['metadata'];
     if (meta is Map) {
+      // 1. Explicit negative flag
+      if (meta['hasFuelSensor'] == false || meta['hasFuelSensor'] == 'NO') return false;
+      if (meta['fuelSensor'] == false || meta['fuelSensor'] == 'NO') return false;
+
+      // 2. Explicit positive flag
       if (meta['hasFuelSensor'] == true || meta['hasFuelSensor'] == 'YES') return true;
       if (meta['fuelSensor'] == true || meta['fuelSensor'] == 'YES') return true;
-      if (meta['fuelConfig'] != null) return true;
-      final dynamic ts = meta['tankSize'] ?? meta['tank_size'];
-      if (ts != null && ts.toString() != '0' && ts.toString().isNotEmpty) return true;
+
+      // 3. Calibration table
+      final dynamic cal = meta['fuelCalibration'] ?? meta['calibrationPoints'];
+      if (cal is Map && cal.isNotEmpty) {
+        final dynamic pts = cal['calibrationPoints'] ?? cal['points'];
+        if (pts is List && pts.isNotEmpty) return true;
+        final dynamic cap = cal['tankCapacity'] ?? cal['tankSize'];
+        if (cap != null) {
+          final double? c = double.tryParse(cap.toString());
+          if (c != null && c > 0) return true;
+        }
+      } else if (cal is List && cal.isNotEmpty) {
+        return true;
+      }
+
+      // 4. Configured tank size > 0
+      final dynamic ts = meta['tankSize'] ?? meta['tank_size'] ?? meta['tankCapacity'];
+      if (ts != null) {
+        final double? size = double.tryParse(ts.toString());
+        if (size != null && size > 0) return true;
+      }
     }
+
+    if (raw['hasFuelSensor'] == false || raw['fuelSensor'] == false) return false;
     if (raw['hasFuelSensor'] == true || raw['fuelSensor'] == true) return true;
+
+    final dynamic directCap = raw['tank_capacity'] ?? raw['tankCapacity'];
+    if (directCap != null) {
+      final double? cap = double.tryParse(directCap.toString());
+      if (cap != null && cap > 0) return true;
+    }
+
+    // 5. Active live fuel packet from tracker
+    if (fuelLevel != null && fuelLevel! > 0 && fuelLevel! <= 1000) {
+      return true;
+    }
+
     return false;
   }
 
@@ -858,8 +895,8 @@ class Vehicle extends Equatable {
             asDoubleOrNull(device, fallbackKeys) ??
             asDoubleOrNull(deviceAttrs, fallbackKeys);
 
-        // Reject raw ADC values (e.g. 2803, 819). Calibrated fuel only!
-        if (val != null && val > 400) {
+        // Reject raw ADC values (e.g. 2803, 4095). Calibrated fuel up to 1500L supported.
+        if (val != null && val > 1500) {
           return null;
         }
 
@@ -1241,7 +1278,7 @@ class Vehicle extends Equatable {
       odometer: nextOdometer ?? odometer,
       fuelLevel: (incoming.fuelLevel != null &&
               incoming.fuelLevel! >= 0 &&
-              incoming.fuelLevel! <= 400)
+              incoming.fuelLevel! <= 1500)
           ? incoming.fuelLevel
           : fuelLevel,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
