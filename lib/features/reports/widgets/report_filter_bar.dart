@@ -1138,6 +1138,27 @@ class _DateTimeRangePickerSheetState extends State<_DateTimeRangePickerSheet> {
       initialDate: safeInitial,
       firstDate: minDate,
       lastDate: maxDate,
+      builder: (BuildContext context, Widget? child) => Theme(
+        data: Theme.of(context).copyWith(
+          datePickerTheme: DatePickerThemeData(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            headerHeadlineStyle: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+            headerHelpStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        child: Transform.scale(
+          scale: 0.82,
+          child: child!,
+        ),
+      ),
     );
     if (pickedDate == null || !mounted) return;
 

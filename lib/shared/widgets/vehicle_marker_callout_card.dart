@@ -359,7 +359,7 @@ class _VehicleMarkerCalloutCardState extends State<VehicleMarkerCalloutCard> {
                         children: <Widget>[
                           Expanded(
                             child: _MetricItem(
-                              label: widget.isPlayback ? 'Dist Cov' : 'Today Dist',
+                              label: widget.isPlayback ? 'Distance' : 'Today Dist',
                               value: distText,
                               textColor: textColorHigh,
                               labelColor: textColorMuted,
