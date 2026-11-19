@@ -244,15 +244,22 @@ class Geocoder {
     }
 
     try {
-      final List<Future<String?>> tasks = <Future<String?>>[
-        fetchArcGis(),
-        fetchBigDataCloud(),
+      // 1. Try ArcGIS first — fastest, highest reliability and no CORS/IP block
+      final String? arcGisResult = await fetchArcGis();
+      if (arcGisResult != null &&
+          arcGisResult.isNotEmpty &&
+          !RegExp(r'^-?\d+\.\d+,\s*-?\d+\.\d+$').hasMatch(arcGisResult)) {
+        return arcGisResult;
+      }
+
+      // 2. Fallbacks if ArcGIS did not resolve
+      final List<Future<String?>> fallbacks = <Future<String?>>[
         fetchPhoton(),
         if (!kIsWeb) fetchNominatim(),
       ];
       final Completer<String?> completer = Completer<String?>();
-      int remaining = tasks.length;
-      for (final Future<String?> task in tasks) {
+      int remaining = fallbacks.length;
+      for (final Future<String?> task in fallbacks) {
         unawaited(
           task.then((String? res) {
             if (res != null && res.isNotEmpty && !completer.isCompleted) {
@@ -273,7 +280,7 @@ class Geocoder {
       }
 
       final String? winner = await completer.future.timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 4),
         onTimeout: () => null,
       );
 

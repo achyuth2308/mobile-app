@@ -208,4 +208,25 @@ class VehicleRepository {
 
     await _api.patch<dynamic>('/vehicles/$vehicleId/settings', body: body);
   }
+
+  /// Updates or assigns driver name and phone number for the vehicle.
+  Future<void> updateDriver(
+    String vehicleId, {
+    required String driverName,
+    required String driverPhone,
+  }) async {
+    final Map<String, dynamic> body = <String, dynamic>{
+      'driverName': driverName,
+      'driverPhone': driverPhone,
+    };
+    try {
+      await _api.patch<dynamic>('/vehicles/$vehicleId/settings', body: body);
+    } catch (_) {
+      try {
+        await _api.put<dynamic>('/vehicles/$vehicleId', body: body);
+      } catch (_) {
+        await _api.patch<dynamic>('/vehicles/$vehicleId', body: body);
+      }
+    }
+  }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -101,7 +102,14 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
         titleSpacing: 0,
         title: Row(
           children: [
-            Icon(Icons.circle, size: 10, color: statusColor),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+              ),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -109,85 +117,47 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: 0.5,
+                  fontSize: 16,
                 ),
               ),
             ),
           ],
         ),
         actions: [
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.share_outlined, size: 20),
-                    tooltip: 'Share Location via WhatsApp',
-                    onPressed: () => _shareLocation(vehicle),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      vehicle.isSafetyParkActive
-                          ? Icons.security_rounded
-                          : Icons.shield_outlined,
-                      size: 20,
-                      color: vehicle.isSafetyParkActive ? const Color(0xFFDC2626) : null,
-                    ),
-                    tooltip: vehicle.isSafetyParkActive
-                        ? 'Safety Parking ARMED (Tap to Disarm)'
-                        : 'Arm Safety Parking (Theft Siren)',
-                    onPressed: () async {
-                      final bool target = !vehicle.isSafetyParkActive;
-                      if (target) {
-                        await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
-                      } else {
-                        await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
-                      }
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              target
-                                  ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
-                                  : 'Safety Parking Disarmed.',
-                            ),
-                            backgroundColor: target ? const Color(0xFFDC2626) : const Color(0xFF475569),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      vehicle.isImmobilized
-                          ? Icons.power_settings_new_rounded
-                          : Icons.power_settings_new_rounded,
-                      size: 20,
-                      color: vehicle.isImmobilized ? const Color(0xFFDC2626) : const Color(0xFF10B981),
-                    ),
-                    tooltip: vehicle.isImmobilized ? 'Engine Cut (Tap to Restore)' : 'Engine Normal (Cut Engine)',
-                    onPressed: () => _confirmEngineToggle(context, ref, vehicle),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.settings_outlined, size: 20),
-                    tooltip: 'Vehicle Settings',
-                    onPressed: () => context.push('/vehicle/${widget.vehicleId}/settings'),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.my_location_rounded, size: 20),
-                    tooltip: 'Focus on Map',
-                    onPressed: () => context.push('/vehicle-map?focus=${widget.vehicleId}'),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined, size: 20),
+            tooltip: 'Share Location via WhatsApp',
+            onPressed: () => _shareLocation(vehicle),
           ),
+          if (vehicle.isSafetyParkActive)
+            IconButton(
+              icon: const Icon(
+                Icons.security_rounded,
+                size: 20,
+                color: Color(0xFFDC2626),
+              ),
+              tooltip: 'Safety Parking ARMED (Tap to Disarm)',
+              onPressed: () async {
+                await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Safety Parking Disarmed.'),
+                      backgroundColor: Color(0xFF475569),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
+          IconButton(
+            icon: const Icon(Icons.more_vert_rounded, size: 22),
+            tooltip: 'Vehicle Options',
+            onPressed: () => _showQuickActionsSheet(context, ref, vehicle),
+          ),
+          const SizedBox(width: 4),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -208,7 +178,10 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          VehicleLiveTab(vehicleId: widget.vehicleId),
+          VehicleLiveTab(
+            vehicleId: widget.vehicleId,
+            onTabSelect: (int tabIndex) => _tabController.animateTo(tabIndex),
+          ),
           VehiclePlaybackTab(vehicleId: widget.vehicleId),
           AlertsScreen(vehicleId: widget.vehicleId),
           VehicleInfoTab(vehicleId: widget.vehicleId),
@@ -268,12 +241,12 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
           ),
         );
       }
-      ref.read(fleetProvider.notifier).load();
+      unawaited(ref.read(fleetProvider.notifier).load());
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update engine status: '),
+          const SnackBar(
+            content: Text('Failed to update engine status.'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -283,5 +256,258 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen>
 
   Future<void> _shareLocation(Vehicle vehicle) async {
     await ShareHelper.shareVehicleLocation(vehicle);
+  }
+
+  void _showQuickActionsSheet(
+      BuildContext context, WidgetRef ref, Vehicle vehicle) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? scheme.surfaceContainerHigh : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.outlineVariant.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: AppColors.forStatus(vehicle.status.key),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        vehicle.displayName.toUpperCase(),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (vehicle.type.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          vehicle.type.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1),
+                const SizedBox(height: 6),
+
+                // Safety Parking tile
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: vehicle.isSafetyParkActive
+                          ? const Color(0xFFDC2626).withValues(alpha: 0.12)
+                          : scheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      vehicle.isSafetyParkActive
+                          ? Icons.security_rounded
+                          : Icons.shield_outlined,
+                      color: vehicle.isSafetyParkActive
+                          ? const Color(0xFFDC2626)
+                          : scheme.onSurface,
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    vehicle.isSafetyParkActive
+                        ? 'Disarm Safety Parking'
+                        : 'Arm Safety Parking (Theft Siren)',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    vehicle.isSafetyParkActive
+                        ? 'Active — siren will sound if moved'
+                        : 'Alerts if moved from current spot',
+                    style: TextStyle(
+                        fontSize: 11.5, color: scheme.onSurfaceVariant),
+                  ),
+                  trailing: Switch(
+                    value: vehicle.isSafetyParkActive,
+                    activeThumbColor: const Color(0xFFDC2626),
+                    onChanged: (bool val) async {
+                      Navigator.pop(ctx);
+                      if (val) {
+                        await ref
+                            .read(safetyParkingProvider.notifier)
+                            .arm(vehicle.id);
+                      } else {
+                        await ref
+                            .read(safetyParkingProvider.notifier)
+                            .disarm(vehicle.id);
+                      }
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              val
+                                  ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
+                                  : 'Safety Parking Disarmed.',
+                            ),
+                            backgroundColor: val
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFF475569),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+
+                // Emergency Engine Cut tile
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: vehicle.isImmobilized
+                          ? const Color(0xFF10B981).withValues(alpha: 0.14)
+                          : const Color(0xFFDC2626).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.power_settings_new_rounded,
+                      color: vehicle.isImmobilized
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFDC2626),
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    vehicle.isImmobilized
+                        ? 'Restore Engine Circuit'
+                        : 'Emergency Engine Cut',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: vehicle.isImmobilized
+                          ? const Color(0xFF047857)
+                          : const Color(0xFFDC2626),
+                    ),
+                  ),
+                  subtitle: Text(
+                    vehicle.isImmobilized
+                        ? 'Engine is cut — tap to restore'
+                        : 'Disable ignition starter in emergency',
+                    style: TextStyle(
+                        fontSize: 11.5, color: scheme.onSurfaceVariant),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(_confirmEngineToggle(context, ref, vehicle));
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                // Full Screen Map
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.fullscreen_rounded,
+                        color: scheme.onSurface, size: 22),
+                  ),
+                  title: const Text(
+                    'Full Screen Live Map',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Interactive map with zoom and live tracking',
+                    style: TextStyle(
+                        fontSize: 11.5, color: scheme.onSurfaceVariant),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(context.push('/vehicle-map?focus=${vehicle.id}'));
+                  },
+                ),
+
+                // Vehicle Settings
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.settings_outlined,
+                        color: scheme.onSurface, size: 22),
+                  ),
+                  title: const Text(
+                    'Vehicle Settings',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Speed limits, geofences, and alarms',
+                    style: TextStyle(
+                        fontSize: 11.5, color: scheme.onSurfaceVariant),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(context.push('/vehicle/${vehicle.id}/settings'));
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

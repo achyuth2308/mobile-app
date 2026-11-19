@@ -2135,6 +2135,27 @@ class _RecordRouteTripSheetState extends ConsumerState<_RecordRouteTripSheet> {
       initialDate: initial,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (BuildContext context, Widget? child) => Theme(
+        data: Theme.of(context).copyWith(
+          datePickerTheme: DatePickerThemeData(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            headerHeadlineStyle: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+            headerHelpStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        child: Transform.scale(
+          scale: 0.82,
+          child: child!,
+        ),
+      ),
     );
     if (d == null) return;
     if (!mounted) return;

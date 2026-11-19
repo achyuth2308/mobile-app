@@ -1111,15 +1111,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
             const SizedBox(height: 5),
           ],
 
-          _MenuItemCard(
-            title: 'Vehicle Info & Specs',
-            subtitle: 'Hardware, IMEI & driver info',
-            icon: Icons.info_outline_rounded,
-            accentColor: const Color(0xFF06B6D4),
-            onTap: () =>
-                context.push('/vehicle/${widget.vehicleId}/detail?tab=3'),
-          ),
-          const SizedBox(height: 5),
+
 
           _MenuItemCard(
             title: 'Alert Settings',
