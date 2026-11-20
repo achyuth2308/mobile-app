@@ -885,8 +885,8 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
             // Header positioned on top of sheets and other controls
             Positioned(
               top: MediaQuery.paddingOf(context).top + Gap.sm,
-              left: Gap.lg,
-              right: 80,
+              left: Gap.md,
+              right: 68,
               child: PointerInterceptor(
                 child: _MapHeader(
                   locatedCount: located,
@@ -1136,65 +1136,71 @@ class _MapHeader extends StatelessWidget {
                 (onBack ?? onStopFollowing)();
               },
               child: SizedBox(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 child: Center(
                   child: Icon(
                     Icons.arrow_back_rounded,
-                    size: 24,
+                    size: 22,
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.65),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-                width: 0.8,
+          const SizedBox(width: 8),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  width: 0.8,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black38,
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
               ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black38,
-                  blurRadius: 4,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF22C55E),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0x9922C55E),
-                        blurRadius: 5,
-                        spreadRadius: 1,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x9922C55E),
+                          blurRadius: 5,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'LIVE ${Fmt.time12(currentTime)} • $locatedCount/$totalCount Active',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.1,
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'LIVE ${Fmt.time12Sec(currentTime)} • $locatedCount/$totalCount Active',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -421,20 +423,10 @@ class VehicleCard extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.info_outline_rounded,
-                        color: theme.colorScheme.primary, size: 17),
-                    onPressed: onTrack,
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(5),
-                  ),
-                ),
+                if (onTrack != null) ...[
+                  const SizedBox(width: 8),
+                  _JumpingGoogleMapPinButton(onTap: onTrack!),
+                ],
               ],
             ),
           ],
@@ -808,5 +800,161 @@ class _MetricItem extends StatelessWidget {
       );
     }
     return content;
+  }
+}
+
+const String _googleMapsPinSvg = '''
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 92 136" width="22" height="22">
+  <path fill="#4285F4" d="M46 0C20.6 0 0 20.6 0 46c0 10.9 3.8 21 10.2 29L46 136l13-75-13-15z"/>
+  <path fill="#34A853" d="M10.2 75L46 136l12.8-21.8L23 87z"/>
+  <path fill="#FBBC04" d="M58.8 114.2L81.8 75c6.4-7.9 10.2-17.9 10.2-29 0-7.9-2-15.3-5.5-21.8z"/>
+  <path fill="#EA4335" d="M46 0c14.3 0 27.1 6.5 35.5 16.8L58.8 52.3 46 46z"/>
+  <circle cx="46" cy="46" r="18" fill="#FFFFFF"/>
+</svg>
+''';
+
+class _JumpingGoogleMapPinButton extends StatefulWidget {
+  const _JumpingGoogleMapPinButton({
+    required this.onTap,
+    super.key,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  State<_JumpingGoogleMapPinButton> createState() =>
+      _JumpingGoogleMapPinButtonState();
+}
+
+class _JumpingGoogleMapPinButtonState
+    extends State<_JumpingGoogleMapPinButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _jumpAnim;
+  late final Animation<double> _shadowScaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat();
+
+    _jumpAnim = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0, end: -5.5)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -5.5, end: 0)
+            .chain(CurveTween(curve: Curves.bounceOut)),
+        weight: 45,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(0),
+        weight: 20,
+      ),
+    ]).animate(_controller);
+
+    _shadowScaleAnim = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.55)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.55, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 45,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(1.0),
+        weight: 20,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          unawaited(HapticFeedback.selectionClick());
+          widget.onTap();
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF1E293B)
+                : const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFDBEAFE),
+              width: 1,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: const Color(0xFF4285F4).withOpacity(isDark ? 0.2 : 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (BuildContext ctx, Widget? child) {
+              return Stack(
+                alignment: Alignment.center,
+                children: <Widget>[
+                  // Dynamic Ground Shadow that shrinks when pin jumps up
+                  Positioned(
+                    bottom: 5,
+                    child: Transform.scale(
+                      scaleX: _shadowScaleAnim.value,
+                      scaleY: 0.6,
+                      child: Container(
+                        width: 12,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(
+                            isDark ? 0.35 : 0.18,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Animated Bouncy Jumping Google Maps Pin
+                  Transform.translate(
+                    offset: Offset(0, _jumpAnim.value - 1.5),
+                    child: SvgPicture.string(
+                      _googleMapsPinSvg,
+                      width: 20,
+                      height: 20,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -10,7 +10,6 @@ import '../../../providers/core_providers.dart';
 import '../../../providers/fleet_provider.dart';
 import '../../../providers/safety_parking_provider.dart';
 import '../../../shared/widgets/app_states.dart';
-import '../../../shared/widgets/duration_alert_card.dart';
 
 class VehicleSettingsScreen extends ConsumerStatefulWidget {
   const VehicleSettingsScreen({required this.vehicleId, super.key});
@@ -218,7 +217,7 @@ class _VehicleSettingsScreenState
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Alert & Notification Configuration'),
+          title: const Text('Alerts & Notifications'),
           centerTitle: true,
           elevation: 0,
           bottom: const TabBar(
@@ -235,536 +234,829 @@ class _VehicleSettingsScreenState
                 child: TabBarView(
                   children: [
                     ListView(
-                      padding: const EdgeInsets.all(Gap.lg),
+                      padding: const EdgeInsets.fromLTRB(Gap.md, Gap.md, Gap.md, 100),
                       children: <Widget>[
-                        // ── Hero Vehicle Header ────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.all(Gap.md),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: Corners.rLg,
-                      border: Border.all(color: borderColor),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.all(Gap.md),
-                          decoration: BoxDecoration(
-                            color: AppColors.brand.withOpacity(0.12),
-                            borderRadius: Corners.rMd,
-                          ),
-                          child: Icon(
-                            Icons.directions_car_rounded,
-                            color: AppColors.brand,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: Gap.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                vehicle.displayName,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 18,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                vehicle.registrationNumber.isNotEmpty
-                                    ? vehicle.registrationNumber
-                                    : 'IMEI: ${vehicle.imei}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        _StatusBadge(status: vehicle.status),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: Gap.md),
-
-                  // ── User-Wise (All Vehicles) Switch Banner ───────────
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm),
-                    decoration: BoxDecoration(
-                      color: _applyAccountWide
-                          ? (isDark
-                              ? const Color(0xFF1E3A8A).withOpacity(0.3)
-                              : const Color(0xFFEFF6FF))
-                          : cardBg,
-                      borderRadius: Corners.rLg,
-                      border: Border.all(
-                        color: _applyAccountWide
-                            ? const Color(0xFF3B82F6)
-                            : borderColor,
-                        width: _applyAccountWide ? 1.5 : 1.0,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _applyAccountWide
-                                ? const Color(0xFF2563EB)
-                                : scheme.surfaceContainerHigh,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.admin_panel_settings_rounded,
-                            color: _applyAccountWide ? Colors.white : scheme.onSurfaceVariant,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: Gap.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        // ── SECTION 1: VEHICLE & FLEET SCOPE ──
+                        const _SectionHeader(title: 'VEHICLE & FLEET SCOPE'),
+                        _GroupedCard(
+                          cardBg: cardBg,
+                          borderColor: borderColor,
+                          isDark: isDark,
+                          children: [
+                            // Vehicle Identity
+                            Padding(
+                              padding: const EdgeInsets.all(Gap.md),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    'Account-Wide Configuration',
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w700,
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.directions_car_rounded,
+                                      color: Color(0xFF2563EB),
+                                      size: 22,
                                     ),
                                   ),
-                                  if (_applyAccountWide) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF2563EB),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'ALL VEHICLES',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
+                                  const SizedBox(width: Gap.md),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          vehicle.displayName,
+                                          maxLines: 2,
+                                          style: theme.textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                            height: 1.25,
+                                          ),
                                         ),
-                                      ),
+                                        if (vehicle.registrationNumber.isNotEmpty &&
+                                            vehicle.registrationNumber != vehicle.displayName) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            vehicle.registrationNumber,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: scheme.onSurfaceVariant,
+                                              fontSize: 11.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                  ],
+                                  ),
+                                  _StatusBadge(status: vehicle.status),
                                 ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _applyAccountWide
-                                    ? 'Settings apply to your user profile and sync across all vehicles'
-                                    : 'Settings apply only to ${vehicle.displayName}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch.adaptive(
-                          value: _applyAccountWide,
-                          activeColor: const Color(0xFF2563EB),
-                          onChanged: (bool val) => setState(() => _applyAccountWide = val),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: Gap.lg),
-
-                  // ── Section 0: Safety Parking (Theft Police Siren) ────
-                  Container(
-                    decoration: BoxDecoration(
-                      color: _safetyPark
-                          ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
-                          : cardBg,
-                      borderRadius: Corners.rLg,
-                      border: Border.all(
-                        color: _safetyPark ? const Color(0xFFDC2626) : borderColor,
-                        width: _safetyPark ? 1.5 : 1.0,
-                      ),
-                      boxShadow: <BoxShadow>[
-                        if (_safetyPark)
-                          BoxShadow(
-                            color: const Color(0xFFDC2626).withValues(alpha: 0.15),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(Gap.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: _safetyPark
-                                    ? const Color(0xFFDC2626)
-                                    : const Color(0xFF64748B).withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                _safetyPark ? Icons.security_rounded : Icons.shield_outlined,
-                                color: _safetyPark ? Colors.white : const Color(0xFF64748B),
-                                size: 22,
+                            ),
+                            _buildGroupedDivider(borderColor),
+                            // Apply to all vehicles toggle
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: _applyAccountWide
+                                          ? const Color(0xFF2563EB).withOpacity(0.12)
+                                          : (isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF1F5F9)),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.hub_rounded,
+                                      color: _applyAccountWide
+                                          ? const Color(0xFF2563EB)
+                                          : scheme.onSurfaceVariant,
+                                      size: 17,
+                                    ),
+                                  ),
+                                  const SizedBox(width: Gap.md),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Apply to All Fleet Vehicles',
+                                          style: theme.textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          _applyAccountWide
+                                              ? 'Settings sync across all vehicles in fleet'
+                                              : 'Apply settings only to ${vehicle.displayName}',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  _ModernSwitch(
+                                    value: _applyAccountWide,
+                                    onChanged: (bool val) => setState(() => _applyAccountWide = val),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: Gap.md),
-                            Expanded(
+                          ],
+                        ),
+
+                        const SizedBox(height: Gap.lg),
+
+                        // ── SECTION 2: SECURITY & THEFT ──
+                        const _SectionHeader(title: 'SECURITY & THEFT ALARM'),
+                        _GroupedCard(
+                          cardBg: cardBg,
+                          borderColor: borderColor,
+                          isDark: isDark,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(Gap.md),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
+                                children: [
                                   Row(
-                                    children: <Widget>[
-                                      Text(
-                                        'Safety Parking (Theft Alarm)',
-                                        style: theme.textTheme.titleSmall?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: _safetyPark ? const Color(0xFFDC2626) : null,
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: _safetyPark
+                                              ? const Color(0xFFDC2626)
+                                              : (isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF1F5F9)),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          _safetyPark ? Icons.security_rounded : Icons.shield_outlined,
+                                          color: _safetyPark ? Colors.white : const Color(0xFF64748B),
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: Gap.md),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Parking Guard (Theft Alarm)',
+                                              style: theme.textTheme.titleSmall?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                                color: _safetyPark ? const Color(0xFFDC2626) : null,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 1),
+                                            Text(
+                                              _safetyPark
+                                                  ? 'ARMED: Siren active if moved or started'
+                                                  : 'Loud siren if vehicle moves while parked',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: _safetyPark ? FontWeight.w600 : FontWeight.normal,
+                                                color: _safetyPark
+                                                    ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B))
+                                                    : scheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      _ModernSwitch(
+                                        value: _safetyPark,
+                                        activeTrackColor: const Color(0xFFDC2626),
+                                        onChanged: (bool val) => setState(() => _safetyPark = val),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  InkWell(
+                                    onTap: () {
+                                      ref.read(safetyParkingProvider.notifier).triggerTestAlarm(
+                                            vehicleName: vehicle.displayName,
+                                            plate: vehicle.registrationNumber,
+                                          );
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1E2838) : const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.volume_up_rounded, size: 14, color: Color(0xFFDC2626)),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Test Siren & Alarm',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFFDC2626),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: Gap.lg),
+
+                        // ── SECTION 3: SPEED MONITORING ──
+                        const _SectionHeader(title: 'SPEED MONITORING'),
+                        _GroupedCard(
+                          cardBg: cardBg,
+                          borderColor: borderColor,
+                          isDark: isDark,
+                          children: [
+                            // Speed Limit
+                            Padding(
+                              padding: const EdgeInsets.all(Gap.md),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.speed_rounded, size: 18, color: Color(0xFFEA580C)),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Speed Limit',
+                                            style: theme.textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEA580C).withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(100),
+                                          border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          '${_speedLimit.round()} km/h',
+                                          style: const TextStyle(
+                                            color: Color(0xFFEA580C),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12.5,
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _safetyPark
-                                        ? 'ARMED: Continuous police siren & red border lightning'
-                                        : 'DISARMED: Vehicle is unmonitored for parking breaches',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: _safetyPark ? FontWeight.bold : FontWeight.normal,
-                                      color: _safetyPark
-                                          ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B))
-                                          : scheme.onSurfaceVariant,
-                                    ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: <double>[40, 60, 80, 100, 120]
+                                        .map(
+                                          (double s) => Expanded(
+                                            child: _SegmentTab(
+                                              label: '${s.round()}',
+                                              isSelected: _speedLimit == s,
+                                              activeColor: const Color(0xFFEA580C),
+                                              onTap: () => setState(() => _speedLimit = s),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
                                   ),
                                 ],
                               ),
                             ),
-                            Switch.adaptive(
-                              value: _safetyPark,
-                              activeColor: const Color(0xFFDC2626),
-                              onChanged: (bool val) => setState(() => _safetyPark = val),
+                            _buildGroupedDivider(borderColor),
+                            // Speeding Duration
+                            Padding(
+                              padding: const EdgeInsets.all(Gap.md),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.timer_rounded, size: 18, color: Color(0xFFEA580C)),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Speeding Duration',
+                                            style: theme.textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEA580C).withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(100),
+                                          border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          '${_overspeedDuration.round()} min',
+                                          style: const TextStyle(
+                                            color: Color(0xFFEA580C),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Trigger alert only after vehicle speeds continuously for',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 11,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: <double>[1, 3, 5, 10]
+                                        .map(
+                                          (double d) => Expanded(
+                                            child: _SegmentTab(
+                                              label: '${d.round()} min',
+                                              isSelected: _overspeedDuration == d,
+                                              activeColor: const Color(0xFFEA580C),
+                                              onTap: () => setState(() => _overspeedDuration = d),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: Gap.sm),
-                        Text(
-                          'When armed, if this vehicle moves (speed > 1 km/h) or the engine turns ON, an immediate continuous police siren will sound across the mobile app with glowing red border lightning until turned off.',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: _safetyPark
-                                ? (isDark ? Colors.white70 : const Color(0xFF7F1D1D))
-                                : scheme.onSurfaceVariant,
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: Gap.sm),
-                        Row(
-                          children: <Widget>[
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                ref.read(safetyParkingProvider.notifier).triggerTestAlarm(
-                                      vehicleName: vehicle.displayName,
-                                      plate: vehicle.registrationNumber,
-                                    );
-                              },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFFDC2626),
-                                side: const BorderSide(color: Color(0xFFDC2626)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
+
+                        const SizedBox(height: Gap.lg),
+
+                        // ── SECTION 4: ENGINE & CONNECTIVITY ──
+                        const _SectionHeader(title: 'ENGINE & CONNECTIVITY'),
+                        _GroupedCard(
+                          cardBg: cardBg,
+                          borderColor: borderColor,
+                          isDark: isDark,
+                          children: [
+                            // Idle Duration
+                            Padding(
+                              padding: const EdgeInsets.all(Gap.md),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.hourglass_empty_rounded, size: 18, color: Color(0xFF7C3AED)),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Excessive Idle Alert',
+                                              style: theme.textTheme.titleSmall?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 1),
+                                            Text(
+                                              'Alert if engine is ON while stationary beyond',
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                fontSize: 11,
+                                                color: scheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      _ModernSwitch(
+                                        value: _alertToggles['excessive_idle'] ?? true,
+                                        onChanged: (bool val) => setState(() {
+                                          _alertToggles['excessive_idle'] = val;
+                                          _alertToggles['idle'] = val;
+                                        }),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_alertToggles['excessive_idle'] ?? true) ...[
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _SegmentTab(
+                                            label: '15 min',
+                                            isSelected: _idleDuration.round() == 15,
+                                            activeColor: const Color(0xFF7C3AED),
+                                            onTap: () => setState(() => _idleDuration = 15),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _SegmentTab(
+                                            label: '30 min',
+                                            isSelected: _idleDuration.round() == 30,
+                                            activeColor: const Color(0xFF7C3AED),
+                                            onTap: () => setState(() => _idleDuration = 30),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _SegmentTab(
+                                            label: '1 hr',
+                                            isSelected: _idleDuration.round() == 60,
+                                            activeColor: const Color(0xFF7C3AED),
+                                            onTap: () => setState(() => _idleDuration = 60),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _SegmentTab(
+                                            label: '2 hrs',
+                                            isSelected: _idleDuration.round() == 120,
+                                            activeColor: const Color(0xFF7C3AED),
+                                            onTap: () => setState(() => _idleDuration = 120),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
                               ),
-                              icon: const Icon(Icons.volume_up_rounded, size: 14),
-                              label: const Text(
-                                'Test Siren & Lightning',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            _buildGroupedDivider(borderColor),
+                            // Offline Threshold
+                            Padding(
+                              padding: const EdgeInsets.all(Gap.md),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.cloud_off_rounded, size: 18, color: Color(0xFF0D9488)),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Offline Threshold',
+                                            style: theme.textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF0D9488).withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(100),
+                                          border: Border.all(color: const Color(0xFF0D9488).withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          _noDataThreshold == 0.5
+                                              ? '30 min'
+                                              : '${_noDataThreshold.toInt()} hr${_noDataThreshold == 1.0 ? '' : 's'}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF0D9488),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Mark vehicle offline if GPS stops updating for',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 11,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [0.5, 1.0, 3.0]
+                                        .map(
+                                          (double h) => Expanded(
+                                            child: _SegmentTab(
+                                              label: h == 0.5 ? '30 min' : '${h.toInt()} hr${h == 1.0 ? '' : 's'}',
+                                              isSelected: _noDataThreshold == h,
+                                              activeColor: const Color(0xFF0D9488),
+                                              onTap: () => setState(() => _noDataThreshold = h),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [6.0, 12.0, 24.0]
+                                        .map(
+                                          (double h) => Expanded(
+                                            child: _SegmentTab(
+                                              label: '${h.toInt()} hrs',
+                                              isSelected: _noDataThreshold == h,
+                                              activeColor: const Color(0xFF0D9488),
+                                              onTap: () => setState(() => _noDataThreshold = h),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: Gap.lg),
-
-                  // ── Section 1: Overspeed Limit ─────────────────────
-                  _SettingsCard(
-                    cardBg: cardBg,
-                    borderColor: borderColor,
-                    isDark: isDark,
-                    title: 'Overspeed Threshold',
-                    subtitle: 'Alert triggers when vehicle speed exceeds limit',
-                    icon: Icons.speed_rounded,
-                    iconColor: const Color(0xFFFF9800),
-                    badgeText: '${_speedLimit.round()} km/h',
-                    badgeColor: const Color(0xFFFF9800),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Slider(
-                          value: _speedLimit,
-                          min: 30,
-                          max: 140,
-                          divisions: 110,
-                          label: '${_speedLimit.round()} km/h',
-                          activeColor: const Color(0xFFFF9800),
-                          onChanged: (double v) =>
-                              setState(() => _speedLimit = v),
-                        ),
-                        const SizedBox(height: Gap.xs),
-                        Wrap(
-                          spacing: Gap.xs,
-                          runSpacing: Gap.xs,
-                          children: <double>[40, 60, 80, 100, 120]
-                              .map(
-                                (double preset) => ChoiceChip(
-                                  label: Text('${preset.round()} km/h'),
-                                  selected: _speedLimit == preset,
-                                  selectedColor: const Color(0xFFFF9800)
-                                      .withOpacity(0.2),
-                                  labelStyle: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _speedLimit == preset
-                                        ? const Color(0xFFFF9800)
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                                  onSelected: (_) =>
-                                      setState(() => _speedLimit = preset),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: Gap.lg),
-
-                  // ── Section 2: Overspeed Duration ──────────────────
-                  _SettingsCard(
-                    cardBg: cardBg,
-                    borderColor: borderColor,
-                    isDark: isDark,
-                    title: 'Overspeed Duration',
-                    subtitle:
-                        'Speeding duration required before firing alert',
-                    icon: Icons.timer_rounded,
-                    iconColor: const Color(0xFF2196F3),
-                    badgeText: '${_overspeedDuration.round()} mins',
-                    badgeColor: const Color(0xFF2196F3),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Slider(
-                          value: _overspeedDuration,
-                          min: 1,
-                          max: 15,
-                          divisions: 14,
-                          label: '${_overspeedDuration.round()} mins',
-                          activeColor: const Color(0xFF2196F3),
-                          onChanged: (double v) =>
-                              setState(() => _overspeedDuration = v),
-                        ),
-                        const SizedBox(height: Gap.xs),
-                        Wrap(
-                          spacing: Gap.xs,
-                          children: <double>[1, 3, 5, 10]
-                              .map(
-                                (double preset) => ChoiceChip(
-                                  label: Text('${preset.round()} mins'),
-                                  selected: _overspeedDuration == preset,
-                                  selectedColor: const Color(0xFF2196F3)
-                                      .withOpacity(0.2),
-                                  labelStyle: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _overspeedDuration == preset
-                                        ? const Color(0xFF2196F3)
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                                  onSelected: (_) => setState(
-                                      () => _overspeedDuration = preset),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: Gap.lg),
-
-                  // ── Section 3: Idle Duration ───────────────────────
-                  DurationAlertCard(
-                    title: 'Idle Duration',
-                    subtitle: 'Alert triggers when engine is ON but stationary',
-                    icon: Icons.hourglass_empty_rounded,
-                    iconColor: const Color(0xFF9C27B0),
-                    badgeColor: const Color(0xFF9C27B0),
-                    controller: _idleController,
-                    duration: _idleDuration,
-                    enabled: _alertToggles['excessive_idle'] ?? true,
-                    onToggle: (bool val) => setState(() {
-                      _alertToggles['excessive_idle'] = val;
-                      _alertToggles['idle'] = val;
-                    }),
-                    onDurationChanged: (double v) => setState(() => _idleDuration = v),
-                  ),
-
-                  const SizedBox(height: Gap.lg),
-
-                  // ── Section 4: No Data (Inactivity) Rule ───────────
-                  _SettingsCard(
-                    cardBg: cardBg,
-                    borderColor: borderColor,
-                    isDark: isDark,
-                    title: 'No Data Rule (Inactivity Threshold)',
-                    subtitle:
-                        'Keep vehicle in same state (Running, Idle, Parked) for this duration before marking as No Data',
-                    icon: Icons.cloud_off_rounded,
-                    iconColor: const Color(0xFF0EA5E9),
-                    badgeText: _noDataThreshold == 0.5
-                        ? '30 mins (Default)'
-                        : '${_noDataThreshold.toInt()} hr${_noDataThreshold == 1.0 ? '' : 's'}',
-                    badgeColor: const Color(0xFF0EA5E9),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Wrap(
-                          spacing: Gap.xs,
-                          runSpacing: Gap.xs,
-                          children: AppConfig.noDataThresholdOptions.map((double h) {
-                            final bool isSelected = _noDataThreshold == h;
-                            final String label = h == 0.5
-                                ? '30 min (Default)'
-                                : (h == 1.0 ? '1 hr' : '${h.toInt()} hrs');
-                            return ChoiceChip(
-                              label: Text(label),
-                              selected: isSelected,
-                              selectedColor: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                color: isSelected
-                                    ? const Color(0xFF0EA5E9)
-                                    : scheme.onSurfaceVariant,
-                              ),
-                              onSelected: (bool selected) {
-                                if (selected) setState(() => _noDataThreshold = h);
-                              },
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: Gap.lg),
-
-                ],
-              ),
               
               ListView(
-                padding: const EdgeInsets.all(Gap.lg),
+                padding: const EdgeInsets.fromLTRB(Gap.md, Gap.md, Gap.md, 100),
                 children: [
-                  // ── Parking Alert Card ──
-                  DurationAlertCard(
-                    title: 'Parking',
-                    subtitle: 'Alert triggers when vehicle is parked beyond duration',
-                    icon: Icons.local_parking_rounded,
-                    iconColor: const Color(0xFF2563EB),
-                    badgeColor: const Color(0xFF2563EB),
-                    controller: _parkingController,
-                    duration: _parkingDuration,
-                    enabled: _alertToggles['parking'] ?? true,
-                    onToggle: (bool val) => setState(() => _alertToggles['parking'] = val),
-                    onDurationChanged: (double v) => setState(() => _parkingDuration = v),
-                  ),
-
-                  const SizedBox(height: Gap.md),
-
-                  // ── Moving (After Stoppage) Alert Card ──
-                  DurationAlertCard(
-                    title: 'Moving (After Stoppage)',
-                    subtitle: 'Alert triggers when vehicle starts moving after stoppage',
-                    icon: Icons.directions_car_rounded,
-                    iconColor: const Color(0xFF0D9488),
-                    badgeColor: const Color(0xFF0D9488),
-                    controller: _movingController,
-                    duration: _movingDuration,
-                    enabled: _alertToggles['moving'] ?? true,
-                    onToggle: (bool val) => setState(() => _alertToggles['moving'] = val),
-                    onDurationChanged: (double v) => setState(() => _movingDuration = v),
-                  ),
-
-                  const SizedBox(height: Gap.md),
-
-                  // ── Idle Alert Card ──
-                  DurationAlertCard(
-                    title: 'Idle Duration',
-                    subtitle: 'Alert triggers when engine is ON but stationary beyond duration',
-                    icon: Icons.hourglass_empty_rounded,
-                    iconColor: const Color(0xFF9C27B0),
-                    badgeColor: const Color(0xFF9C27B0),
-                    controller: _idleController,
-                    duration: _idleDuration,
-                    enabled: _alertToggles['excessive_idle'] ?? true,
-                    onToggle: (bool val) => setState(() {
-                      _alertToggles['excessive_idle'] = val;
-                      _alertToggles['idle'] = val;
-                    }),
-                    onDurationChanged: (double v) => setState(() => _idleDuration = v),
+                  // ── SECTION 1: EMERGENCY & TAMPERING ──
+                  const _SectionHeader(title: 'EMERGENCY & TAMPERING'),
+                  _GroupedCard(
+                    cardBg: cardBg,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    children: [
+                      _AlertTile(
+                        title: 'SOS Emergency Alarm',
+                        subtitle: 'Alert immediately when driver presses SOS panic button',
+                        icon: Icons.emergency_rounded,
+                        iconColor: const Color(0xFFDC2626),
+                        activeTrackColor: const Color(0xFFDC2626),
+                        value: _alertToggles['sos'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['sos'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      _AlertTile(
+                        title: 'Main Battery Disconnection',
+                        subtitle: 'Alert if vehicle battery or GPS tracker wire is disconnected',
+                        icon: Icons.battery_alert_rounded,
+                        iconColor: const Color(0xFFEA580C),
+                        value: _alertToggles['main_battery_disconnected'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['main_battery_disconnected'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      _AlertTile(
+                        title: 'Main Battery Restored',
+                        subtitle: 'Notification when main vehicle power source is reconnected',
+                        icon: Icons.battery_charging_full_rounded,
+                        iconColor: const Color(0xFF16A34A),
+                        value: _alertToggles['main_battery_connected'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['main_battery_connected'] = val),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: Gap.lg),
 
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: Corners.rLg,
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Column(
-                      children: [
-                        for (final entry in _alertToggles.entries.where((e) =>
-                            !const <String>{'parking', 'moving', 'stoppage', 'excessive_idle', 'idle'}
-                                .contains(e.key))) ...[
-                          SwitchListTile(
-                            value: entry.value,
-                            activeColor: const Color(0xFF2E7D32),
-                            title: Text('${entry.key.replaceAll('_', ' ').toUpperCase()} ALERT'),
-                            subtitle: Text('Receive notifications for ${entry.key.replaceAll('_', ' ')}'),
-                            onChanged: (bool val) => setState(() => _alertToggles[entry.key] = val),
-                          ),
-                          Divider(height: 1, color: borderColor),
-                        ]
-                      ],
-                    ),
+                  // ── SECTION 2: GEOFENCE & NAVIGATION ──
+                  const _SectionHeader(title: 'GEOFENCE & NAVIGATION'),
+                  _GroupedCard(
+                    cardBg: cardBg,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    children: [
+                      _AlertTile(
+                        title: 'Geofence Boundary Alert',
+                        subtitle: 'Notify when vehicle enters or exits designated safe zones',
+                        icon: Icons.fence_rounded,
+                        iconColor: const Color(0xFF2563EB),
+                        value: _alertToggles['geofence'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['geofence'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      _AlertTile(
+                        title: 'Route Deviation Alert',
+                        subtitle: 'Alert if vehicle wanders off scheduled trip route',
+                        icon: Icons.alt_route_rounded,
+                        iconColor: const Color(0xFF7C3AED),
+                        value: _alertToggles['route_deviation'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['route_deviation'] = val),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: Gap.xxl),
+
+                  const SizedBox(height: Gap.lg),
+
+                  // ── SECTION 3: IGNITION & TRIPS ──
+                  const _SectionHeader(title: 'IGNITION & TRIPS'),
+                  _GroupedCard(
+                    cardBg: cardBg,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    children: [
+                      _AlertTile(
+                        title: 'Engine ON Notification',
+                        subtitle: 'Send notification when vehicle ignition is switched ON',
+                        icon: Icons.key_rounded,
+                        iconColor: const Color(0xFF16A34A),
+                        value: _alertToggles['engine_on'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['engine_on'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      _AlertTile(
+                        title: 'Engine OFF Notification',
+                        subtitle: 'Send notification when vehicle ignition is switched OFF',
+                        icon: Icons.power_settings_new_rounded,
+                        iconColor: const Color(0xFF64748B),
+                        value: _alertToggles['engine_off'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['engine_off'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      _AlertTile(
+                        title: 'Trip Started Alert',
+                        subtitle: 'Notify when vehicle begins a new trip journey',
+                        icon: Icons.play_circle_fill_rounded,
+                        iconColor: const Color(0xFF0284C7),
+                        value: _alertToggles['trip_started'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['trip_started'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      _AlertTile(
+                        title: 'Trip Ended Alert',
+                        subtitle: 'Notify when vehicle completes trip and parks at destination',
+                        icon: Icons.stop_circle_rounded,
+                        iconColor: const Color(0xFF64748B),
+                        value: _alertToggles['trip_ended'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['trip_ended'] = val),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: Gap.lg),
+
+                  // ── SECTION 4: MOVEMENT & STOPPAGE ──
+                  const _SectionHeader(title: 'MOVEMENT & STOPPAGE'),
+                  _GroupedCard(
+                    cardBg: cardBg,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    children: [
+                      _AlertTile(
+                        title: 'Overspeed Alert',
+                        subtitle: 'Notify when vehicle exceeds configured speed limit',
+                        icon: Icons.speed_rounded,
+                        iconColor: const Color(0xFFEA580C),
+                        value: _alertToggles['overspeed'] ?? true,
+                        onChanged: (bool val) => setState(() => _alertToggles['overspeed'] = val),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      // Extended Parking Alert
+                      Padding(
+                        padding: const EdgeInsets.all(Gap.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.local_parking_rounded, color: Color(0xFF2563EB), size: 19),
+                                ),
+                                const SizedBox(width: Gap.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Extended Parking Alert',
+                                        style: theme.textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Alert when parked continuously beyond duration',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: scheme.onSurfaceVariant,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: Gap.sm),
+                                _ModernSwitch(
+                                  value: _alertToggles['parking'] ?? true,
+                                  onChanged: (bool val) => setState(() {
+                                    _alertToggles['parking'] = val;
+                                    _alertToggles['stoppage'] = val;
+                                  }),
+                                ),
+                              ],
+                            ),
+                            if (_alertToggles['parking'] ?? true) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: <double>[30, 60, 120, 180]
+                                    .map(
+                                      (double d) => Expanded(
+                                        child: _SegmentTab(
+                                          label: d >= 60 ? '${(d / 60).round()} hr${d > 60 ? 's' : ''}' : '${d.round()} min',
+                                          isSelected: _parkingDuration.round() == d.round(),
+                                          activeColor: const Color(0xFF2563EB),
+                                          onTap: () => setState(() {
+                                            _parkingDuration = d;
+                                            _parkingController.text = '${d.round()}';
+                                          }),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      _buildGroupedDivider(borderColor),
+                      // Moving After Stoppage Alert
+                      Padding(
+                        padding: const EdgeInsets.all(Gap.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0D9488).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.directions_car_rounded, color: Color(0xFF0D9488), size: 19),
+                                ),
+                                const SizedBox(width: Gap.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Moving (After Stoppage)',
+                                        style: theme.textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Alert when vehicle moves after being stopped for',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: scheme.onSurfaceVariant,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: Gap.sm),
+                                _ModernSwitch(
+                                  value: _alertToggles['moving'] ?? true,
+                                  onChanged: (bool val) => setState(() => _alertToggles['moving'] = val),
+                                ),
+                              ],
+                            ),
+                            if (_alertToggles['moving'] ?? true) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: <double>[15, 30, 60, 120]
+                                    .map(
+                                      (double d) => Expanded(
+                                        child: _SegmentTab(
+                                          label: d >= 60 ? '${(d / 60).round()} hr${d > 60 ? 's' : ''}' : '${d.round()} min',
+                                          isSelected: _movingDuration.round() == d.round(),
+                                          activeColor: const Color(0xFF0D9488),
+                                          onTap: () => setState(() {
+                                            _movingDuration = d;
+                                            _movingController.text = '${d.round()}';
+                                          }),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
 
@@ -825,6 +1117,249 @@ class _VehicleSettingsScreenState
   }
 }
 
+Widget _buildGroupedDivider(Color borderColor) {
+  return Divider(height: 1, thickness: 1, color: borderColor, indent: 16, endIndent: 16);
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.action});
+  final String title;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8, top: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            ),
+          ),
+          if (action != null) action!,
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupedCard extends StatelessWidget {
+  const _GroupedCard({
+    required this.cardBg,
+    required this.borderColor,
+    required this.isDark,
+    required this.children,
+  });
+
+  final Color cardBg;
+  final Color borderColor;
+  final bool isDark;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+class _ModernSwitch extends StatelessWidget {
+  const _ModernSwitch({
+    required this.value,
+    required this.onChanged,
+    this.activeTrackColor,
+  });
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final Color? activeTrackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color onColor = activeTrackColor ?? const Color(0xFF16A34A);
+    final Color offTrack = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
+
+    return Switch(
+      value: value,
+      onChanged: onChanged,
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
+          return Colors.white;
+        }
+        return isDark ? const Color(0xFF94A3B8) : Colors.white;
+      }),
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
+          return onColor;
+        }
+        return offTrack;
+      }),
+      trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+}
+
+class _AlertTile extends StatelessWidget {
+  const _AlertTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.onChanged,
+    this.activeTrackColor,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color iconColor;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color? activeTrackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: 11),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 19),
+          ),
+          const SizedBox(width: Gap.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: Gap.sm),
+          _ModernSwitch(
+            value: value,
+            activeTrackColor: activeTrackColor,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentTab extends StatelessWidget {
+  const _SegmentTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    this.activeColor,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color? activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color selectedBg = activeColor ?? const Color(0xFF2563EB);
+    final Color unselectedBg = isDark ? const Color(0xFF1E2838) : const Color(0xFFF1F5F9);
+    const Color selectedText = Colors.white;
+    final Color unselectedText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2.5),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isSelected ? selectedBg : unselectedBg,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: selectedBg.withOpacity(0.3),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? selectedText : unselectedText,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
 
@@ -873,107 +1408,3 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({
-    required this.cardBg,
-    required this.borderColor,
-    required this.isDark,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.iconColor,
-    required this.badgeText,
-    required this.badgeColor,
-    required this.child,
-  });
-
-  final Color cardBg;
-  final Color borderColor;
-  final bool isDark;
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color iconColor;
-  final String badgeText;
-  final Color badgeColor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(Gap.lg),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: Corners.rLg,
-        border: Border.all(color: borderColor),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(Gap.xs + 2),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: Corners.rSm,
-                ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(width: Gap.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor.withOpacity(0.15),
-                  borderRadius: Corners.rPill,
-                  border: Border.all(color: badgeColor.withOpacity(0.3)),
-                ),
-                child: Text(
-                  badgeText,
-                  style: TextStyle(
-                    color: badgeColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: Gap.md),
-          child,
-        ],
-      ),
-    );
-  }
-}

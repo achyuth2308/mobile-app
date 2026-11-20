@@ -30,10 +30,11 @@ class DurationAlertCard extends StatelessWidget {
 
   String get _badgeText {
     final int mins = duration.round();
-    if (mins == 60) return '60 min (1 hr default)';
-    if (mins == 120) return '120 min (2 hrs)';
-    if (mins == 30) return '30 min';
-    return '$mins mins';
+    if (mins >= 60 && mins % 60 == 0) {
+      final int hrs = mins ~/ 60;
+      return '$hrs hr${hrs > 1 ? 's' : ''}';
+    }
+    return '$mins min';
   }
 
   void _selectPreset(int presetMins) {
@@ -92,19 +93,19 @@ class DurationAlertCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
                       children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: isEnabled ? scheme.onSurface : scheme.onSurfaceVariant,
-                            ),
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: isEnabled ? scheme.onSurface : scheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
@@ -136,110 +137,41 @@ class DurationAlertCard extends StatelessWidget {
                 ),
               ),
               if (onToggle != null && enabled != null)
-                Switch.adaptive(
+                Switch(
                   value: enabled!,
-                  activeColor: const Color(0xFF2E7D32),
+                  thumbColor: WidgetStateProperty.resolveWith((states) => Colors.white),
+                  trackColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? const Color(0xFF16A34A)
+                        : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                  ),
+                  trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   onChanged: onToggle,
                 ),
             ],
           ),
 
-          const SizedBox(height: Gap.md),
-
-          // ── Duration Input & Preset Box ──
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: Gap.sm + 2),
-            decoration: BoxDecoration(
-              color: isDark ? scheme.surfaceContainerHighest : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isDark ? scheme.outlineVariant : const Color(0xFFE2E8F0),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (isEnabled) ...[
+            const SizedBox(height: Gap.md),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                // Input Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Text(
-                      'Alert After Duration:',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                        color: isEnabled ? scheme.onSurface : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Row(
-                      children: <Widget>[
-                        Container(
-                          width: 68,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: isDark ? scheme.surfaceContainerHigh : Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isDark
-                                  ? scheme.outlineVariant
-                                  : const Color(0xFFCBD5E1),
-                            ),
-                          ),
-                          child: TextFormField(
-                            controller: controller,
-                            enabled: isEnabled,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isEnabled ? scheme.onSurface : scheme.onSurfaceVariant,
-                            ),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 8),
-                              border: InputBorder.none,
-                            ),
-                            onChanged: (String val) {
-                              final double? parsed = double.tryParse(val.trim());
-                              if (parsed != null && parsed > 0) {
-                                onDurationChanged(parsed);
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'mins',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: Gap.sm),
-
-                // Quick Presets Row: [ 1 hr (Default) ] [ 30 mins ] [ 2 hrs ]
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: <Widget>[
                     _PresetChip(
+                      label: '30 min',
+                      isSelected: roundedVal == 30,
+                      isEnabled: isEnabled,
+                      onTap: () => _selectPreset(30),
+                    ),
+                    _PresetChip(
                       label: '1 hr (Default)',
                       isSelected: roundedVal == 60,
                       isEnabled: isEnabled,
                       onTap: () => _selectPreset(60),
-                    ),
-                    _PresetChip(
-                      label: '30 mins',
-                      isSelected: roundedVal == 30,
-                      isEnabled: isEnabled,
-                      onTap: () => _selectPreset(30),
                     ),
                     _PresetChip(
                       label: '2 hrs',
@@ -249,9 +181,56 @@ class DurationAlertCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Container(
+                      width: 54,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: isDark ? scheme.surfaceContainerHighest : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isDark ? scheme.outlineVariant : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      child: TextFormField(
+                        controller: controller,
+                        enabled: isEnabled,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 6),
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (String val) {
+                          final double? parsed = double.tryParse(val.trim());
+                          if (parsed != null && parsed > 0) {
+                            onDurationChanged(parsed);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'min',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );
