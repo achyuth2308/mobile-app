@@ -6,6 +6,7 @@ import '../../../data/models/geofence.dart';
 import '../../../data/models/report_models.dart';
 import '../../../data/models/vehicle.dart';
 import '../../../providers/fleet_provider.dart';
+import 'report_top_tabs.dart';
 
 enum DatePreset { today, yesterday, last7days, last30days, custom }
 
@@ -52,6 +53,45 @@ class ReportFilterBar extends ConsumerWidget {
   final String? singleGeofenceId;
   final ValueChanged<String?>? onSingleGeofenceChanged;
   final List<Geofence> geofences;
+
+  String _shortReportTitle(ReportType t) {
+    switch (t) {
+      case ReportType.trip:
+        return 'Trips';
+      case ReportType.dailyTrip:
+        return 'Full Day';
+      case ReportType.stoppages:
+        return 'Stoppages';
+      case ReportType.idle:
+        return 'Idle Time';
+      case ReportType.ignition:
+        return 'Engine';
+      case ReportType.overspeeding:
+        return 'Overspeed';
+      case ReportType.distance:
+        return 'Distance';
+      case ReportType.geofenceTransit:
+        return 'Geofence';
+      case ReportType.consolidated:
+        return 'Summary';
+      case ReportType.individual:
+        return 'Driver';
+      case ReportType.fuelRefill:
+        return 'Fuel Refill';
+      case ReportType.fuelTheft:
+        return 'Fuel Theft';
+      case ReportType.fuelConsumption:
+        return 'Consumption';
+      case ReportType.fuelKmpl:
+        return 'KMPL';
+      case ReportType.fuelLph:
+        return 'LPH';
+      case ReportType.fuelConsolidated:
+        return 'Fuel Total';
+      default:
+        return t.label;
+    }
+  }
 
   LinearGradient _getGradient(ReportType type) {
     switch (type) {
@@ -330,6 +370,300 @@ class ReportFilterBar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // CATEGORY & REPORT DROPDOWN SELECTOR
+          if (onTypeChanged != null) ...<Widget>[
+            () {
+              final bool isFuel = type.isFuelReport;
+              final bool hasFuelVehicles = allVehicles.any((Vehicle v) => v.hasFuel);
+
+              // Standard reports list
+              const List<ReportType> standardTypes = <ReportType>[
+                ReportType.trip,
+                ReportType.dailyTrip,
+                ReportType.stoppages,
+                ReportType.idle,
+                ReportType.ignition,
+                ReportType.overspeeding,
+                ReportType.distance,
+                ReportType.geofenceTransit,
+                ReportType.consolidated,
+                ReportType.individual,
+              ];
+
+              // Fuel reports list
+              const List<ReportType> fuelTypes = <ReportType>[
+                ReportType.fuelRefill,
+                ReportType.fuelTheft,
+                ReportType.fuelConsumption,
+                ReportType.fuelKmpl,
+                ReportType.fuelLph,
+                ReportType.fuelConsolidated,
+              ];
+
+              final List<ReportType> activeTypeList = isFuel ? fuelTypes : standardTypes;
+
+              final ReportTabMeta currentMeta = kReportTabs.where((t) => t.type == type).firstOrNull ??
+                  ReportTabMeta(
+                    type: type,
+                    category: isFuel ? ReportCategory.fuel : ReportCategory.trips,
+                    title: type.label,
+                    description: '',
+                    icon: isFuel ? Icons.local_gas_station_rounded : Icons.alt_route_rounded,
+                    color: const Color(0xFF2563EB),
+                    bg: const Color(0xFFEFF6FF),
+                  );
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    'REPORT TYPE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Direct Dropdown Category Buttons (Single Row, No second box)
+                  Row(
+                    children: <Widget>[
+                      // Standard Reports Dropdown Button
+                      Expanded(
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            popupMenuTheme: PopupMenuThemeData(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 6,
+                            ),
+                          ),
+                          child: PopupMenuButton<ReportType>(
+                            tooltip: 'Select Standard Report',
+                            initialValue: !isFuel ? type : null,
+                            onSelected: (ReportType selected) {
+                              onTypeChanged!(selected);
+                            },
+                            itemBuilder: (BuildContext context) => standardTypes.map((ReportType rType) {
+                              final ReportTabMeta itemMeta = kReportTabs.where((t) => t.type == rType).firstOrNull ??
+                                  ReportTabMeta(
+                                    type: rType,
+                                    category: ReportCategory.trips,
+                                    title: rType.label,
+                                    description: '',
+                                    icon: Icons.alt_route_rounded,
+                                    color: const Color(0xFF2563EB),
+                                    bg: const Color(0xFFEFF6FF),
+                                  );
+                              final bool isSelected = !isFuel && type == rType;
+
+                              return PopupMenuItem<ReportType>(
+                                value: rType,
+                                child: Row(
+                                  children: <Widget>[
+                                    Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        color: itemMeta.color.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Icon(itemMeta.icon, size: 16, color: itemMeta.color),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        itemMeta.title,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                                        ),
+
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      const Icon(Icons.check_rounded, size: 16, color: Color(0xFF2563EB)),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: !isFuel ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: !isFuel ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1),
+                                  width: !isFuel ? 1.5 : 1.0,
+                                ),
+                                boxShadow: !isFuel
+                                    ? const <BoxShadow>[
+                                        BoxShadow(
+                                          color: Color(0x18000000),
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  Icon(
+                                    !isFuel ? currentMeta.icon : Icons.alt_route_rounded,
+                                    size: 16,
+                                    color: !isFuel ? Colors.white : const Color(0xFF475569),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      !isFuel ? _shortReportTitle(type) : 'Standard',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: !isFuel ? FontWeight.w800 : FontWeight.w600,
+                                        color: !isFuel ? Colors.white : const Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    size: 20,
+                                    color: !isFuel ? Colors.white : const Color(0xFF64748B),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (hasFuelVehicles) ...<Widget>[
+                        const SizedBox(width: 8),
+                        // Fuel Reports Dropdown Button
+                        Expanded(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              popupMenuTheme: PopupMenuThemeData(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 6,
+                              ),
+                            ),
+                            child: PopupMenuButton<ReportType>(
+                              tooltip: 'Select Fuel Report',
+                              initialValue: isFuel ? type : null,
+                              onSelected: (ReportType selected) {
+                                onTypeChanged!(selected);
+                              },
+                              itemBuilder: (BuildContext context) => fuelTypes.map((ReportType rType) {
+                                final ReportTabMeta itemMeta = kReportTabs.where((t) => t.type == rType).firstOrNull ??
+                                    ReportTabMeta(
+                                      type: rType,
+                                      category: ReportCategory.fuel,
+                                      title: rType.label,
+                                      description: '',
+                                      icon: Icons.local_gas_station_rounded,
+                                      color: const Color(0xFF059669),
+                                      bg: const Color(0xFFECFDF5),
+                                    );
+                                final bool isSelected = isFuel && type == rType;
+
+                                return PopupMenuItem<ReportType>(
+                                  value: rType,
+                                  child: Row(
+                                    children: <Widget>[
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          color: itemMeta.color.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Icon(itemMeta.icon, size: 16, color: itemMeta.color),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          itemMeta.title,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                            color: isSelected ? const Color(0xFF059669) : const Color(0xFF0F172A),
+                                          ),
+  
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        const Icon(Icons.check_rounded, size: 16, color: Color(0xFF059669)),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                                decoration: BoxDecoration(
+                                  color: isFuel ? const Color(0xFF059669) : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isFuel ? const Color(0xFF059669) : const Color(0xFFCBD5E1),
+                                    width: isFuel ? 1.5 : 1.0,
+                                  ),
+                                  boxShadow: isFuel
+                                      ? const <BoxShadow>[
+                                          BoxShadow(
+                                            color: Color(0x18000000),
+                                            blurRadius: 4,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: <Widget>[
+                                    Icon(
+                                      isFuel ? currentMeta.icon : Icons.local_gas_station_rounded,
+                                      size: 16,
+                                      color: isFuel ? Colors.white : const Color(0xFF475569),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        isFuel ? _shortReportTitle(type) : 'Fuel',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: isFuel ? FontWeight.w800 : FontWeight.w600,
+                                          color: isFuel ? Colors.white : const Color(0xFF334155),
+                                        ),
+
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      size: 20,
+                                      color: isFuel ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                ],
+              );
+            }(),
+          ],
           // Geofence Transit Mode Selector (All | One-Way | Two-Way | Round Trip)
           if (type == ReportType.geofenceTransit) ...<Widget>[
             Column(
@@ -622,7 +956,8 @@ class ReportFilterBar extends ConsumerWidget {
                                   fontWeight: FontWeight.w800,
                                   color: Color(0xFF0F172A),
                                 ),
-                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                                softWrap: true,
                               ),
                               if (selectedV.registrationNumber.isNotEmpty &&
                                   selectedV.registrationNumber != selectedV.displayName) ...<Widget>[
@@ -640,17 +975,31 @@ class ReportFilterBar extends ConsumerWidget {
                           ),
                         ),
                         if (vehicles.length > 1)
-                          OutlinedButton.icon(
-                            onPressed: () => _showVehiclePickerModal(context, vehicles),
-                            icon: const Icon(Icons.swap_horiz_rounded, size: 14),
-                            label: const Text('Change',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF2563EB),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          InkWell(
+                            onTap: () => _showVehiclePickerModal(context, vehicles),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Icon(Icons.swap_horiz_rounded, size: 14, color: Color(0xFF2563EB)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Change',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                       ],

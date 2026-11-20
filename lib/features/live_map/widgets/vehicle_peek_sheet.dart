@@ -439,9 +439,12 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                                                                   children: [
                                                                     Icon(Icons.route_rounded, size: 18, color: drivingColor),
                                                                     const SizedBox(width: 6),
-                                                                    Text(
-                                                                      'Distance',
-                                                                      style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                                                                    Expanded(
+                                                                      child: Text(
+                                                                        'Distance',
+                                                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                                                                        overflow: TextOverflow.ellipsis,
+                                                                      ),
                                                                     ),
                                                                   ],
                                                                 ),
@@ -472,9 +475,12 @@ class _VehiclePeekSheetState extends ConsumerState<VehiclePeekSheet> {
                                                                   children: [
                                                                     Icon(Icons.speed_rounded, size: 18, color: drivingColor),
                                                                     const SizedBox(width: 6),
-                                                                    Text(
-                                                                      'Average Speed',
-                                                                      style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                                                                    Expanded(
+                                                                      child: Text(
+                                                                        'Average Speed',
+                                                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                                                                        overflow: TextOverflow.ellipsis,
+                                                                      ),
                                                                     ),
                                                                   ],
                                                                 ),
