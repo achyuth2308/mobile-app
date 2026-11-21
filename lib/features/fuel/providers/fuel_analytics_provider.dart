@@ -19,9 +19,9 @@ class FuelAnalyticsState {
     this.viewMode = FuelViewMode.chart,
     this.showAllFuel = false,
     this.showFilteredFuel = true,
-    this.showNormalize = true,
-    this.showSpeed = true,
-    this.showEngine = true,
+    this.showNormalize = false,
+    this.showSpeed = false,
+    this.showEngine = false,
     this.reportData = const AsyncValue.loading(),
   });
 
