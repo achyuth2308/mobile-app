@@ -72,8 +72,35 @@ String _toIstString(DateTime? d, String Function(DateTime) formatter) {
   return formatter(formatTarget);
 }
 
-String _formatTime(DateTime? d) => _toIstString(d, Fmt.time);
+String _formatTime(DateTime? d) {
+  if (d == null) return '—';
+  final DateTime utc = d.toUtc();
+  final DateTime ist = utc.add(const Duration(hours: 5, minutes: 30));
+  final int hour = ist.hour;
+  final int minute = ist.minute;
+  final String period = hour >= 12 ? 'PM' : 'AM';
+  final int hour12 = hour % 12 == 0 ? 12 : hour % 12;
+  return '${hour12.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} $period';
+}
+
 String _formatDateShort(DateTime? d) => _toIstString(d, Fmt.dateShort);
+
+IconData _getVehicleTypeIcon(String? type) {
+  final String t = (type ?? '').toLowerCase();
+  if (t.contains('bike') || t.contains('motorcycle') || t.contains('scooter')) {
+    return Icons.two_wheeler_rounded;
+  }
+  if (t.contains('truck') || t.contains('lorry') || t.contains('tipper')) {
+    return Icons.local_shipping_rounded;
+  }
+  if (t.contains('bus')) {
+    return Icons.directions_bus_rounded;
+  }
+  if (t.contains('tractor') || t.contains('jcb')) {
+    return Icons.agriculture_rounded;
+  }
+  return Icons.directions_car_rounded;
+}
 
 /// Historical route playback.
 ///
@@ -272,6 +299,15 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     );
   }
 
+  static DateTimeRange _last7DaysRange() {
+    final DateTime now = DateTime.now();
+    final DateTime sevenDaysAgo = now.subtract(const Duration(days: 7));
+    return DateTimeRange(
+      start: DateTime(sevenDaysAgo.year, sevenDaysAgo.month, sevenDaysAgo.day),
+      end: now,
+    );
+  }
+
   bool _isTodayRange() {
     final DateTime now = DateTime.now();
     final DateTime todayStart = DateTime(now.year, now.month, now.day);
@@ -294,7 +330,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
 
   bool _isLast24hRange() {
     final Duration diff = _range.end.difference(_range.start);
-    return diff.inHours >= 23 && diff.inHours <= 25 && !_isTodayRange() && !_isYesterdayRange();
+    return diff.inHours >= 23 && diff.inHours <= 25 && !_isTodayRange() && !_isYesterdayRange() && !_isLast7DaysRange();
+  }
+
+  bool _isLast7DaysRange() {
+    final Duration diff = _range.end.difference(_range.start);
+    return diff.inDays >= 6 && diff.inDays <= 8 && !_isTodayRange() && !_isYesterdayRange();
   }
 
   bool _isInitialized = false;
@@ -733,16 +774,238 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
     return count;
   }
 
-  Future<void> _pickStartDate() async {
-    final DateTime? picked = await showDatePicker(
+  Future<TimeOfDay?> _showClockDialPicker({
+    required BuildContext context,
+    required TimeOfDay initialTime,
+    required Color accentColor,
+    required String helpText,
+  }) async {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    return showTimePicker(
       context: context,
-      initialDate: _range.start,
-      firstDate: DateTime.now().subtract(const Duration(days: 180)),
-      lastDate: DateTime.now(),
-      builder: (BuildContext context, Widget? child) => Theme(
-        data: Theme.of(context),
-        child: child!,
+      initialTime: initialTime,
+      initialEntryMode: TimePickerEntryMode.input,
+      helpText: helpText,
+      builder: (BuildContext ctx, Widget? child) {
+        return Theme(
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(
+              primary: accentColor,
+              onPrimary: Colors.white,
+              surface: isDark ? const Color(0xFF1E2238) : Colors.white,
+              onSurface: isDark ? Colors.white : const Color(0xFF0F172A),
+            ),
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: isDark ? const Color(0xFF1E2238) : Colors.white,
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              helpTextStyle: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+              ),
+              hourMinuteShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+                  width: 1.2,
+                ),
+              ),
+              hourMinuteColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return accentColor.withOpacity(0.08);
+                }
+                return isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF8FAFC);
+              }),
+              hourMinuteTextColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return accentColor;
+                }
+                return isDark ? Colors.white : const Color(0xFF0F172A);
+              }),
+              dayPeriodShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              dayPeriodColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return accentColor;
+                }
+                return isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF1F5F9);
+              }),
+              dayPeriodTextColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return Colors.white;
+                }
+                return isDark ? Colors.white60 : const Color(0xFF64748B);
+              }),
+              dayPeriodBorderSide: BorderSide(
+                color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+              ),
+              cancelButtonStyle: TextButton.styleFrom(
+                foregroundColor: isDark ? Colors.white60 : const Color(0xFF64748B),
+                textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+              confirmButtonStyle: TextButton.styleFrom(
+                foregroundColor: accentColor,
+                textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+          ),
+          child: Transform.scale(
+            scale: 0.82,
+            child: child!,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> _showCalendarPickerSheet({
+    required BuildContext context,
+    required String title,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+    required Color accentColor,
+  }) async {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    DateTime selected = initialDate;
+
+    return showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF1E2238) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    // Compact Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Row(
+                          children: [
+                            InkWell(
+                              onTap: () => Navigator.of(ctx).pop(null),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 20,
+                                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: accentColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _formatDateShort(selected),
+                            style: TextStyle(
+                              color: accentColor,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+                    ),
+                    _CustomCalendarMonthView(
+                      selectedDate: selected,
+                      minDate: firstDate,
+                      maxDate: lastDate,
+                      accentColor: accentColor,
+                      isDark: isDark,
+                      onDateSelected: (DateTime val) {
+                        setModalState(() {
+                          selected = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 40,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accentColor,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(selected),
+                        child: const Text(
+                          'Confirm Date',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _pickStartDate() async {
+    final DateTime now = DateTime.now();
+    final DateTime minDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 180));
+    final DateTime maxDate = DateTime(now.year, now.month, now.day);
+    DateTime initial = DateTime(_range.start.year, _range.start.month, _range.start.day);
+    if (initial.isBefore(minDate)) initial = minDate;
+    if (initial.isAfter(maxDate)) initial = maxDate;
+
+    final DateTime? picked = await _showCalendarPickerSheet(
+      context: context,
+      title: 'Select From Date',
+      initialDate: initial,
+      firstDate: minDate,
+      lastDate: maxDate,
+      accentColor: const Color(0xFF2563EB),
     );
     if (picked == null) return;
 
@@ -765,33 +1028,28 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   }
 
   Future<void> _pickEndDate() async {
-    final DateTime? picked = await showDatePicker(
+    final DateTime now = DateTime.now();
+    final DateTime minDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 180));
+    final DateTime maxDate = DateTime(now.year, now.month, now.day);
+    DateTime initial = DateTime(_range.end.year, _range.end.month, _range.end.day);
+    if (initial.isBefore(minDate)) initial = minDate;
+    if (initial.isAfter(maxDate)) initial = maxDate;
+
+    final DateTime? picked = await _showCalendarPickerSheet(
       context: context,
-      initialDate: _range.end,
-      firstDate: DateTime.now().subtract(const Duration(days: 180)),
-      lastDate: DateTime.now(),
-      builder: (BuildContext context, Widget? child) => Theme(
-        data: Theme.of(context),
-        child: child!,
-      ),
+      title: 'Select To Date',
+      initialDate: initial,
+      firstDate: minDate,
+      lastDate: maxDate,
+      accentColor: const Color(0xFFF97316),
     );
     if (picked == null) return;
 
-    final DateTime now = DateTime.now();
-    final bool isEndToday = picked.year == now.year &&
-        picked.month == now.month &&
-        picked.day == now.day;
+    final DateTime newEnd = DateTime(
+      picked.year, picked.month, picked.day,
+      _range.end.hour, _range.end.minute, 59,
+    );
 
-    // Use 23:59:59 if a past day was selected, or "now" if today was selected
-    DateTime newEnd = isEndToday
-        ? now
-        : DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-
-    // Maintain the old hour/minute if they just tapped End Date
-    // Actually, no, if it's today we use 'now', otherwise 23:59 is fine for end of day.
-    // However, if the user explicitly picked an end time previously, let's just keep the time:
-    newEnd = DateTime(picked.year, picked.month, picked.day, _range.end.hour, _range.end.minute, 59);
-    
     if (newEnd.isBefore(_range.start)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1229,19 +1487,20 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   }
 
   Future<void> _pickStartTime() async {
-    final TimeOfDay? time = await showTimePicker(
+    final TimeOfDay? picked = await _showClockDialPicker(
       context: context,
+      helpText: 'SELECT START TIME',
       initialTime: TimeOfDay.fromDateTime(_range.start),
-      initialEntryMode: TimePickerEntryMode.input,
+      accentColor: const Color(0xFF2563EB),
     );
-    if (time == null) return;
+    if (picked == null) return;
 
     final DateTime newStart = DateTime(
       _range.start.year,
       _range.start.month,
       _range.start.day,
-      time.hour,
-      time.minute,
+      picked.hour,
+      picked.minute,
     );
 
     // Guard: start must be before end
@@ -1261,19 +1520,20 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
   }
 
   Future<void> _pickEndTime() async {
-    final TimeOfDay? time = await showTimePicker(
+    final TimeOfDay? picked = await _showClockDialPicker(
       context: context,
+      helpText: 'SELECT END TIME',
       initialTime: TimeOfDay.fromDateTime(_range.end),
-      initialEntryMode: TimePickerEntryMode.input,
+      accentColor: const Color(0xFFF97316),
     );
-    if (time == null) return;
+    if (picked == null) return;
 
     final DateTime newEnd = DateTime(
       _range.end.year,
       _range.end.month,
       _range.end.day,
-      time.hour,
-      time.minute,
+      picked.hour,
+      picked.minute,
       59,
     );
 
@@ -1446,8 +1706,11 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     ),
                   ],
                 ),
-                child: const Icon(Icons.directions_car_rounded,
-                    color: Colors.white, size: 22),
+                child: Icon(
+                  _getVehicleTypeIcon(vehicle.displayType),
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -1685,13 +1948,17 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     _buildPresetPill('Today', _isTodayRange(), () {
                       setState(() => _range = _todayRange());
                     }, theme),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     _buildPresetPill('Yesterday', _isYesterdayRange(), () {
                       setState(() => _range = _yesterdayRange());
                     }, theme),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     _buildPresetPill('Last 24h', _isLast24hRange(), () {
                       setState(() => _range = _last24hRange());
+                    }, theme),
+                    const SizedBox(width: 5),
+                    _buildPresetPill('Last 7d', _isLast7DaysRange(), () {
+                      setState(() => _range = _last7DaysRange());
                     }, theme),
                   ],
                 ),
@@ -1712,7 +1979,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: _buildSelectionButton(
                         icon: Icons.access_time_rounded,
@@ -1729,7 +1996,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -1746,7 +2013,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: _buildSelectionButton(
                         icon: Icons.access_time_filled_rounded,
@@ -1763,7 +2030,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   height: 44,
@@ -1785,7 +2052,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
-                          setState(() => _isInitialized = true);
+                          setState(() {
+                            _isInitialized = true;
+                            _showMarkerCallout = false;
+                          });
                           _load(autoPlay: true);
                         },
                         borderRadius: BorderRadius.circular(12),
@@ -1828,7 +2098,7 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
             decoration: BoxDecoration(
               color: isSelected
                   ? theme.colorScheme.primary
@@ -1845,12 +2115,14 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   color: isSelected
                       ? Colors.white
                       : (isDark ? Colors.grey.shade300 : const Color(0xFF475569)),
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -1900,10 +2172,10 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: gradient.colors.last.withValues(alpha: 0.25),
+                color: (gradient as LinearGradient).colors.last.withValues(alpha: 0.28),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
-              )
+              ),
             ],
           ),
           child: Column(
@@ -1915,11 +2187,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      label, 
+                      label,
                       style: const TextStyle(
                         color: Colors.white70,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10.5,
+                        letterSpacing: 0.3,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1929,11 +2202,12 @@ class _VehiclePlaybackTabState extends ConsumerState<VehiclePlaybackTab>
               ),
               const SizedBox(height: 6),
               Text(
-                value, 
+                value,
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
                   fontSize: 14,
+                  letterSpacing: 0.2,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -3425,6 +3699,221 @@ class _GlassContainer extends StatelessWidget {
             ),
           ),
           child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomCalendarMonthView extends StatefulWidget {
+  final DateTime selectedDate;
+  final DateTime minDate;
+  final DateTime maxDate;
+  final Color accentColor;
+  final bool isDark;
+  final ValueChanged<DateTime> onDateSelected;
+
+  const _CustomCalendarMonthView({
+    required this.selectedDate,
+    required this.minDate,
+    required this.maxDate,
+    required this.accentColor,
+    required this.isDark,
+    required this.onDateSelected,
+  });
+
+  @override
+  State<_CustomCalendarMonthView> createState() => _CustomCalendarMonthViewState();
+}
+
+class _CustomCalendarMonthViewState extends State<_CustomCalendarMonthView> {
+  late DateTime _displayedMonth;
+
+  static const List<String> _monthNames = <String>[
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _displayedMonth = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime maxMonth = DateTime(widget.maxDate.year, widget.maxDate.month, 1);
+    final DateTime minMonth = DateTime(widget.minDate.year, widget.minDate.month, 1);
+
+    final bool canGoPrev = !_displayedMonth.isBefore(minMonth) &&
+        !(_displayedMonth.year == minMonth.year && _displayedMonth.month == minMonth.month);
+    // Hard stop: Cannot navigate past current/max month!
+    final bool canGoNext = _displayedMonth.isBefore(maxMonth);
+
+    final int firstWeekday = DateTime(_displayedMonth.year, _displayedMonth.month, 1).weekday % 7; // 0 = Sun
+    final int daysInMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 0).day;
+    final int totalCells = firstWeekday + daysInMonth;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        // Month Navigation Header (Compact)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded, size: 22),
+                color: widget.isDark ? Colors.white70 : const Color(0xFF334155),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: canGoPrev
+                    ? () {
+                        setState(() {
+                          _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month - 1, 1);
+                        });
+                      }
+                    : null,
+              ),
+              Text(
+                '${_monthNames[_displayedMonth.month - 1]} ${_displayedMonth.year}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: widget.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+              // When on the current month, the forward arrow is COMPLETELY HIDDEN!
+              canGoNext
+                  ? IconButton(
+                      icon: const Icon(Icons.chevron_right_rounded, size: 22),
+                      color: widget.isDark ? Colors.white70 : const Color(0xFF334155),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () {
+                        setState(() {
+                          _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 1);
+                        });
+                      },
+                    )
+                  : const SizedBox(width: 32, height: 32),
+            ],
+          ),
+        ),
+        // Weekday labels
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            children: <Widget>[
+              _WeekdayHeader('S'),
+              _WeekdayHeader('M'),
+              _WeekdayHeader('T'),
+              _WeekdayHeader('W'),
+              _WeekdayHeader('T'),
+              _WeekdayHeader('F'),
+              _WeekdayHeader('S'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        // Days Grid (Compact)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemCount: totalCells,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 3,
+              crossAxisSpacing: 3,
+              childAspectRatio: 1.25,
+            ),
+            itemBuilder: (BuildContext ctx, int index) {
+              if (index < firstWeekday) {
+                return const SizedBox.shrink();
+              }
+              final int dayNum = index - firstWeekday + 1;
+              final DateTime cellDate = DateTime(_displayedMonth.year, _displayedMonth.month, dayNum);
+
+              // Hard stop: Cannot select any future date!
+              final bool isFuture = cellDate.isAfter(widget.maxDate);
+              final bool isSelected = cellDate.year == widget.selectedDate.year &&
+                  cellDate.month == widget.selectedDate.month &&
+                  cellDate.day == widget.selectedDate.day;
+              final bool isToday = cellDate.year == today.year &&
+                  cellDate.month == today.month &&
+                  cellDate.day == today.day;
+
+              if (isFuture) {
+                // Dimmed and completely disabled for future dates!
+                return Center(
+                  child: Text(
+                    '$dayNum',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: widget.isDark ? Colors.white12 : Colors.grey.shade300,
+                    ),
+                  ),
+                );
+              }
+
+              return InkWell(
+                onTap: () => widget.onDateSelected(cellDate),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? widget.accentColor
+                        : (isToday
+                            ? (widget.isDark ? Colors.white12 : const Color(0xFFF1F5F9))
+                            : Colors.transparent),
+                    shape: BoxShape.circle,
+                    border: isToday && !isSelected
+                        ? Border.all(color: widget.accentColor.withOpacity(0.5), width: 1.2)
+                        : null,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$dayNum',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected || isToday ? FontWeight.w800 : FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : (widget.isDark ? Colors.white : const Color(0xFF0F172A)),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeekdayHeader extends StatelessWidget {
+  final String label;
+  const _WeekdayHeader(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+          ),
         ),
       ),
     );

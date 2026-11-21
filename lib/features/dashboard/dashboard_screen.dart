@@ -62,114 +62,118 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               backgroundColor: theme.colorScheme.surface,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.md,
-              title: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _timeGreeting(),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B),
-                            letterSpacing: 0.2,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _timeGreeting(),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text('👋', style: TextStyle(fontSize: 13)),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text('👋', style: TextStyle(fontSize: 13)),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      (name ?? '').trim().isNotEmpty
-                          ? (name ?? '').trim()
-                          : 'Operator',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.4,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        height: 1.2,
+                          const SizedBox(height: 2),
+                          Text(
+                            (name ?? '').trim().isNotEmpty
+                                ? (name ?? '').trim()
+                                : 'Operator',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.4,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 11,
+                                color: isDark
+                                    ? const Color(0xFF64748B)
+                                    : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                Fmt.date(DateTime.now()),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.calendar_today_rounded,
-                          size: 11,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: IconButton(
+                      tooltip: 'Alerts',
+                      onPressed: () => context.push('/alerts'),
+                      icon: Badge(
+                        isLabelVisible: alertCount > 0,
+                        backgroundColor: const Color(0xFFEF4444),
+                        textColor: Colors.white,
+                        textStyle: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        label: Text(alertCount > 99 ? '99+' : '$alertCount'),
+                        child: Icon(
+                          alertCount > 0
+                              ? Icons.notifications_active_rounded
+                              : Icons.notifications_rounded,
+                          size: 24,
                           color: isDark
-                              ? const Color(0xFF64748B)
-                              : const Color(0xFF94A3B8),
+                              ? const Color(0xFFFBBF24) // Radiant Gold
+                              : const Color(0xFFD97706), // Rich Metallic Gold
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          Fmt.date(DateTime.now()),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: IconButton(
+                      tooltip: 'Profile',
+                      onPressed: () => context.push('/profile-settings'),
+                      icon: Icon(
+                        Icons.person_rounded,
+                        size: 26,
+                        color: isDark ? const Color(0xFF818CF8) : AppColors.brand,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              actions: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: IconButton(
-                    tooltip: 'Alerts',
-                    onPressed: () => context.push('/alerts'),
-                    icon: Badge(
-                      isLabelVisible: alertCount > 0,
-                      backgroundColor: const Color(0xFFEF4444),
-                      textColor: Colors.white,
-                      textStyle: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      label: Text(alertCount > 99 ? '99+' : '$alertCount'),
-                      child: Icon(
-                        alertCount > 0
-                            ? Icons.notifications_active_rounded
-                            : Icons.notifications_rounded,
-                        size: 24,
-                        color: isDark
-                            ? const Color(0xFFFBBF24) // Radiant Gold
-                            : const Color(0xFFD97706), // Rich Metallic Gold
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, right: Gap.sm),
-                  child: IconButton(
-                    tooltip: 'Profile',
-                    onPressed: () => context.push('/profile-settings'),
-                    icon: Icon(
-                      Icons.person_rounded,
-                      size: 26,
-                      color: isDark ? const Color(0xFF818CF8) : AppColors.brand,
-                    ),
-                  ),
-                ),
-              ],
             ),
 
             // ── Overview ─────────────────────────────────────────────

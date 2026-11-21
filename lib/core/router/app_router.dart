@@ -181,15 +181,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/trips',
-                builder: (BuildContext c, GoRouterState s) =>
-                    const TripsScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: <RouteBase>[
-              GoRoute(
                 path: '/profile',
                 builder: (BuildContext c, GoRouterState s) =>
                     const ProfileScreen(),
@@ -200,6 +191,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       ),
 
       // ── Full-screen routes above the shell ───────────────────────
+      GoRoute(
+        path: '/trips',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext c, GoRouterState s) => const TripsScreen(),
+      ),
       GoRoute(
         path: '/vehicle/:id',
         parentNavigatorKey: _rootKey,

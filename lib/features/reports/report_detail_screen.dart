@@ -376,23 +376,6 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(bottom: 40),
             children: <Widget>[
-              // Top Horizontal Tabs (only shown for global fleet reports hub)
-              if (widget.initialVehicleId == null) ...[
-                Builder(
-                  builder: (context) {
-                    final Vehicle? activeV = _vehicleId != null
-                        ? ref.watch(fleetProvider).vehicles.where((v) => v.id == _vehicleId).firstOrNull
-                        : null;
-                    return ReportTopTabs(
-                      selectedType: _currentType,
-                      onTabSelected: _onTabChanged,
-                      activeVehicle: activeV,
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-
               // Filter Controls Card
               ReportFilterBar(
                 type: _currentType,
