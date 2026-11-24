@@ -247,7 +247,7 @@ class _ModernBottomNavBar extends StatelessWidget {
                             // Animated glowing dash indicator
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 260),
-                              curve: Curves.easeOutBack,
+                              curve: Curves.easeOutCubic,
                               width: isSelected ? 18 : 0,
                               height: 3,
                               decoration: BoxDecoration(

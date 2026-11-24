@@ -12,6 +12,7 @@ import '../../core/config/backend_capabilities.dart';
 import '../../core/realtime/socket_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/utils/license_tier_utils.dart';
 import '../../data/models/user.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/auth_provider.dart';
@@ -371,77 +372,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  String _resolveLicenseTier(List<Vehicle> vehicles) {
-    for (final Vehicle v in vehicles) {
-      final Map<String, dynamic> raw = v.raw;
-      final dynamic meta = raw['metadata'];
-      final Map<String, dynamic> metadata = (meta is Map<String, dynamic>)
-          ? meta
-          : (meta is Map ? Map<String, dynamic>.from(meta) : <String, dynamic>{});
-
-      final String explicitType = (metadata['licenceType'] ??
-              metadata['licenseType'] ??
-              metadata['licence_type'] ??
-              metadata['license_tier'] ??
-              metadata['plan'] ??
-              metadata['tier'] ??
-              raw['licenceType'] ??
-              raw['licenseType'] ??
-              raw['licence_type'] ??
-              raw['license_tier'] ??
-              raw['plan'] ??
-              raw['subscription'] ??
-              '')
-          .toString()
-          .trim()
-          .toLowerCase();
-
-      if (explicitType.contains('premium') ||
-          explicitType.contains('enterprise')) {
-        return 'Premium';
-      }
-      if (explicitType.contains('advanced')) {
-        return 'Advanced';
-      }
-      if (explicitType.contains('plus') ||
-          explicitType.contains('pro') ||
-          explicitType.contains('starter')) {
-        return 'Standard Plus';
-      }
-      if (explicitType.contains('standard') || explicitType.contains('basic')) {
-        return 'Standard';
-      }
-
-      final String licId = (metadata['licenceId'] ??
-              metadata['licenseId'] ??
-              metadata['licence_id'] ??
-              metadata['licence_no'] ??
-              metadata['licenseNo'] ??
-              raw['licenceId'] ??
-              raw['licenseId'] ??
-              raw['licence_id'] ??
-              raw['licence_no'] ??
-              '')
-          .toString()
-          .trim()
-          .toUpperCase();
-
-      if (licId.startsWith('EN') || licId.startsWith('PR')) {
-        return 'Premium';
-      }
-      if (licId.startsWith('AD')) {
-        return 'Advanced';
-      }
-      if (licId.startsWith('ST')) {
-        return 'Standard Plus';
-      }
-      if (licId.startsWith('BC')) {
-        return 'Standard';
-      }
-    }
-
-    return 'Standard';
-  }
+  String _resolveLicenseTier(List<Vehicle> vehicles) =>
+      LicenseTierUtils.resolveLicenseTier(vehicles);
 }
 
 class _ExecutiveProfileCard extends StatelessWidget {

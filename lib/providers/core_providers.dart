@@ -139,6 +139,15 @@ class NotificationPreferences extends Equatable {
     required this.geofence,
     required this.ignition,
     required this.harsh,
+    this.whatsappEnabled = false,
+    this.whatsappPhone = '',
+    this.whatsappTheft = true,
+    this.whatsappRefill = true,
+    this.whatsappPowerCut = true,
+    this.whatsappOverspeed = true,
+    this.whatsappAddonActive = false,
+    this.whatsappDailyReport = true,
+    this.whatsappDailyReportTime = '20:00',
   });
 
   final bool sos;
@@ -147,6 +156,15 @@ class NotificationPreferences extends Equatable {
   final bool geofence;
   final bool ignition;
   final bool harsh;
+  final bool whatsappEnabled;
+  final String whatsappPhone;
+  final bool whatsappTheft;
+  final bool whatsappRefill;
+  final bool whatsappPowerCut;
+  final bool whatsappOverspeed;
+  final bool whatsappAddonActive;
+  final bool whatsappDailyReport;
+  final String whatsappDailyReportTime;
 
   NotificationPreferences copyWith({
     bool? sos,
@@ -155,6 +173,15 @@ class NotificationPreferences extends Equatable {
     bool? geofence,
     bool? ignition,
     bool? harsh,
+    bool? whatsappEnabled,
+    String? whatsappPhone,
+    bool? whatsappTheft,
+    bool? whatsappRefill,
+    bool? whatsappPowerCut,
+    bool? whatsappOverspeed,
+    bool? whatsappAddonActive,
+    bool? whatsappDailyReport,
+    String? whatsappDailyReportTime,
   }) =>
       NotificationPreferences(
         sos: sos ?? this.sos,
@@ -163,11 +190,36 @@ class NotificationPreferences extends Equatable {
         geofence: geofence ?? this.geofence,
         ignition: ignition ?? this.ignition,
         harsh: harsh ?? this.harsh,
+        whatsappEnabled: whatsappEnabled ?? this.whatsappEnabled,
+        whatsappPhone: whatsappPhone ?? this.whatsappPhone,
+        whatsappTheft: whatsappTheft ?? this.whatsappTheft,
+        whatsappRefill: whatsappRefill ?? this.whatsappRefill,
+        whatsappPowerCut: whatsappPowerCut ?? this.whatsappPowerCut,
+        whatsappOverspeed: whatsappOverspeed ?? this.whatsappOverspeed,
+        whatsappAddonActive: whatsappAddonActive ?? this.whatsappAddonActive,
+        whatsappDailyReport: whatsappDailyReport ?? this.whatsappDailyReport,
+        whatsappDailyReportTime:
+            whatsappDailyReportTime ?? this.whatsappDailyReportTime,
       );
 
   @override
-  List<Object?> get props =>
-      <Object?>[sos, theft, overspeed, geofence, ignition, harsh];
+  List<Object?> get props => <Object?>[
+        sos,
+        theft,
+        overspeed,
+        geofence,
+        ignition,
+        harsh,
+        whatsappEnabled,
+        whatsappPhone,
+        whatsappTheft,
+        whatsappRefill,
+        whatsappPowerCut,
+        whatsappOverspeed,
+        whatsappAddonActive,
+        whatsappDailyReport,
+        whatsappDailyReportTime,
+      ];
 }
 
 class NotificationPreferencesNotifier
@@ -191,6 +243,15 @@ class NotificationPreferencesNotifier
       geofence: store.notifGeofence,
       ignition: store.notifIgnition,
       harsh: store.notifHarsh,
+      whatsappEnabled: store.notifWhatsAppEnabled,
+      whatsappPhone: store.notifWhatsAppPhone,
+      whatsappTheft: store.notifWhatsAppTheft,
+      whatsappRefill: store.notifWhatsAppRefill,
+      whatsappPowerCut: store.notifWhatsAppPowerCut,
+      whatsappOverspeed: store.notifWhatsAppOverspeed,
+      whatsappAddonActive: store.notifWhatsAppAddonActive,
+      whatsappDailyReport: store.notifWhatsAppDailyReport,
+      whatsappDailyReportTime: store.notifWhatsAppDailyReportTime,
     );
   }
 
@@ -207,6 +268,26 @@ class NotificationPreferencesNotifier
       geofence: remote['geofence'] as bool? ?? store.notifGeofence,
       ignition: remote['ignition'] as bool? ?? store.notifIgnition,
       harsh: remote['harsh'] as bool? ?? store.notifHarsh,
+      whatsappEnabled:
+          remote['whatsapp_enabled'] as bool? ?? store.notifWhatsAppEnabled,
+      whatsappPhone:
+          remote['whatsapp_phone']?.toString() ?? store.notifWhatsAppPhone,
+      whatsappTheft:
+          remote['whatsapp_fuel_theft'] as bool? ?? store.notifWhatsAppTheft,
+      whatsappRefill:
+          remote['whatsapp_fuel_refill'] as bool? ?? store.notifWhatsAppRefill,
+      whatsappPowerCut:
+          remote['whatsapp_power_cut'] as bool? ?? store.notifWhatsAppPowerCut,
+      whatsappOverspeed:
+          remote['whatsapp_overspeed'] as bool? ?? store.notifWhatsAppOverspeed,
+      whatsappAddonActive: remote['whatsapp_addon_active'] as bool? ??
+          store.notifWhatsAppAddonActive,
+      whatsappDailyReport: (remote['whatsapp_daily_report'] ??
+              remote['receive_daily_report']) as bool? ??
+          store.notifWhatsAppDailyReport,
+      whatsappDailyReportTime:
+          remote['whatsapp_daily_report_time']?.toString() ??
+              store.notifWhatsAppDailyReportTime,
     );
 
     if (next != state) {
@@ -217,19 +298,38 @@ class NotificationPreferencesNotifier
         store.setNotifGeofence(next.geofence),
         store.setNotifIgnition(next.ignition),
         store.setNotifHarsh(next.harsh),
+        store.setNotifWhatsAppEnabled(next.whatsappEnabled),
+        store.setNotifWhatsAppPhone(next.whatsappPhone),
+        store.setNotifWhatsAppTheft(next.whatsappTheft),
+        store.setNotifWhatsAppRefill(next.whatsappRefill),
+        store.setNotifWhatsAppPowerCut(next.whatsappPowerCut),
+        store.setNotifWhatsAppOverspeed(next.whatsappOverspeed),
+        store.setNotifWhatsAppAddonActive(next.whatsappAddonActive),
+        store.setNotifWhatsAppDailyReport(next.whatsappDailyReport),
+        store.setNotifWhatsAppDailyReportTime(next.whatsappDailyReportTime),
       ]);
       state = next;
     }
   }
 
   Future<void> _pushToServer(NotificationPreferences prefs) async {
-    await ref.read(alertRepositoryProvider).updatePreferences(<String, bool>{
+    await ref.read(alertRepositoryProvider).updatePreferences(<String, dynamic>{
       'sos': prefs.sos,
       'theft': prefs.theft,
       'overspeed': prefs.overspeed,
       'geofence': prefs.geofence,
       'ignition': prefs.ignition,
       'harsh': prefs.harsh,
+      'whatsapp_enabled': prefs.whatsappEnabled,
+      'whatsapp_phone': prefs.whatsappPhone,
+      'whatsapp_fuel_theft': prefs.whatsappTheft,
+      'whatsapp_fuel_refill': prefs.whatsappRefill,
+      'whatsapp_power_cut': prefs.whatsappPowerCut,
+      'whatsapp_overspeed': prefs.whatsappOverspeed,
+      'whatsapp_addon_active': prefs.whatsappAddonActive,
+      'whatsapp_daily_report': prefs.whatsappDailyReport,
+      'whatsapp_daily_report_time': prefs.whatsappDailyReportTime,
+      'receive_daily_report': prefs.whatsappDailyReport,
     });
   }
 
@@ -277,6 +377,97 @@ class NotificationPreferencesNotifier
     final bool nextVal = !state.harsh;
     final NotificationPreferences nextState = state.copyWith(harsh: nextVal);
     await ref.read(secureStoreProvider).setNotifHarsh(nextVal);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> toggleWhatsApp(bool enabled) async {
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappEnabled: enabled);
+    await ref.read(secureStoreProvider).setNotifWhatsAppEnabled(enabled);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> setWhatsAppPhone(String phone) async {
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappPhone: phone);
+    await ref.read(secureStoreProvider).setNotifWhatsAppPhone(phone);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> toggleWhatsAppTheft() async {
+    final bool nextVal = !state.whatsappTheft;
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappTheft: nextVal);
+    await ref.read(secureStoreProvider).setNotifWhatsAppTheft(nextVal);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> toggleWhatsAppRefill() async {
+    final bool nextVal = !state.whatsappRefill;
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappRefill: nextVal);
+    await ref.read(secureStoreProvider).setNotifWhatsAppRefill(nextVal);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> toggleWhatsAppPowerCut() async {
+    final bool nextVal = !state.whatsappPowerCut;
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappPowerCut: nextVal);
+    await ref.read(secureStoreProvider).setNotifWhatsAppPowerCut(nextVal);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> toggleWhatsAppOverspeed() async {
+    final bool nextVal = !state.whatsappOverspeed;
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappOverspeed: nextVal);
+    await ref.read(secureStoreProvider).setNotifWhatsAppOverspeed(nextVal);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> toggleWhatsAppDailyReport() async {
+    final bool nextVal = !state.whatsappDailyReport;
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappDailyReport: nextVal);
+    await ref.read(secureStoreProvider).setNotifWhatsAppDailyReport(nextVal);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> setWhatsAppDailyReportTime(String time) async {
+    final NotificationPreferences nextState =
+        state.copyWith(whatsappDailyReportTime: time);
+    await ref.read(secureStoreProvider).setNotifWhatsAppDailyReportTime(time);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> activateWhatsAppAddon() async {
+    final NotificationPreferences nextState = state.copyWith(
+      whatsappAddonActive: true,
+      whatsappEnabled: true,
+    );
+    await ref.read(secureStoreProvider).setNotifWhatsAppAddonActive(true);
+    await ref.read(secureStoreProvider).setNotifWhatsAppEnabled(true);
+    state = nextState;
+    await _pushToServer(nextState);
+  }
+
+  Future<void> deactivateWhatsAppAddon() async {
+    final NotificationPreferences nextState = state.copyWith(
+      whatsappAddonActive: false,
+      whatsappEnabled: false,
+    );
+    await ref.read(secureStoreProvider).setNotifWhatsAppAddonActive(false);
+    await ref.read(secureStoreProvider).setNotifWhatsAppEnabled(false);
     state = nextState;
     await _pushToServer(nextState);
   }
