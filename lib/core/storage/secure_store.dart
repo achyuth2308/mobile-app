@@ -142,6 +142,52 @@ class SecureStore {
   bool get notifHarsh => _prefs.getBool('ft_notif_harsh') ?? true;
   Future<void> setNotifHarsh(bool v) => _prefs.setBool('ft_notif_harsh', v);
 
+  // ── WhatsApp Notification Preferences ──────────────────────────────
+  bool get notifWhatsAppEnabled =>
+      _prefs.getBool('ft_notif_whatsapp_enabled') ?? false;
+  Future<void> setNotifWhatsAppEnabled(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_enabled', v);
+
+  String get notifWhatsAppPhone =>
+      _prefs.getString('ft_notif_whatsapp_phone') ?? '';
+  Future<void> setNotifWhatsAppPhone(String v) =>
+      _prefs.setString('ft_notif_whatsapp_phone', v);
+
+  bool get notifWhatsAppTheft =>
+      _prefs.getBool('ft_notif_whatsapp_theft') ?? true;
+  Future<void> setNotifWhatsAppTheft(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_theft', v);
+
+  bool get notifWhatsAppRefill =>
+      _prefs.getBool('ft_notif_whatsapp_refill') ?? true;
+  Future<void> setNotifWhatsAppRefill(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_refill', v);
+
+  bool get notifWhatsAppPowerCut =>
+      _prefs.getBool('ft_notif_whatsapp_power_cut') ?? true;
+  Future<void> setNotifWhatsAppPowerCut(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_power_cut', v);
+
+  bool get notifWhatsAppOverspeed =>
+      _prefs.getBool('ft_notif_whatsapp_overspeed') ?? true;
+  Future<void> setNotifWhatsAppOverspeed(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_overspeed', v);
+
+  bool get notifWhatsAppAddonActive =>
+      _prefs.getBool('ft_notif_whatsapp_addon_active') ?? false;
+  Future<void> setNotifWhatsAppAddonActive(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_addon_active', v);
+
+  bool get notifWhatsAppDailyReport =>
+      _prefs.getBool('ft_notif_whatsapp_daily_report') ?? true;
+  Future<void> setNotifWhatsAppDailyReport(bool v) =>
+      _prefs.setBool('ft_notif_whatsapp_daily_report', v);
+
+  String get notifWhatsAppDailyReportTime =>
+      _prefs.getString('ft_notif_whatsapp_daily_report_time') ?? '20:00';
+  Future<void> setNotifWhatsAppDailyReportTime(String v) =>
+      _prefs.setString('ft_notif_whatsapp_daily_report_time', v);
+
   // ── No Data Rule Persistence ───────────────────────────────────────
   static const String _kNodataThresholdHours = 'ft_nodata_threshold_hours';
   static const String _kNodataThresholdMigrated = 'ft_nodata_migrated_30min';
