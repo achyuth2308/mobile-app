@@ -32,6 +32,17 @@ class VehicleRepository {
     return Vehicle.fromJson(map);
   }
 
+  /// `GET /api/admin/groups` — Authoritative groups assigned to the logged-in user.
+  Future<List<Map<String, dynamic>>> getAssignedGroups({CancelToken? cancelToken}) async {
+    try {
+      final dynamic res =
+          await _api.get<dynamic>('/admin/groups', cancelToken: cancelToken);
+      return asMapList(res);
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
   /// `GET /api/vehicles/:id/history` — raw GPS fixes for playback.
   Future<List<TrackPoint>> getHistory({
     required String vehicleId,

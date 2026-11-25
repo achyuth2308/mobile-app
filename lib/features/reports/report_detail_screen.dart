@@ -21,6 +21,7 @@ class ReportDetailScreen extends ConsumerStatefulWidget {
     this.initialFromGeofenceId,
     this.initialToGeofenceId,
     this.initialMode,
+    this.onBackToHub,
     super.key,
   });
 
@@ -29,6 +30,7 @@ class ReportDetailScreen extends ConsumerStatefulWidget {
   final String? initialFromGeofenceId;
   final String? initialToGeofenceId;
   final String? initialMode;
+  final VoidCallback? onBackToHub;
 
   @override
   ConsumerState<ReportDetailScreen> createState() => _ReportDetailScreenState();
@@ -68,8 +70,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
     final DateTime now = DateTime.now();
     if (_currentType == ReportType.dailyTrip) {
-      final DateTime yStart = DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
-      final DateTime yEnd = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
+      final DateTime yStart =
+          DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
+      final DateTime yEnd =
+          DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
       _startDate = yStart;
       _endDate = yEnd;
     } else {
@@ -84,10 +88,12 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       if (vehicles.isNotEmpty) {
         if (_vehicleId != null && _vehicleId!.isNotEmpty) {
           final String cleanId = _vehicleId!.trim().toLowerCase();
-          final Vehicle? matched = vehicles.where((Vehicle v) =>
-              v.id == _vehicleId ||
-              v.id.toLowerCase() == cleanId ||
-              v.registrationNumber.toLowerCase() == cleanId).firstOrNull;
+          final Vehicle? matched = vehicles
+              .where((Vehicle v) =>
+                  v.id == _vehicleId ||
+                  v.id.toLowerCase() == cleanId ||
+                  v.registrationNumber.toLowerCase() == cleanId)
+              .firstOrNull;
           if (matched != null) {
             _vehicleId = matched.id;
           }
@@ -115,7 +121,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   void didUpdateWidget(covariant ReportDetailScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     bool shouldRun = false;
-    
+
     if (oldWidget.type != widget.type) {
       _currentType = widget.type;
       if (_currentType == ReportType.dailyTrip) {
@@ -123,21 +129,24 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         if (_startDate.year == now.year &&
             _startDate.month == now.month &&
             _startDate.day == now.day) {
-          final DateTime yStart = DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
-          final DateTime yEnd = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
+          final DateTime yStart =
+              DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
+          final DateTime yEnd =
+              DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
           _startDate = yStart;
           _endDate = yEnd;
         }
       }
       shouldRun = true;
     }
-    
+
     if (oldWidget.initialVehicleId != widget.initialVehicleId) {
       _vehicleId = widget.initialVehicleId;
       shouldRun = true;
     }
-    
-    if (_currentType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
+
+    if (_currentType.requiresVehicle &&
+        (_vehicleId == null || _vehicleId!.isEmpty)) {
       final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
       if (vehicles.isNotEmpty) {
         _vehicleId = vehicles.first.id;
@@ -162,13 +171,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         if (_startDate.year == now.year &&
             _startDate.month == now.month &&
             _startDate.day == now.day) {
-          final DateTime yStart = DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
-          final DateTime yEnd = DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
+          final DateTime yStart =
+              DateTime(now.year, now.month, now.day - 1, 0, 0, 0);
+          final DateTime yEnd =
+              DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
           _startDate = yStart;
           _endDate = yEnd;
         }
       }
-      if (newType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
+      if (newType.requiresVehicle &&
+          (_vehicleId == null || _vehicleId!.isEmpty)) {
         final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
         if (vehicles.isNotEmpty) {
           final String? targetId = widget.initialVehicleId;
@@ -190,7 +202,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   }
 
   Future<void> _run() async {
-    if (_currentType.requiresVehicle && (_vehicleId == null || _vehicleId!.isEmpty)) {
+    if (_currentType.requiresVehicle &&
+        (_vehicleId == null || _vehicleId!.isEmpty)) {
       setState(() {
         _error = 'Please select a vehicle to generate this report.';
         _loading = false;
@@ -253,8 +266,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             final Vehicle? v = vId != null
                 ? vehicles.where((veh) => veh.id == vId).firstOrNull
                 : null;
-            final String vName = (row.vehicleName ?? v?.displayName ?? '').toLowerCase();
-            final String vPlate = (row.plate ?? v?.registrationNumber ?? '').toLowerCase();
+            final String vName =
+                (row.vehicleName ?? v?.displayName ?? '').toLowerCase();
+            final String vPlate =
+                (row.plate ?? v?.registrationNumber ?? '').toLowerCase();
             final String vRawName = (v?.name ?? '').toLowerCase();
             final String org = (row.orgName ?? '').toLowerCase();
             final String driver = (row.driverName ?? '').toLowerCase();
@@ -277,16 +292,20 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
     try {
       if (format == 'csv') {
-        await ReportExportService.exportCsv(type: _currentType, rows: rowsToExport);
+        await ReportExportService.exportCsv(
+            type: _currentType, rows: rowsToExport);
       } else if (format == 'excel') {
-        await ReportExportService.exportExcel(type: _currentType, rows: rowsToExport);
+        await ReportExportService.exportExcel(
+            type: _currentType, rows: rowsToExport);
       } else {
-        await ReportExportService.exportPdf(type: _currentType, rows: rowsToExport);
+        await ReportExportService.exportPdf(
+            type: _currentType, rows: rowsToExport);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${format.toUpperCase()} export downloaded successfully.'),
+          content:
+              Text('${format.toUpperCase()} export downloaded successfully.'),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
@@ -317,8 +336,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             final Vehicle? v = vId != null
                 ? vehicles.where((veh) => veh.id == vId).firstOrNull
                 : null;
-            final String vName = (row.vehicleName ?? v?.displayName ?? '').toLowerCase();
-            final String vPlate = (row.plate ?? v?.registrationNumber ?? '').toLowerCase();
+            final String vName =
+                (row.vehicleName ?? v?.displayName ?? '').toLowerCase();
+            final String vPlate =
+                (row.plate ?? v?.registrationNumber ?? '').toLowerCase();
             final String vRawName = (v?.name ?? '').toLowerCase();
             final String org = (row.orgName ?? '').toLowerCase();
             final String driver = (row.driverName ?? '').toLowerCase();
@@ -336,14 +357,18 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     final int displayCount = displayRows.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // Subtle light background like web
+      backgroundColor:
+          const Color(0xFFF1F5F9), // Subtle light background like web
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
-            if (context.canPop()) {
+            if (widget.onBackToHub != null) {
+              widget.onBackToHub!();
+            } else if (context.canPop()) {
               context.pop();
-            } else if (widget.initialVehicleId != null && widget.initialVehicleId!.isNotEmpty) {
+            } else if (widget.initialVehicleId != null &&
+                widget.initialVehicleId!.isNotEmpty) {
               context.go('/vehicle/${widget.initialVehicleId}');
             } else {
               context.go('/dashboard');
@@ -351,7 +376,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           },
         ),
         title: Text(
-          _currentType.label.endsWith('Report') || _currentType.label.endsWith('Trips')
+          _currentType.label.endsWith('Report') ||
+                  _currentType.label.endsWith('Trips')
               ? _currentType.label
               : '${_currentType.label} Report',
           style: const TextStyle(
@@ -452,10 +478,12 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                   children: <Widget>[
                     // Table Header Bar: "Report Results (N records)" + Export Buttons
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       decoration: const BoxDecoration(
                         color: Color(0xFFFAFAFA),
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(11)),
                         border: Border(
                           bottom: BorderSide(color: Color(0xFFE2E8F0)),
                         ),
@@ -485,7 +513,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: _searchQuery.isNotEmpty && displayCount == 0
+                                  color: _searchQuery.isNotEmpty &&
+                                          displayCount == 0
                                       ? const Color(0xFFDC2626)
                                       : const Color(0xFF64748B),
                                 ),
@@ -497,11 +526,15 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: displayCount > 0 ? () => _showDownloadModal(context, displayCount) : null,
+                              onTap: displayCount > 0
+                                  ? () =>
+                                      _showDownloadModal(context, displayCount)
+                                  : null,
                               borderRadius: BorderRadius.circular(8),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
                                   color: displayCount > 0
                                       ? const Color(0xFF2563EB)
@@ -510,7 +543,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                   boxShadow: displayCount > 0
                                       ? <BoxShadow>[
                                           BoxShadow(
-                                            color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                                            color: const Color(0xFF2563EB)
+                                                .withValues(alpha: 0.25),
                                             blurRadius: 6,
                                             offset: const Offset(0, 2),
                                           ),
@@ -561,22 +595,31 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                     ),
 
                     // In-card Search Bar (only needed for multi-vehicle fleet-wide reports)
-                    if (_vehicleId == null && !_currentType.requiresVehicle && totalCount > 0 && !_loading)
+                    if (_vehicleId == null &&
+                        !_currentType.requiresVehicle &&
+                        totalCount > 0 &&
+                        !_loading)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
                         decoration: const BoxDecoration(
                           color: Colors.white,
-                          border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                          border: Border(
+                              bottom: BorderSide(color: Color(0xFFE2E8F0))),
                         ),
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search by vehicle name or plate number...',
-                            hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                            prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                            hintText:
+                                'Search by vehicle name or plate number...',
+                            hintStyle: const TextStyle(
+                                fontSize: 12, color: Color(0xFF94A3B8)),
+                            prefixIcon: const Icon(Icons.search_rounded,
+                                size: 18, color: Color(0xFF64748B)),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear_rounded, size: 16, color: Color(0xFF64748B)),
+                                    icon: const Icon(Icons.clear_rounded,
+                                        size: 16, color: Color(0xFF64748B)),
                                     onPressed: () {
                                       _searchController.clear();
                                       setState(() => _searchQuery = '');
@@ -586,22 +629,27 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                 : null,
                             filled: true,
                             fillColor: const Color(0xFFF8FAFC),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             isDense: true,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFE2E8F0)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFE2E8F0)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFF2563EB), width: 1.5),
                             ),
                           ),
-                          style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                          style: const TextStyle(
+                              fontSize: 13, color: Color(0xFF0F172A)),
                           onChanged: (String val) {
                             setState(() {
                               _searchQuery = val.trim();
@@ -613,14 +661,17 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                     // Swipe hint banner for wide tables
                     if (displayCount > 0 && !_loading)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
                         decoration: const BoxDecoration(
                           color: Color(0xFFF8FAFC),
-                          border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                          border: Border(
+                              bottom: BorderSide(color: Color(0xFFE2E8F0))),
                         ),
                         child: const Row(
                           children: <Widget>[
-                            Icon(Icons.swap_horiz_rounded, size: 15, color: Color(0xFF64748B)),
+                            Icon(Icons.swap_horiz_rounded,
+                                size: 15, color: Color(0xFF64748B)),
                             SizedBox(width: 6),
                             Text(
                               'Swipe left/right on table to view all columns',
@@ -647,7 +698,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                               height: 32,
                               child: CircularProgressIndicator(
                                 strokeWidth: 3,
-                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.brand),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -664,12 +716,14 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       )
                     else if (_error != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 40, horizontal: 20),
                         alignment: Alignment.center,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 36),
+                            const Icon(Icons.error_outline_rounded,
+                                color: Color(0xFFDC2626), size: 36),
                             const SizedBox(height: 12),
                             Text(
                               _error!,
@@ -688,8 +742,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF0F172A),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
                           ],
@@ -697,7 +753,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       )
                     else if (res == null || allRows.isEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 60, horizontal: 20),
                         alignment: Alignment.center,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -708,7 +765,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                 color: Color(0xFFF1F5F9),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.search_off_rounded, color: Color(0xFF94A3B8), size: 32),
+                              child: const Icon(Icons.search_off_rounded,
+                                  color: Color(0xFF94A3B8), size: 32),
                             ),
                             const SizedBox(height: 16),
                             const Text(
@@ -734,7 +792,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       )
                     else if (displayRows.isEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 40, horizontal: 20),
                         alignment: Alignment.center,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -745,7 +804,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                 color: Color(0xFFF1F5F9),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.search_off_rounded, color: Color(0xFF94A3B8), size: 32),
+                              child: const Icon(Icons.search_off_rounded,
+                                  color: Color(0xFF94A3B8), size: 32),
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -776,9 +836,12 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                               label: const Text('Clear Search'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF2563EB),
-                                side: const BorderSide(color: Color(0xFF93C5FD)),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                side:
+                                    const BorderSide(color: Color(0xFF93C5FD)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
                           ],
@@ -809,10 +872,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   Widget _buildTableForType(ReportType type, ReportResult res) {
     final bool showVehicle = _vehicleId == null || _vehicleId!.isEmpty;
     final Vehicle? selectedVehicle = _vehicleId != null
-        ? ref.read(fleetProvider).vehicles.where((v) => v.id == _vehicleId).firstOrNull
+        ? ref
+            .read(fleetProvider)
+            .vehicles
+            .where((v) => v.id == _vehicleId)
+            .firstOrNull
         : null;
 
-    if (type.isFuelReport && selectedVehicle != null && !selectedVehicle.hasFuel) {
+    if (type.isFuelReport &&
+        selectedVehicle != null &&
+        !selectedVehicle.hasFuel) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
@@ -884,7 +953,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         return IndividualReportTable(
           rows: res.rows,
           fallbackVehicleName: selectedVehicle?.name,
-          fallbackPlate: selectedVehicle?.registrationNumber ?? selectedVehicle?.plate,
+          fallbackPlate:
+              selectedVehicle?.registrationNumber ?? selectedVehicle?.plate,
         );
       case ReportType.consolidated:
         return ConsolidatedReportTable(
@@ -968,7 +1038,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         return Dialog(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Container(
@@ -990,17 +1061,20 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                   children: <Widget>[
                     // Header
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
                       decoration: const BoxDecoration(
                         color: Color(0xFFF8FAFC),
-                        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                        border: Border(
+                            bottom: BorderSide(color: Color(0xFFE2E8F0))),
                       ),
                       child: Row(
                         children: <Widget>[
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                              color: const Color(0xFF2563EB)
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -1037,7 +1111,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                            icon: const Icon(Icons.close_rounded,
+                                size: 20, color: Color(0xFF64748B)),
                             onPressed: () => Navigator.of(dialogContext).pop(),
                             splashRadius: 18,
                           ),
@@ -1054,7 +1129,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           _downloadOptionCard(
                             title: 'Excel Spreadsheet',
                             extension: 'XLSX',
-                            subtitle: 'Formatted columns, data rows & summary metrics',
+                            subtitle:
+                                'Formatted columns, data rows & summary metrics',
                             icon: Icons.table_view_rounded,
                             accentColor: const Color(0xFF10B981),
                             onTap: () {
@@ -1066,7 +1142,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           _downloadOptionCard(
                             title: 'PDF Document',
                             extension: 'PDF',
-                            subtitle: 'Print-ready formal report with tables & headers',
+                            subtitle:
+                                'Print-ready formal report with tables & headers',
                             icon: Icons.picture_as_pdf_rounded,
                             accentColor: const Color(0xFFEF4444),
                             onTap: () {
@@ -1092,15 +1169,18 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
                     // Footer hint
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
                       decoration: const BoxDecoration(
                         color: Color(0xFFF8FAFC),
-                        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                        border:
+                            Border(top: BorderSide(color: Color(0xFFE2E8F0))),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          Icon(Icons.shield_outlined, size: 14, color: Color(0xFF94A3B8)),
+                          Icon(Icons.shield_outlined,
+                              size: 14, color: Color(0xFF94A3B8)),
                           SizedBox(width: 6),
                           Text(
                             'Generated locally from active report view',
@@ -1178,7 +1258,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
                           decoration: BoxDecoration(
                             color: accentColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(4),

@@ -159,18 +159,168 @@ class FuelAnalyticsScreen extends ConsumerWidget {
               ? summary.endOdo
               : (data.points.isNotEmpty ? data.points.last.odo : 0.0);
 
+          final double screenHeight = MediaQuery.of(context).size.height;
+          // Allocate ~58-60% of viewport to graph height (clamped safely between 420 and 560px)
+          final double heroGraphHeight =
+              (screenHeight * 0.58).clamp(420.0, 560.0);
+
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. Top KPI Summary Cards (Fuel Consumed & Distance)
+                // 1. Hero Chart Card (Primary 60% viewport focus)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x06000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Vehicle Specs Ribbon matching desktop portal
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              Text(
+                                'Tank: ${summary.tankSize.round()} Ltrs',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
+                              const Text('  •  ',
+                                  style: TextStyle(
+                                      color: Color(0xFF94A3B8), fontSize: 11)),
+                              Text(
+                                'Current: ${data.points.isNotEmpty ? data.points.last.displayFuel.toStringAsFixed(1) : '0'} L',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0284C7),
+                                ),
+                              ),
+                              const Text('  •  ',
+                                  style: TextStyle(
+                                      color: Color(0xFF94A3B8), fontSize: 11)),
+                              Text(
+                                'Mode: ${currentVehicle?.type.isNotEmpty == true ? currentVehicle!.type[0].toUpperCase() + currentVehicle!.type.substring(1) : 'Vehicle'}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                              const Text('  •  ',
+                                  style: TextStyle(
+                                      color: Color(0xFF94A3B8), fontSize: 11)),
+                              Text(
+                                'Engine: ${data.points.isNotEmpty && data.points.last.ignition ? 'ON' : 'OFF'}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: data.points.isNotEmpty &&
+                                          data.points.last.ignition
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Interactive Series Toggles: Fuel, Speed, Engine
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _seriesToggleChip(
+                              label: 'Fuel',
+                              color: const Color(0xFF0284C7),
+                              isSelected: state.showFilteredFuel,
+                              onTap: notifier.toggleFilteredFuel,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _seriesToggleChip(
+                              label: 'Speed',
+                              color: const Color(0xFFEA580C),
+                              isSelected: state.showSpeed,
+                              onTap: notifier.toggleSpeed,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _seriesToggleChip(
+                              label: 'Engine',
+                              color: const Color(0xFFEAB308),
+                              isSelected: state.showEngine,
+                              onTap: notifier.toggleEngine,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Zoom & Swipe hint indicator
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Icon(Icons.pinch_rounded,
+                              size: 14, color: Color(0xFF94A3B8)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Pinch to zoom • Drag timeline',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF94A3B8),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      FuelAnalyticsChart(
+                        points: data.points,
+                        height: heroGraphHeight,
+                        showFilteredFuel: state.showFilteredFuel,
+                        showSpeed: state.showSpeed,
+                        showEngine: state.showEngine,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // 2. Top KPI Summary Cards (Fuel Consumed & Distance)
                 Row(
                   children: [
                     // KPI: Fuel Consumed
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -231,7 +381,8 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                     // KPI: Distance
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -289,124 +440,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-
-                // 2. Middle Chart Card with 3 Interactive Series Toggles
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x06000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Vehicle Specs Ribbon matching desktop portal
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              Text(
-                                'Tank: ${summary.tankSize.round()} Ltrs',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF334155),
-                                ),
-                              ),
-                              const Text('  •  ', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
-                              Text(
-                                'Current: ${data.points.isNotEmpty ? data.points.last.displayFuel.toStringAsFixed(1) : '0'} L',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0284C7),
-                                ),
-                              ),
-                              const Text('  •  ', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
-                              Text(
-                                'Mode: ${currentVehicle?.type.isNotEmpty == true ? currentVehicle!.type[0].toUpperCase() + currentVehicle!.type.substring(1) : 'Vehicle'}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF475569),
-                                ),
-                              ),
-                              const Text('  •  ', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
-                              Text(
-                                'Engine: ${data.points.isNotEmpty && data.points.last.ignition ? 'ON' : 'OFF'}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: data.points.isNotEmpty && data.points.last.ignition
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Interactive Series Toggles: Filtered Fuel, Speed, Engine
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _seriesToggleChip(
-                              label: 'Filtered Fuel',
-                              color: const Color(0xFF0284C7),
-                              isSelected: state.showFilteredFuel,
-                              onTap: notifier.toggleFilteredFuel,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _seriesToggleChip(
-                              label: 'Speed',
-                              color: const Color(0xFFEA580C),
-                              isSelected: state.showSpeed,
-                              onTap: notifier.toggleSpeed,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _seriesToggleChip(
-                              label: 'Engine',
-                              color: const Color(0xFFEAB308),
-                              isSelected: state.showEngine,
-                              onTap: notifier.toggleEngine,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      FuelAnalyticsChart(
-                        points: data.points,
-                        height: 250,
-                        showFilteredFuel: state.showFilteredFuel,
-                        showSpeed: state.showSpeed,
-                        showEngine: state.showEngine,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
                 // 3. Fuel Summary Card
                 Container(
@@ -501,29 +535,40 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                         value: '${summary.tripDistance.toStringAsFixed(1)} km',
                       ),
                       const SizedBox(height: 16),
-                      Row(
+                      const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                      const SizedBox(height: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
-                            Icons.speed_rounded,
-                            color: Color(0xFF475569),
-                            size: 19,
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.speed_rounded,
+                                color: Color(0xFF475569),
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Odometer',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          const Text(
-                            'Odometer',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF475569),
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '${startOdo > 0 ? startOdo.toStringAsFixed(2) : '-'} → ${endOdo > 0 ? endOdo.toStringAsFixed(2) : '-'}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 26),
+                            child: Text(
+                              '${startOdo > 0 ? startOdo.toStringAsFixed(2) : '-'} → ${endOdo > 0 ? endOdo.toStringAsFixed(2) : '-'}',
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: 0.2,
+                              ),
                             ),
                           ),
                         ],
@@ -605,12 +650,16 @@ class FuelAnalyticsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? color : const Color(0xFF64748B),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? color : const Color(0xFF64748B),
+                ),
               ),
             ),
           ],

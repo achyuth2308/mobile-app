@@ -52,7 +52,10 @@ class _AddressCellState extends State<AddressCell> {
     final bool isCoords = fb != null &&
         RegExp(r'^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$').hasMatch(fb);
 
-    if (fb != null && fb.isNotEmpty && !isCoords && fb != 'Location unavailable') {
+    if (fb != null &&
+        fb.isNotEmpty &&
+        !isCoords &&
+        fb != 'Location unavailable') {
       _address = fb;
       return;
     }
@@ -67,7 +70,8 @@ class _AddressCellState extends State<AddressCell> {
 
     if (lat != null && lng != null && (lat != 0 || lng != 0)) {
       final String? cached = Geocoder.getCachedAddress(lat, lng);
-      if (cached != null && !RegExp(r'^-?\d+\.\d+,\s*-?\d+\.\d+$').hasMatch(cached)) {
+      if (cached != null &&
+          !RegExp(r'^-?\d+\.\d+,\s*-?\d+\.\d+$').hasMatch(cached)) {
         _address = cached;
         return;
       }
@@ -78,7 +82,9 @@ class _AddressCellState extends State<AddressCell> {
           setState(() {
             if (addr.isNotEmpty && addr != 'Location unavailable') {
               _address = addr;
-            } else if (fb != null && !isCoords && fb != 'Location unavailable') {
+            } else if (fb != null &&
+                !isCoords &&
+                fb != 'Location unavailable') {
               _address = fb;
             } else {
               _address = 'Location unavailable';
@@ -89,13 +95,17 @@ class _AddressCellState extends State<AddressCell> {
       }).catchError((_) {
         if (mounted) {
           setState(() {
-            _address = (fb != null && !isCoords && fb != 'Location unavailable') ? fb : 'Location unavailable';
+            _address = (fb != null && !isCoords && fb != 'Location unavailable')
+                ? fb
+                : 'Location unavailable';
             _loading = false;
           });
         }
       });
     } else {
-      _address = (fb != null && !isCoords && fb != 'Location unavailable') ? fb : 'Location unavailable';
+      _address = (fb != null && !isCoords && fb != 'Location unavailable')
+          ? fb
+          : 'Location unavailable';
     }
   }
 
@@ -123,7 +133,8 @@ class _AddressCellState extends State<AddressCell> {
         widget.lng != null &&
         (widget.lat != 0 || widget.lng != 0);
 
-    final bool isUnavailable = _address == null || _address == 'Location unavailable';
+    final bool isUnavailable =
+        _address == null || _address == 'Location unavailable';
 
     if (isUnavailable && hasValidCoords) {
       return InkWell(
@@ -153,7 +164,8 @@ class _AddressCellState extends State<AddressCell> {
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.refresh_rounded, size: 12, color: Color(0xFF2563EB)),
+              const Icon(Icons.refresh_rounded,
+                  size: 12, color: Color(0xFF2563EB)),
             ],
           ),
         ),
@@ -303,17 +315,26 @@ class TripReportTable extends StatelessWidget {
         // Resolve effective start point and fallback address
         double? startLat = r.startLat;
         double? startLng = r.startLng;
-        String? startAddr = (r.fromLocation != null && r.fromLocation != 'Location unavailable')
-            ? r.fromLocation
-            : (r.address != null && r.address != 'Location unavailable' ? r.address : null);
+        String? startAddr =
+            (r.fromLocation != null && r.fromLocation != 'Location unavailable')
+                ? r.fromLocation
+                : (r.address != null && r.address != 'Location unavailable'
+                    ? r.address
+                    : null);
 
         // If start coordinates or address are not yet known, infer from adjacent trip
-        if ((startLat == null || startLng == null || (startLat == 0 && startLng == 0)) &&
-            (startAddr == null || startAddr.isEmpty || startAddr == 'Location unavailable')) {
+        if ((startLat == null ||
+                startLng == null ||
+                (startLat == 0 && startLng == 0)) &&
+            (startAddr == null ||
+                startAddr.isEmpty ||
+                startAddr == 'Location unavailable')) {
           // For newest-first lists, preceding trip is index + 1
           if (index + 1 < rows.length) {
             final ReportRow prev = rows[index + 1];
-            if (prev.endLat != null && prev.endLng != null && (prev.endLat != 0 || prev.endLng != 0)) {
+            if (prev.endLat != null &&
+                prev.endLng != null &&
+                (prev.endLat != 0 || prev.endLng != 0)) {
               startLat ??= prev.endLat;
               startLng ??= prev.endLng;
             }
@@ -326,7 +347,9 @@ class TripReportTable extends StatelessWidget {
           // For oldest-first lists, preceding trip is index - 1
           if ((startLat == null || startLng == null) && index > 0) {
             final ReportRow prev = rows[index - 1];
-            if (prev.endLat != null && prev.endLng != null && (prev.endLat != 0 || prev.endLng != 0)) {
+            if (prev.endLat != null &&
+                prev.endLng != null &&
+                (prev.endLat != 0 || prev.endLng != 0)) {
               startLat ??= prev.endLat;
               startLng ??= prev.endLng;
             }
@@ -402,7 +425,8 @@ class TripReportTable extends StatelessWidget {
                         ],
                       ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(20),
@@ -419,7 +443,6 @@ class TripReportTable extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-
 
                 // Timeline (Start & End)
                 _buildTimelineRow(
@@ -449,7 +472,7 @@ class TripReportTable extends StatelessWidget {
                   lng: r.endLng,
                   fallbackAddress: r.toLocation,
                 ),
-                
+
                 const SizedBox(height: 14),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 10),
@@ -509,7 +532,9 @@ class TripReportTable extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Icon(
-            isStart ? Icons.radio_button_checked_rounded : Icons.location_on_rounded,
+            isStart
+                ? Icons.radio_button_checked_rounded
+                : Icons.location_on_rounded,
             size: 15,
             color: isStart ? const Color(0xFF10B981) : const Color(0xFFEF4444),
           ),
@@ -632,21 +657,27 @@ class ManualTripReportTable extends StatelessWidget {
             ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
               final int idx = entry.key;
               final ReportRow r = entry.value;
-              final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+              final Color rowColor =
+                  idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
               final String tripName = r.raw['name']?.toString() ?? '-';
-              final String originStr = (r.fromLocation != null && r.fromLocation != 'Location unavailable')
+              final String originStr = (r.fromLocation != null &&
+                      r.fromLocation != 'Location unavailable')
                   ? r.fromLocation!
                   : (r.raw['origin']?.toString() ?? '');
-              final String destStr = (r.toLocation != null && r.toLocation != 'Location unavailable')
+              final String destStr = (r.toLocation != null &&
+                      r.toLocation != 'Location unavailable')
                   ? r.toLocation!
                   : (r.raw['destination']?.toString() ?? '');
-              
+
               final String statusStr = (r.status ?? 'unknown').toUpperCase();
               Color statusColor = const Color(0xFF64748B);
-              if (statusStr == 'COMPLETED') statusColor = const Color(0xFF10B981);
-              if (statusStr == 'IN_PROGRESS') statusColor = const Color(0xFF3B82F6);
-              if (statusStr == 'CANCELLED') statusColor = const Color(0xFFEF4444);
+              if (statusStr == 'COMPLETED')
+                statusColor = const Color(0xFF10B981);
+              if (statusStr == 'IN_PROGRESS')
+                statusColor = const Color(0xFF3B82F6);
+              if (statusStr == 'CANCELLED')
+                statusColor = const Color(0xFFEF4444);
 
               return TableRow(
                 decoration: BoxDecoration(color: rowColor),
@@ -687,7 +718,9 @@ class ManualTripReportTable extends StatelessWidget {
                   ),
                   TableDataCell(
                     child: originStr.isNotEmpty
-                        ? Text(originStr, style: const TextStyle(fontSize: 12, color: Color(0xFF334155)))
+                        ? Text(originStr,
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF334155)))
                         : AddressCell(
                             lat: r.startLat,
                             lng: r.startLng,
@@ -705,7 +738,9 @@ class ManualTripReportTable extends StatelessWidget {
                   ),
                   TableDataCell(
                     child: destStr.isNotEmpty
-                        ? Text(destStr, style: const TextStyle(fontSize: 12, color: Color(0xFF334155)))
+                        ? Text(destStr,
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF334155)))
                         : AddressCell(
                             lat: r.endLat,
                             lng: r.endLng,
@@ -723,7 +758,8 @@ class ManualTripReportTable extends StatelessWidget {
                   ),
                   TableDataCell(
                     text: r.distanceTravelled != null
-                        ? r.distanceTravelled!.toStringAsFixed(r.distanceTravelled! < 10 ? 1 : 0)
+                        ? r.distanceTravelled!
+                            .toStringAsFixed(r.distanceTravelled! < 10 ? 1 : 0)
                         : '-',
                     align: TextAlign.right,
                     style: const TextStyle(
@@ -734,7 +770,9 @@ class ManualTripReportTable extends StatelessWidget {
                     ),
                   ),
                   TableDataCell(
-                    text: r.maxSpeedVal != null ? r.maxSpeedVal!.round().toString() : '-',
+                    text: r.maxSpeedVal != null
+                        ? r.maxSpeedVal!.round().toString()
+                        : '-',
                     align: TextAlign.right,
                     style: const TextStyle(
                       fontFamily: 'monospace',
@@ -822,7 +860,8 @@ class DailyDistanceReportTable extends StatelessWidget {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(6),
@@ -848,15 +887,20 @@ class DailyDistanceReportTable extends StatelessWidget {
                   children: <Widget>[
                     _buildStat(
                       label: 'START ODOMETER',
-                      value: r.startOdometer != null ? '${r.startOdometer!.round()} km' : '-',
+                      value: r.startOdometer != null
+                          ? '${r.startOdometer!.round()} km'
+                          : '-',
                     ),
                     _buildStat(
                       label: 'END ODOMETER',
-                      value: r.endOdometer != null ? '${r.endOdometer!.round()} km' : '-',
+                      value: r.endOdometer != null
+                          ? '${r.endOdometer!.round()} km'
+                          : '-',
                     ),
                     _buildStat(
                       label: 'DISTANCE',
-                      value: '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
+                      value:
+                          '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
                       isHighlight: true,
                     ),
                   ],
@@ -869,7 +913,10 @@ class DailyDistanceReportTable extends StatelessWidget {
     );
   }
 
-  Widget _buildStat({required String label, required String value, bool isHighlight = false}) {
+  Widget _buildStat(
+      {required String label,
+      required String value,
+      bool isHighlight = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -888,7 +935,8 @@ class DailyDistanceReportTable extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: isHighlight ? const Color(0xFF10B981) : const Color(0xFF0F172A),
+            color:
+                isHighlight ? const Color(0xFF10B981) : const Color(0xFF0F172A),
           ),
         ),
       ],
@@ -937,7 +985,8 @@ class OverspeedingReportTable extends StatelessWidget {
             children: <Widget>[
               // Sub-header 4-column Info Banner
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
                   color: Color(0xFFDCE4EF),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
@@ -957,7 +1006,8 @@ class OverspeedingReportTable extends StatelessWidget {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: Colors.red.shade50,
                         borderRadius: BorderRadius.circular(4),
@@ -1023,13 +1073,18 @@ class OverspeedingReportTable extends StatelessWidget {
                         TableHeaderCell('Driver Name'),
                         TableHeaderCell('Driver Mobile Number'),
                         TableHeaderCell('Nearest Location'),
-                        TableHeaderCell('Distance Covered(KMS)', align: TextAlign.right),
+                        TableHeaderCell('Distance Covered(KMS)',
+                            align: TextAlign.right),
                       ],
                     ),
-                    ...vehicleRows.asMap().entries.map((MapEntry<int, ReportRow> rowEntry) {
+                    ...vehicleRows
+                        .asMap()
+                        .entries
+                        .map((MapEntry<int, ReportRow> rowEntry) {
                       final int idx = rowEntry.key;
                       final ReportRow r = rowEntry.value;
-                      final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+                      final Color rowColor =
+                          idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
                       return TableRow(
                         decoration: BoxDecoration(color: rowColor),
@@ -1044,7 +1099,9 @@ class OverspeedingReportTable extends StatelessWidget {
                             ),
                           ),
                           TableDataCell(
-                            text: r.maxSpeedVal != null ? r.maxSpeedVal!.round().toString() : '-',
+                            text: r.maxSpeedVal != null
+                                ? r.maxSpeedVal!.round().toString()
+                                : '-',
                             align: TextAlign.right,
                             style: const TextStyle(
                               fontSize: 13,
@@ -1063,11 +1120,13 @@ class OverspeedingReportTable extends StatelessWidget {
                           ),
                           TableDataCell(
                             text: r.driverName ?? '-',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF334155)),
                           ),
                           TableDataCell(
                             text: r.driverPhone ?? '-',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF334155)),
                           ),
                           TableDataCell(
                             child: AddressCell(
@@ -1151,10 +1210,13 @@ class StoppageReportTable extends StatelessWidget {
         // Only display Parked / Stoppage rows in the table
         final List<ReportRow> parkedRows = vehicleAllRows.where((ReportRow r) {
           final String st = (r.status ?? '').toLowerCase();
-          return !st.contains('mov') && !st.contains('run') && !st.contains('idle');
+          return !st.contains('mov') &&
+              !st.contains('run') &&
+              !st.contains('idle');
         }).toList();
 
-        final List<ReportRow> tableRows = parkedRows.isNotEmpty ? parkedRows : vehicleAllRows;
+        final List<ReportRow> tableRows =
+            parkedRows.isNotEmpty ? parkedRows : vehicleAllRows;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 20),
@@ -1168,7 +1230,8 @@ class StoppageReportTable extends StatelessWidget {
             children: <Widget>[
               // Top Info Banner: Vehicle Name + Date Range
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
                   color: Color(0xFFDCE4EF),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
@@ -1204,7 +1267,8 @@ class StoppageReportTable extends StatelessWidget {
 
               // Summary Stats Duration Row (Moving | Parked | Idle)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: const BoxDecoration(
                   color: Color(0xFFF8FAFC),
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
@@ -1215,9 +1279,12 @@ class StoppageReportTable extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 8,
                   children: <Widget>[
-                    _statBadge('Moving', Fmt.durationWeb(movingSec), const Color(0xFF10B981)),
-                    _statBadge('Parked', Fmt.durationWeb(parkedSec), const Color(0xFFEA580C)),
-                    _statBadge('Idle', Fmt.durationWeb(idleSec), const Color(0xFFD97706)),
+                    _statBadge('Moving', Fmt.durationWeb(movingSec),
+                        const Color(0xFF10B981)),
+                    _statBadge('Parked', Fmt.durationWeb(parkedSec),
+                        const Color(0xFFEA580C)),
+                    _statBadge('Idle', Fmt.durationWeb(idleSec),
+                        const Color(0xFFD97706)),
                   ],
                 ),
               ),
@@ -1246,10 +1313,14 @@ class StoppageReportTable extends StatelessWidget {
                         TableHeaderCell('Location Details'),
                       ],
                     ),
-                    ...tableRows.asMap().entries.map((MapEntry<int, ReportRow> rowEntry) {
+                    ...tableRows
+                        .asMap()
+                        .entries
+                        .map((MapEntry<int, ReportRow> rowEntry) {
                       final int idx = rowEntry.key;
                       final ReportRow r = rowEntry.value;
-                      final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+                      final Color rowColor =
+                          idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
                       return TableRow(
                         decoration: BoxDecoration(color: rowColor),
@@ -1405,7 +1476,8 @@ class IdleReportTable extends StatelessWidget {
           return st.contains('idle');
         }).toList();
 
-        final List<ReportRow> tableRows = idleRows.isNotEmpty ? idleRows : vehicleAllRows;
+        final List<ReportRow> tableRows =
+            idleRows.isNotEmpty ? idleRows : vehicleAllRows;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 20),
@@ -1419,7 +1491,8 @@ class IdleReportTable extends StatelessWidget {
             children: <Widget>[
               // Top Info Banner: Vehicle Name + Date Range
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
                   color: Color(0xFFDCE4EF),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
@@ -1455,7 +1528,8 @@ class IdleReportTable extends StatelessWidget {
 
               // Summary Stats Duration Row (Moving | Parked | Idle)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: const BoxDecoration(
                   color: Color(0xFFF8FAFC),
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
@@ -1466,9 +1540,12 @@ class IdleReportTable extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 8,
                   children: <Widget>[
-                    _statBadge('Moving', Fmt.durationWeb(movingSec), const Color(0xFF10B981)),
-                    _statBadge('Parked', Fmt.durationWeb(parkedSec), const Color(0xFFEA580C)),
-                    _statBadge('Idle', Fmt.durationWeb(idleSec), const Color(0xFFD97706)),
+                    _statBadge('Moving', Fmt.durationWeb(movingSec),
+                        const Color(0xFF10B981)),
+                    _statBadge('Parked', Fmt.durationWeb(parkedSec),
+                        const Color(0xFFEA580C)),
+                    _statBadge('Idle', Fmt.durationWeb(idleSec),
+                        const Color(0xFFD97706)),
                   ],
                 ),
               ),
@@ -1497,10 +1574,14 @@ class IdleReportTable extends StatelessWidget {
                         TableHeaderCell('Location Details'),
                       ],
                     ),
-                    ...tableRows.asMap().entries.map((MapEntry<int, ReportRow> rowEntry) {
+                    ...tableRows
+                        .asMap()
+                        .entries
+                        .map((MapEntry<int, ReportRow> rowEntry) {
                       final int idx = rowEntry.key;
                       final ReportRow r = rowEntry.value;
-                      final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+                      final Color rowColor =
+                          idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
                       return TableRow(
                         decoration: BoxDecoration(color: rowColor),
@@ -1657,13 +1738,19 @@ class IndividualReportTable extends StatelessWidget {
           ...rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
             final int idx = entry.key;
             final ReportRow r = entry.value;
-            final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+            final Color rowColor =
+                idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
             return TableRow(
               decoration: BoxDecoration(color: rowColor),
               children: <Widget>[
                 TableDataCell(
-                  text: r.plate?.isNotEmpty == true ? r.plate! : (r.vehicleName ?? fallbackPlate ?? fallbackVehicleName ?? '-'),
+                  text: r.plate?.isNotEmpty == true
+                      ? r.plate!
+                      : (r.vehicleName ??
+                          fallbackPlate ??
+                          fallbackVehicleName ??
+                          '-'),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1774,7 +1861,8 @@ class ConsolidatedReportTable extends StatelessWidget {
       );
     }
 
-    final String dateText = '${Fmt.dateTimeFilter(startDate)}  →  ${Fmt.dateTimeFilter(endDate)}';
+    final String dateText =
+        '${Fmt.dateTimeFilter(startDate)}  →  ${Fmt.dateTimeFilter(endDate)}';
 
     return ListView.builder(
       shrinkWrap: true,
@@ -1783,9 +1871,8 @@ class ConsolidatedReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = rows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
 
@@ -1832,7 +1919,8 @@ class ConsolidatedReportTable extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(6),
@@ -1876,9 +1964,11 @@ class ConsolidatedReportTable extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    _buildStat('DISTANCE', '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km'),
+                    _buildStat('DISTANCE',
+                        '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km'),
                     _buildStat('RUNNING TIME', Fmt.secsToHms(r.runningSeconds)),
-                    _buildStat('STOPPING TIME', Fmt.secsToHms(r.stoppedSeconds)),
+                    _buildStat(
+                        'STOPPING TIME', Fmt.secsToHms(r.stoppedSeconds)),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1886,7 +1976,10 @@ class ConsolidatedReportTable extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     _buildStat('IDLE TIME', Fmt.secsToHms(r.idleSeconds)),
-                    _buildStat('ENGINE ON', Fmt.secsToHms((r.runningSeconds ?? 0) + (r.idleSeconds ?? 0))),
+                    _buildStat(
+                        'ENGINE ON',
+                        Fmt.secsToHms(
+                            (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0))),
                     const SizedBox(width: 100), // spacer alignment
                   ],
                 ),
@@ -1905,14 +1998,15 @@ class ConsolidatedReportTable extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildLocationRow(context, 'From Location', r.fromLocation, r.startLat, r.startLng),
+                _buildLocationRow(context, 'From Location', r.fromLocation,
+                    r.startLat, r.startLng),
                 const SizedBox(height: 8),
-                _buildLocationRow(context, 'To Location', r.toLocation, r.endLat, r.endLng),
+                _buildLocationRow(
+                    context, 'To Location', r.toLocation, r.endLat, r.endLng),
               ],
             ),
           ),
         );
-
       },
     );
   }
@@ -2007,7 +2101,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
       if (hasFuelData) return true;
       final String? vId = r.vehicleId;
       if (vId != null) {
-        final Vehicle? v = vehicles.where((Vehicle x) => x.id == vId).firstOrNull;
+        final Vehicle? v =
+            vehicles.where((Vehicle x) => x.id == vId).firstOrNull;
         if (v != null && v.hasFuel) return true;
       }
       return false;
@@ -2025,7 +2120,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
       );
     }
 
-    final String dateText = '${Fmt.dateTimeFilter(startDate)}  →  ${Fmt.dateTimeFilter(endDate)}';
+    final String dateText =
+        '${Fmt.dateTimeFilter(startDate)}  →  ${Fmt.dateTimeFilter(endDate)}';
 
     return ListView.builder(
       shrinkWrap: true,
@@ -2034,9 +2130,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = fuelRows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
 
@@ -2087,7 +2182,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(6),
@@ -2107,7 +2203,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Period: $dateText',
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                  style:
+                      const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
                 ),
                 const SizedBox(height: 12),
                 const Divider(height: 1, color: Color(0xFFFFF7ED)),
@@ -2128,15 +2225,21 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                   children: <Widget>[
                     _buildStat(
                       'START FUEL',
-                      r.startFuel != null ? '${r.startFuel!.toStringAsFixed(1)} L' : '0 L',
+                      r.startFuel != null
+                          ? '${r.startFuel!.toStringAsFixed(1)} L'
+                          : '0 L',
                     ),
                     _buildStat(
                       'END FUEL',
-                      r.endFuel != null ? '${r.endFuel!.toStringAsFixed(1)} L' : '0 L',
+                      r.endFuel != null
+                          ? '${r.endFuel!.toStringAsFixed(1)} L'
+                          : '0 L',
                     ),
                     _buildStat(
                       'CONSUMPTION',
-                      r.consumption != null ? '${r.consumption!.toStringAsFixed(1)} L' : '0 L',
+                      r.consumption != null
+                          ? '${r.consumption!.toStringAsFixed(1)} L'
+                          : '0 L',
                       color: const Color(0xFFDC2626),
                     ),
                   ],
@@ -2178,7 +2281,8 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     ),
                     _buildStat(
                       'ENGINE RUN',
-                      Fmt.secsToHms((r.runningSeconds ?? 0) + (r.idleSeconds ?? 0)),
+                      Fmt.secsToHms(
+                          (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0)),
                     ),
                   ],
                 ),
@@ -2201,12 +2305,16 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                   children: <Widget>[
                     _buildStat(
                       'MILEAGE',
-                      r.kmpl != null ? '${r.kmpl!.toStringAsFixed(2)} km/L' : '0 km/L',
+                      r.kmpl != null
+                          ? '${r.kmpl!.toStringAsFixed(2)} km/L'
+                          : '0 km/L',
                       color: const Color(0xFF0284C7),
                     ),
                     _buildStat(
                       'HOURLY (LPH)',
-                      r.lph != null ? '${r.lph!.toStringAsFixed(2)} L/h' : '0 L/h',
+                      r.lph != null
+                          ? '${r.lph!.toStringAsFixed(2)} L/h'
+                          : '0 L/h',
                     ),
                     _buildStat(
                       'DISTANCE',
@@ -2214,7 +2322,9 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (r.fromLocation != null || r.toLocation != null || r.startLat != null) ...<Widget>[
+                if (r.fromLocation != null ||
+                    r.toLocation != null ||
+                    r.startLat != null) ...<Widget>[
                   const SizedBox(height: 12),
                   const Divider(height: 1, color: Color(0xFFFFF7ED)),
                   const SizedBox(height: 10),
@@ -2229,10 +2339,12 @@ class FuelConsolidatedReportTable extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   if (r.fromLocation != null || r.startLat != null)
-                    _buildLocationRow(context, 'Start Location', r.fromLocation, r.startLat, r.startLng),
+                    _buildLocationRow(context, 'Start Location', r.fromLocation,
+                        r.startLat, r.startLng),
                   if (r.toLocation != null || r.endLat != null) ...<Widget>[
                     const SizedBox(height: 6),
-                    _buildLocationRow(context, 'End Location', r.toLocation, r.endLat, r.endLng),
+                    _buildLocationRow(context, 'End Location', r.toLocation,
+                        r.endLat, r.endLng),
                   ],
                 ],
               ],
@@ -2326,11 +2438,13 @@ class FuelRefillReportTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<ReportRow> refillRows = rows.where((ReportRow r) {
-      final double rawAmt = r.refillAmount ?? r.filling ?? (r.raw['refill_amount'] != null ? (r.raw['refill_amount'] as num).toDouble() : 0.0);
-      final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
-      final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
-      final bool hasRefillCalc = rawAmt > 0 || (startF != null && endF != null && endF > startF);
-      return hasRefillCalc;
+      final double rawAmt = r.refillAmount ??
+          r.filling ??
+          (r.raw['total_refill'] != null
+              ? (r.raw['total_refill'] as num).toDouble()
+              : 0.0);
+      if (rows.length == 1) return true;
+      return rawAmt > 0.0;
     }).toList();
 
     if (refillRows.isEmpty) {
@@ -2352,29 +2466,84 @@ class FuelRefillReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = refillRows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
 
-        final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
-        final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
-        double amount = r.refillAmount ?? r.filling ?? (r.raw['refill_amount'] != null ? (r.raw['refill_amount'] as num).toDouble() : 0.0);
-        if ((amount <= 0 || amount.isNaN) && startF != null && endF != null && endF > startF) {
-          amount = endF - startF;
-        }
+        // Direct telematics metrics straight from backend — ZERO client-side recalculations
+        final double? startF = r.startFuel ??
+            (r.raw['start_fuel'] != null
+                ? (r.raw['start_fuel'] as num).toDouble()
+                : null);
+        final double? endF = r.endFuel ??
+            (r.raw['end_fuel'] != null
+                ? (r.raw['end_fuel'] as num).toDouble()
+                : null);
+        final double amount = r.refillAmount ??
+            r.filling ??
+            (r.raw['total_refill'] != null
+                ? (r.raw['total_refill'] as num).toDouble()
+                : 0.0);
+        final double consumed = r.consumption ??
+            (r.raw['consumption'] != null
+                ? (r.raw['consumption'] as num).toDouble()
+                : 0.0);
+        final double dispensed = r.dispensed ??
+            (r.raw['total_dispensed'] != null
+                ? (r.raw['total_dispensed'] as num).toDouble()
+                : 0.0);
+        final String category = (r.raw['vehicle_category'] ??
+                r.raw['category'] ??
+                vehicle?.type ??
+                'MACHINERY')
+            .toString()
+            .toUpperCase();
 
         final DateTime? eventTime = r.endTime ?? r.startTime ?? r.date;
-        final double? lat = r.latitude ?? r.endLat ?? r.startLat ?? (r.raw['lat'] != null ? (r.raw['lat'] as num).toDouble() : null);
-        final double? lng = r.longitude ?? r.endLng ?? r.startLng ?? (r.raw['lng'] != null ? (r.raw['lng'] as num).toDouble() : null);
+        final double? lat = r.refillLat ??
+            r.latitude ??
+            r.endLat ??
+            r.startLat ??
+            (r.raw['refill_lat'] != null
+                ? (r.raw['refill_lat'] as num).toDouble()
+                : (r.raw['lat'] != null
+                    ? (r.raw['lat'] as num).toDouble()
+                    : null));
+        final double? lng = r.refillLng ??
+            r.longitude ??
+            r.endLng ??
+            r.startLng ??
+            (r.raw['refill_lng'] != null
+                ? (r.raw['refill_lng'] as num).toDouble()
+                : (r.raw['lng'] != null
+                    ? (r.raw['lng'] as num).toDouble()
+                    : null));
+
+        final Color catBg = category.contains('GEN')
+            ? const Color(0xFFFEF3C7)
+            : (category.contains('MACH')
+                ? const Color(0xFFE0E7FF)
+                : (category.contains('DISP')
+                    ? const Color(0xFFCCFBF1)
+                    : const Color(0xFFF1F5F9)));
+        final Color catColor = category.contains('GEN')
+            ? const Color(0xFFB45309)
+            : (category.contains('MACH')
+                ? const Color(0xFF4338CA)
+                : (category.contains('DISP')
+                    ? const Color(0xFF0F766E)
+                    : const Color(0xFF475569)));
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Color(0xFFBBF7D0)),
+            side: BorderSide(
+                color: amount > 0
+                    ? const Color(0xFFBBF7D0)
+                    : const Color(0xFFE2E8F0)),
           ),
           color: Colors.white,
           child: Padding(
@@ -2387,13 +2556,17 @@ class FuelRefillReportTable extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
+                        color: amount > 0
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.local_gas_station_rounded,
                         size: 18,
-                        color: Color(0xFF16A34A),
+                        color: amount > 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF64748B),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -2401,16 +2574,43 @@ class FuelRefillReportTable extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(
-                            vName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A),
-                            ),
+                          Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  vName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: catBg,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: catColor.withValues(alpha: 0.2)),
+                                ),
+                                child: Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: catColor,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             vPlate,
                             maxLines: 1,
@@ -2426,18 +2626,26 @@ class FuelRefillReportTable extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
+                        color: amount > 0
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF86EFAC)),
+                        border: Border.all(
+                            color: amount > 0
+                                ? const Color(0xFF86EFAC)
+                                : const Color(0xFFCBD5E1)),
                       ),
                       child: Text(
-                        '+${amount.toStringAsFixed(1)} L',
-                        style: const TextStyle(
+                        amount > 0 ? '+${amount.toStringAsFixed(1)} L' : '0 L',
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF15803D),
+                          color: amount > 0
+                              ? const Color(0xFF15803D)
+                              : const Color(0xFF64748B),
                         ),
                       ),
                     ),
@@ -2445,38 +2653,83 @@ class FuelRefillReportTable extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     children: <Widget>[
-                      const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF64748B)),
+                      const Icon(Icons.access_time_rounded,
+                          size: 12, color: Color(0xFF64748B)),
                       const SizedBox(width: 6),
-                      Text(
-                        eventTime != null ? Fmt.dateTimeFilter(eventTime) : '—',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF334155),
+                      Expanded(
+                        child: Text(
+                          eventTime != null
+                              ? Fmt.dateTimeFilter(eventTime)
+                              : 'Captured Range',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF334155),
+                          ),
                         ),
                       ),
+                      if (amount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Refilled',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF15803D),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   children: <Widget>[
-                    _buildStat('FUEL BEFORE', startF != null ? '${startF.toStringAsFixed(1)} L' : '0 L'),
-                    _buildStat('FUEL AFTER', endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
-                    _buildStat('REFILLED', '+${amount.toStringAsFixed(1)} L', color: const Color(0xFF16A34A)),
+                    _buildStat(
+                        'START FUEL',
+                        startF != null
+                            ? '${startF.toStringAsFixed(1)} L'
+                            : '—'),
+                    _buildStat('END FUEL',
+                        endF != null ? '${endF.toStringAsFixed(1)} L' : '—'),
+                    _buildStat('REFILL',
+                        amount > 0 ? '+${amount.toStringAsFixed(1)} L' : '0 L',
+                        color: amount > 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF64748B)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    _buildStat('CONSUMED',
+                        consumed > 0 ? '${consumed.toStringAsFixed(1)} L' : '—',
+                        color: const Color(0xFFD97706)),
+                    if (dispensed > 0)
+                      _buildStat(
+                          'DISPENSED', '${dispensed.toStringAsFixed(1)} L',
+                          color: const Color(0xFF0284C7)),
                   ],
                 ),
                 const SizedBox(height: 10),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 8),
-                _buildLocationRow(context, 'Refill Location', r.fromLocation, lat, lng),
+                _buildLocationRow(
+                    context, 'Refill Location', r.fromLocation, lat, lng),
               ],
             ),
           ),
@@ -2568,11 +2821,13 @@ class FuelTheftReportTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<ReportRow> theftRows = rows.where((ReportRow r) {
-      final double rawAmt = r.theftAmount ?? r.theft ?? (r.raw['theft_amount'] != null ? (r.raw['theft_amount'] as num).toDouble() : 0.0);
-      final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
-      final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
-      final bool hasTheftCalc = rawAmt > 0 || (startF != null && endF != null && endF < startF && r.raw['type'] == 'theft');
-      return hasTheftCalc;
+      final double rawAmt = r.theftAmount ??
+          r.theft ??
+          (r.raw['total_theft'] != null
+              ? (r.raw['total_theft'] as num).toDouble()
+              : 0.0);
+      if (rows.length == 1) return true;
+      return rawAmt > 0.0;
     }).toList();
 
     if (theftRows.isEmpty) {
@@ -2594,22 +2849,35 @@ class FuelTheftReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = theftRows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
 
-        final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
-        final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
-        double amount = r.theftAmount ?? r.theft ?? (r.raw['theft_amount'] != null ? (r.raw['theft_amount'] as num).toDouble() : 0.0);
-        if ((amount <= 0 || amount.isNaN) && startF != null && endF != null && endF < startF) {
-          amount = startF - endF;
-        }
+        // Direct theft metrics straight from backend — ZERO client-side recalculations
+        final double? startF = r.startFuel ??
+            (r.raw['start_fuel'] != null
+                ? (r.raw['start_fuel'] as num).toDouble()
+                : null);
+        final double? endF = r.endFuel ??
+            (r.raw['end_fuel'] != null
+                ? (r.raw['end_fuel'] as num).toDouble()
+                : null);
+        final double amount = r.theftAmount ??
+            r.theft ??
+            (r.raw['total_theft'] != null
+                ? (r.raw['total_theft'] as num).toDouble()
+                : 0.0);
 
         final DateTime? eventTime = r.endTime ?? r.startTime ?? r.date;
-        final double? lat = r.latitude ?? r.endLat ?? r.startLat ?? (r.raw['lat'] != null ? (r.raw['lat'] as num).toDouble() : null);
-        final double? lng = r.longitude ?? r.endLng ?? r.startLng ?? (r.raw['lng'] != null ? (r.raw['lng'] as num).toDouble() : null);
+        final double? lat = r.latitude ??
+            r.endLat ??
+            r.startLat ??
+            (r.raw['lat'] != null ? (r.raw['lat'] as num).toDouble() : null);
+        final double? lng = r.longitude ??
+            r.endLng ??
+            r.startLng ??
+            (r.raw['lng'] != null ? (r.raw['lng'] as num).toDouble() : null);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -2668,7 +2936,8 @@ class FuelTheftReportTable extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFE4E6),
                         borderRadius: BorderRadius.circular(20),
@@ -2687,14 +2956,16 @@ class FuelTheftReportTable extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     children: <Widget>[
-                      const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF64748B)),
+                      const Icon(Icons.access_time_rounded,
+                          size: 12, color: Color(0xFF64748B)),
                       const SizedBox(width: 6),
                       Text(
                         eventTime != null ? Fmt.dateTimeFilter(eventTime) : '—',
@@ -2710,15 +2981,22 @@ class FuelTheftReportTable extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: <Widget>[
-                    _buildStat('FUEL BEFORE', startF != null ? '${startF.toStringAsFixed(1)} L' : '0 L'),
-                    _buildStat('FUEL AFTER', endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
-                    _buildStat('DRAINED', '-${amount.toStringAsFixed(1)} L', color: const Color(0xFFE11D48)),
+                    _buildStat(
+                        'FUEL BEFORE',
+                        startF != null
+                            ? '${startF.toStringAsFixed(1)} L'
+                            : '0 L'),
+                    _buildStat('FUEL AFTER',
+                        endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat('DRAINED', '-${amount.toStringAsFixed(1)} L',
+                        color: const Color(0xFFE11D48)),
                   ],
                 ),
                 const SizedBox(height: 10),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 8),
-                _buildLocationRow(context, 'Drain Location', r.fromLocation, lat, lng),
+                _buildLocationRow(
+                    context, 'Drain Location', r.fromLocation, lat, lng),
               ],
             ),
           ),
@@ -2810,10 +3088,22 @@ class FuelConsumptionReportTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<ReportRow> fuelRows = rows.where((ReportRow r) {
-      final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
-      final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
-      final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
-      final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
+      final double consumed = r.consumption ??
+          (r.raw['consumption'] != null
+              ? (r.raw['consumption'] as num).toDouble()
+              : 0.0);
+      final double? startF = r.startFuel ??
+          (r.raw['start_fuel'] != null
+              ? (r.raw['start_fuel'] as num).toDouble()
+              : null);
+      final double? endF = r.endFuel ??
+          (r.raw['end_fuel'] != null
+              ? (r.raw['end_fuel'] as num).toDouble()
+              : null);
+      final double dist = r.distanceTravelled ??
+          (r.raw['distance_travelled'] != null
+              ? (r.raw['distance_travelled'] as num).toDouble()
+              : 0.0);
       return consumed > 0 || startF != null || endF != null || dist > 0;
     }).toList();
 
@@ -2836,19 +3126,41 @@ class FuelConsumptionReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = fuelRows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
-        final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
-        final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
-        final double refill = r.filling ?? (r.raw['total_refill'] != null ? (r.raw['total_refill'] as num).toDouble() : 0.0);
-        final double theft = r.theft ?? (r.raw['total_theft'] != null ? (r.raw['total_theft'] as num).toDouble() : 0.0);
-        final double? startF = r.startFuel ?? (r.raw['start_fuel'] != null ? (r.raw['start_fuel'] as num).toDouble() : null);
-        final double? endF = r.endFuel ?? (r.raw['end_fuel'] != null ? (r.raw['end_fuel'] as num).toDouble() : null);
-        final double? kmpl = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
-        final int engineSec = (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0) + (r.raw['engine_on_seconds'] != null ? (r.raw['engine_on_seconds'] as num).toInt() : 0);
+        final double consumed = r.consumption ??
+            (r.raw['consumption'] != null
+                ? (r.raw['consumption'] as num).toDouble()
+                : 0.0);
+        final double dist = r.distanceTravelled ??
+            (r.raw['distance_travelled'] != null
+                ? (r.raw['distance_travelled'] as num).toDouble()
+                : 0.0);
+        final double refill = r.filling ??
+            (r.raw['total_refill'] != null
+                ? (r.raw['total_refill'] as num).toDouble()
+                : 0.0);
+        final double theft = r.theft ??
+            (r.raw['total_theft'] != null
+                ? (r.raw['total_theft'] as num).toDouble()
+                : 0.0);
+        final double? startF = r.startFuel ??
+            (r.raw['start_fuel'] != null
+                ? (r.raw['start_fuel'] as num).toDouble()
+                : null);
+        final double? endF = r.endFuel ??
+            (r.raw['end_fuel'] != null
+                ? (r.raw['end_fuel'] as num).toDouble()
+                : null);
+        final double? kmpl = r.kmpl ??
+            (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+        final int engineSec = (r.runningSeconds ?? 0) +
+            (r.idleSeconds ?? 0) +
+            (r.raw['engine_on_seconds'] != null
+                ? (r.raw['engine_on_seconds'] as num).toInt()
+                : 0);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -2908,7 +3220,8 @@ class FuelConsumptionReportTable extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE0F2FE),
                         borderRadius: BorderRadius.circular(20),
@@ -2930,9 +3243,16 @@ class FuelConsumptionReportTable extends StatelessWidget {
                 // Row 1: Start Fuel, End Fuel, Net Consumed (Expanded - 0 Overflow)
                 Row(
                   children: <Widget>[
-                    _buildStat('START FUEL', startF != null ? '${startF.toStringAsFixed(1)} L' : '0 L'),
-                    _buildStat('END FUEL', endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
-                    _buildStat('NET CONSUMED', '${consumed.toStringAsFixed(1)} L', color: const Color(0xFF0284C7)),
+                    _buildStat(
+                        'START FUEL',
+                        startF != null
+                            ? '${startF.toStringAsFixed(1)} L'
+                            : '0 L'),
+                    _buildStat('END FUEL',
+                        endF != null ? '${endF.toStringAsFixed(1)} L' : '0 L'),
+                    _buildStat(
+                        'NET CONSUMED', '${consumed.toStringAsFixed(1)} L',
+                        color: const Color(0xFF0284C7)),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -2944,7 +3264,9 @@ class FuelConsumptionReportTable extends StatelessWidget {
                   children: <Widget>[
                     _buildStat('DISTANCE', '${dist.toStringAsFixed(1)} km'),
                     _buildStat('ENGINE ON', Fmt.secsToHms(engineSec)),
-                    _buildStat('KMPL', kmpl != null ? '${kmpl.toStringAsFixed(2)}' : '0', color: const Color(0xFF15803D)),
+                    _buildStat('KMPL',
+                        kmpl != null ? '${kmpl.toStringAsFixed(2)}' : '0',
+                        color: const Color(0xFF15803D)),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -2957,12 +3279,16 @@ class FuelConsumptionReportTable extends StatelessWidget {
                     _buildStat(
                       'REFILL',
                       refill > 0 ? '+${refill.toStringAsFixed(1)} L' : '0 L',
-                      color: refill > 0 ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                      color: refill > 0
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF64748B),
                     ),
                     _buildStat(
                       'THEFT',
                       theft > 0 ? '-${theft.toStringAsFixed(1)} L' : '0 L',
-                      color: theft > 0 ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+                      color: theft > 0
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF64748B),
                     ),
                     const Spacer(),
                   ],
@@ -3028,9 +3354,16 @@ class FuelKmplReportTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<ReportRow> fuelRows = rows.where((ReportRow r) {
-      final double? k = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
-      final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
-      final double cons = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+      final double? k = r.kmpl ??
+          (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+      final double dist = r.distanceTravelled ??
+          (r.raw['distance_travelled'] != null
+              ? (r.raw['distance_travelled'] as num).toDouble()
+              : 0.0);
+      final double cons = r.consumption ??
+          (r.raw['consumption'] != null
+              ? (r.raw['consumption'] as num).toDouble()
+              : 0.0);
       return (k != null && k > 0) || dist > 0 || cons > 0;
     }).toList();
 
@@ -3049,8 +3382,10 @@ class FuelKmplReportTable extends StatelessWidget {
     // Sort by KMPL descending for ranking
     final List<ReportRow> sortedRows = List<ReportRow>.from(fuelRows)
       ..sort((ReportRow a, ReportRow b) {
-        final double ka = a.kmpl ?? (a.raw['kmpl'] != null ? (a.raw['kmpl'] as num).toDouble() : 0.0);
-        final double kb = b.kmpl ?? (b.raw['kmpl'] != null ? (b.raw['kmpl'] as num).toDouble() : 0.0);
+        final double ka = a.kmpl ??
+            (a.raw['kmpl'] != null ? (a.raw['kmpl'] as num).toDouble() : 0.0);
+        final double kb = b.kmpl ??
+            (b.raw['kmpl'] != null ? (b.raw['kmpl'] as num).toDouble() : 0.0);
         return kb.compareTo(ka);
       });
 
@@ -3058,7 +3393,8 @@ class FuelKmplReportTable extends StatelessWidget {
     double sumKmpl = 0.0;
     int validCount = 0;
     for (final ReportRow r in sortedRows) {
-      final double? k = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+      final double? k = r.kmpl ??
+          (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
       if (k != null && k > 0) {
         sumKmpl += k;
         validCount++;
@@ -3073,14 +3409,20 @@ class FuelKmplReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = sortedRows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
-        final double? kmplVal = r.kmpl ?? (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
-        final double dist = r.distanceTravelled ?? (r.raw['distance_travelled'] != null ? (r.raw['distance_travelled'] as num).toDouble() : 0.0);
-        final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+        final double? kmplVal = r.kmpl ??
+            (r.raw['kmpl'] != null ? (r.raw['kmpl'] as num).toDouble() : null);
+        final double dist = r.distanceTravelled ??
+            (r.raw['distance_travelled'] != null
+                ? (r.raw['distance_travelled'] as num).toDouble()
+                : 0.0);
+        final double consumed = r.consumption ??
+            (r.raw['consumption'] != null
+                ? (r.raw['consumption'] as num).toDouble()
+                : 0.0);
         final int rank = index + 1;
 
         // Web Performance rating badge logic
@@ -3141,9 +3483,7 @@ class FuelKmplReportTable extends StatelessWidget {
                     child: Text(
                       rank == 1
                           ? '🥇'
-                          : (rank == 2
-                              ? '🥈'
-                              : (rank == 3 ? '🥉' : '#$rank')),
+                          : (rank == 2 ? '🥈' : (rank == 3 ? '🥉' : '#$rank')),
                       style: TextStyle(
                         fontSize: rank <= 3 ? 16 : 12,
                         fontWeight: FontWeight.w800,
@@ -3193,7 +3533,8 @@ class FuelKmplReportTable extends StatelessWidget {
                       const SizedBox(height: 4),
                       // Performance Rating Badge from Web App
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: ratingBg,
                           borderRadius: BorderRadius.circular(4),
@@ -3214,7 +3555,8 @@ class FuelKmplReportTable extends StatelessWidget {
 
                 // KMPL Metric Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF0FDF4),
                     borderRadius: BorderRadius.circular(10),
@@ -3270,9 +3612,17 @@ class FuelLphReportTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<ReportRow> fuelRows = rows.where((ReportRow r) {
-      final double? l = r.lph ?? (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
-      final int engineSec = (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0) + (r.raw['engine_on_seconds'] != null ? (r.raw['engine_on_seconds'] as num).toInt() : 0);
-      final double cons = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+      final double? l = r.lph ??
+          (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
+      final int engineSec = (r.runningSeconds ?? 0) +
+          (r.idleSeconds ?? 0) +
+          (r.raw['engine_on_seconds'] != null
+              ? (r.raw['engine_on_seconds'] as num).toInt()
+              : 0);
+      final double cons = r.consumption ??
+          (r.raw['consumption'] != null
+              ? (r.raw['consumption'] as num).toDouble()
+              : 0.0);
       return (l != null && l > 0) || engineSec > 0 || cons > 0;
     }).toList();
 
@@ -3291,8 +3641,10 @@ class FuelLphReportTable extends StatelessWidget {
     // Sort by LPH ascending (lower burn rate = more efficient)
     final List<ReportRow> sortedRows = List<ReportRow>.from(fuelRows)
       ..sort((ReportRow a, ReportRow b) {
-        final double la = a.lph ?? (a.raw['lph'] != null ? (a.raw['lph'] as num).toDouble() : 9999.0);
-        final double lb = b.lph ?? (b.raw['lph'] != null ? (b.raw['lph'] as num).toDouble() : 9999.0);
+        final double la = a.lph ??
+            (a.raw['lph'] != null ? (a.raw['lph'] as num).toDouble() : 9999.0);
+        final double lb = b.lph ??
+            (b.raw['lph'] != null ? (b.raw['lph'] as num).toDouble() : 9999.0);
         return la.compareTo(lb);
       });
 
@@ -3300,7 +3652,8 @@ class FuelLphReportTable extends StatelessWidget {
     double sumLph = 0.0;
     int validCount = 0;
     for (final ReportRow r in sortedRows) {
-      final double? l = r.lph ?? (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
+      final double? l = r.lph ??
+          (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
       if (l != null && l > 0) {
         sumLph += l;
         validCount++;
@@ -3315,14 +3668,21 @@ class FuelLphReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = sortedRows[index];
         final String? vId = r.vehicleId;
-        final Vehicle? vehicle = vId != null
-            ? vehicles.where((v) => v.id == vId).firstOrNull
-            : null;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
         final String vName = r.vehicleName ?? vehicle?.displayName ?? '-';
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
-        final double? lphVal = r.lph ?? (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
-        final int engineSec = (r.runningSeconds ?? 0) + (r.idleSeconds ?? 0) + (r.raw['engine_on_seconds'] != null ? (r.raw['engine_on_seconds'] as num).toInt() : 0);
-        final double consumed = r.consumption ?? (r.raw['consumption'] != null ? (r.raw['consumption'] as num).toDouble() : 0.0);
+        final double? lphVal = r.lph ??
+            (r.raw['lph'] != null ? (r.raw['lph'] as num).toDouble() : null);
+        final int engineSec = (r.runningSeconds ?? 0) +
+            (r.idleSeconds ?? 0) +
+            (r.raw['engine_on_seconds'] != null
+                ? (r.raw['engine_on_seconds'] as num).toInt()
+                : 0);
+        final double consumed = r.consumption ??
+            (r.raw['consumption'] != null
+                ? (r.raw['consumption'] as num).toDouble()
+                : 0.0);
         final int rank = index + 1;
 
         // Web Efficiency rating badge logic
@@ -3423,7 +3783,8 @@ class FuelLphReportTable extends StatelessWidget {
                       const SizedBox(height: 4),
                       // Efficiency Rating Badge from Web App
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: ratingBg,
                           borderRadius: BorderRadius.circular(4),
@@ -3444,7 +3805,8 @@ class FuelLphReportTable extends StatelessWidget {
 
                 // LPH Metric Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(10),
@@ -3502,17 +3864,20 @@ class GenericReportTable extends StatelessWidget {
       child: Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         columnWidths: <int, TableColumnWidth>{
-          for (int i = 0; i < columns.length; i++) i: const FixedColumnWidth(150),
+          for (int i = 0; i < columns.length; i++)
+            i: const FixedColumnWidth(150),
         },
         children: <TableRow>[
           TableRow(
             decoration: const BoxDecoration(color: Color(0xFFF8FAFC)),
-            children: columns.map((String col) => TableHeaderCell(col)).toList(),
+            children:
+                columns.map((String col) => TableHeaderCell(col)).toList(),
           ),
           ...result.rows.asMap().entries.map((MapEntry<int, ReportRow> entry) {
             final int idx = entry.key;
             final ReportRow r = entry.value;
-            final Color rowColor = idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+            final Color rowColor =
+                idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
 
             return TableRow(
               decoration: BoxDecoration(color: rowColor),
@@ -3742,7 +4107,9 @@ class GeofenceTransitReportTable extends StatelessWidget {
                       label: 'AVG SPEED',
                       value: r.avgSpeedVal != null
                           ? '${r.avgSpeedVal!.round()} km/h'
-                          : (r.speed != null ? '${r.speed!.round()} km/h' : '-'),
+                          : (r.speed != null
+                              ? '${r.speed!.round()} km/h'
+                              : '-'),
                     ),
                     _buildStat(
                       label: 'MAX SPEED',
@@ -3876,7 +4243,8 @@ class GeofenceSinglePlaceReportTable extends StatelessWidget {
       itemCount: rows.length,
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = rows[index];
-        final String placeName = r.geofenceName ?? r.address ?? 'Geofenced Zone';
+        final String placeName =
+            r.geofenceName ?? r.address ?? 'Geofenced Zone';
         final bool isStillInside = r.exitTime == null;
 
         return Card(
@@ -4277,7 +4645,8 @@ class _DailyTripReportTableState extends State<DailyTripReportTable> {
                   children: <Widget>[
                     _buildStat(
                       label: 'DRIVING TIME',
-                      value: Fmt.durationWeb(r.drivingSeconds ?? r.runningSeconds),
+                      value:
+                          Fmt.durationWeb(r.drivingSeconds ?? r.runningSeconds),
                     ),
                     _buildStat(
                       label: 'STOPPAGE TIME',
@@ -4285,9 +4654,12 @@ class _DailyTripReportTableState extends State<DailyTripReportTable> {
                         (r.stoppedSeconds != null && r.stoppedSeconds! > 0)
                             ? r.stoppedSeconds
                             : ((r.totalSpanSeconds != null &&
-                                    (r.drivingSeconds ?? r.runningSeconds) != null &&
-                                    r.totalSpanSeconds! > (r.drivingSeconds ?? r.runningSeconds)!)
-                                ? (r.totalSpanSeconds! - (r.drivingSeconds ?? r.runningSeconds)!)
+                                    (r.drivingSeconds ?? r.runningSeconds) !=
+                                        null &&
+                                    r.totalSpanSeconds! >
+                                        (r.drivingSeconds ?? r.runningSeconds)!)
+                                ? (r.totalSpanSeconds! -
+                                    (r.drivingSeconds ?? r.runningSeconds)!)
                                 : r.stoppedSeconds),
                       ),
                     ),
@@ -4364,10 +4736,15 @@ class _DailyTripReportTableState extends State<DailyTripReportTable> {
                         children: legs.asMap().entries.map((entry) {
                           final int legIdx = entry.key;
                           final Map<String, dynamic> leg = entry.value;
-                          final double? legDist = asDoubleOrNull(leg, <String>['distance', 'distance_travelled']);
-                          final int? legDur = asDoubleOrNull(leg, <String>['duration_seconds', 'duration'])?.round();
-                          final DateTime? legStart = asDate(leg, <String>['start_time']);
-                          final DateTime? legEnd = asDate(leg, <String>['end_time']);
+                          final double? legDist = asDoubleOrNull(
+                              leg, <String>['distance', 'distance_travelled']);
+                          final int? legDur = asDoubleOrNull(
+                                  leg, <String>['duration_seconds', 'duration'])
+                              ?.round();
+                          final DateTime? legStart =
+                              asDate(leg, <String>['start_time']);
+                          final DateTime? legEnd =
+                              asDate(leg, <String>['end_time']);
 
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -4383,19 +4760,27 @@ class _DailyTripReportTableState extends State<DailyTripReportTable> {
                                   alignment: Alignment.center,
                                   child: Text(
                                     '${legIdx + 1}',
-                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     '${Fmt.time(legStart)} → ${Fmt.time(legEnd)}',
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF334155)),
                                   ),
                                 ),
                                 Text(
                                   '${legDist?.toStringAsFixed(1) ?? '0'} km • ${Fmt.durationWeb(legDur)}',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A)),
                                 ),
                               ],
                             ),
@@ -4518,8 +4903,8 @@ class IgnitionReportTable extends StatelessWidget {
     }
 
     final List<EngineCycle> cycles = parseEngineCycles(rows);
-    final int totalSeconds =
-        cycles.fold<int>(0, (int sum, EngineCycle c) => sum + c.durationSeconds);
+    final int totalSeconds = cycles.fold<int>(
+        0, (int sum, EngineCycle c) => sum + c.durationSeconds);
 
     final String vName =
         rows.first.vehicleName ?? rows.first.plate ?? 'Vehicle';
@@ -4589,6 +4974,3 @@ class IgnitionReportTable extends StatelessWidget {
     );
   }
 }
-
-
-

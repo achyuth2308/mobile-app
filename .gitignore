@@ -38,3 +38,4 @@ build_garbage/
 *.log
 android/.kotlin/
 *.bak
+.freebuff/

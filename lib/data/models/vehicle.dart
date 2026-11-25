@@ -473,6 +473,89 @@ class Vehicle extends Equatable {
 
   /// True for bike / scooter / motorcycle type vehicles.
   /// Two-wheelers typically power their GPS tracker off the bike battery,
+
+  // ── Groups & Multi-Group Assignment ──────────────────────────────
+  /// Returns all group names assigned to this vehicle (supports multiple groups).
+  List<String> get groupNames {
+    final Set<String> names = <String>{};
+
+    // 1. From raw['groups'] array of group objects: [{"id": "...", "name": "..."}]
+    final dynamic groupsList = raw['groups'];
+    if (groupsList is List) {
+      for (final dynamic item in groupsList) {
+        if (item is Map && item['name'] != null) {
+          final String n = item['name'].toString().trim();
+          if (n.isNotEmpty) names.add(n);
+        }
+      }
+    }
+
+    // 2. From raw['group_name'] comma-separated string (e.g. "Mining, Logistics")
+    final dynamic gn = raw['group_name'] ?? raw['groupName'];
+    if (gn is String && gn.trim().isNotEmpty) {
+      for (final String part in gn.split(',')) {
+        final String trimmed = part.trim();
+        if (trimmed.isNotEmpty) names.add(trimmed);
+      }
+    }
+
+    // 3. Fallback to raw['group'] or raw['vehicleGroup']
+    final dynamic g = raw['group'] ?? raw['vehicleGroup'];
+    if (g is String && g.trim().isNotEmpty) {
+      names.add(g.trim());
+    } else if (g is Map && g['name'] != null) {
+      names.add(g['name'].toString().trim());
+    }
+
+    return names.toList();
+  }
+
+  /// Returns all group IDs assigned to this vehicle.
+  List<String> get groupIds {
+    final Set<String> ids = <String>{};
+    final dynamic groupsList = raw['groups'];
+    if (groupsList is List) {
+      for (final dynamic item in groupsList) {
+        if (item is Map && item['id'] != null) {
+          final String idStr = item['id'].toString().trim();
+          if (idStr.isNotEmpty) ids.add(idStr);
+        }
+      }
+    }
+    final dynamic gid = raw['group_id'] ?? raw['groupId'];
+    if (gid != null && gid.toString().trim().isNotEmpty) {
+      ids.add(gid.toString().trim());
+    }
+    return ids.toList();
+  }
+
+  /// Primary or combined group display label (e.g. "MINES TAMILNADU" or "Mining, Logistics").
+  String get displayGroupName {
+    final List<String> names = groupNames;
+    return names.isEmpty ? '' : names.join(', ');
+  }
+
+  /// True if this vehicle belongs to the given group (by group ID, group Name, or '__unassigned__').
+  bool belongsToGroup(String groupQuery) {
+    if (groupQuery.isEmpty || groupQuery.toLowerCase() == 'all') return true;
+    final String q = groupQuery.trim().toLowerCase();
+
+    if (groupQuery == '__unassigned__') {
+      return groupNames.isEmpty && groupIds.isEmpty;
+    }
+
+    // Match by ID
+    for (final String id in groupIds) {
+      if (id.toLowerCase() == q) return true;
+    }
+
+    // Match by Name
+    for (final String name in groupNames) {
+      if (name.toLowerCase() == q) return true;
+    }
+
+    return false;
+  }
   /// so when the bike stops the device goes offline immediately. We treat
   /// them as Parked (stopped) rather than Offline when the last known
   /// data shows a standstill.

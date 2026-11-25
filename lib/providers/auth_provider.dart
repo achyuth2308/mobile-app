@@ -236,8 +236,22 @@ class AuthController extends Notifier<AuthState> {
     // We send only id + role — never name, email, or phone.
     unawaited(CrashReporter.setUserContext(user));
     try {
-      final String? fcm = await ref.read(secureStoreProvider).readFcmToken();
-      if (fcm != null && fcm.isNotEmpty) {
+      String? fcm;
+      try {
+        fcm = await ref.read(secureStoreProvider).readFcmToken();
+      } catch (_) {}
+
+      // Fallback: On mobile (Android/iOS), if local cache is empty, fetch live token from Firebase
+      if (!kIsWeb && (fcm == null || fcm.isEmpty)) {
+        try {
+          fcm = await FirebaseMessaging.instance.getToken();
+          if (fcm != null && fcm.isNotEmpty) {
+            await ref.read(secureStoreProvider).writeFcmToken(fcm);
+          }
+        } catch (_) {}
+      }
+
+      if (!kIsWeb && fcm != null && fcm.isNotEmpty) {
         await _repo.registerDevice(
           fcmToken: fcm,
           platform: defaultTargetPlatform == TargetPlatform.iOS

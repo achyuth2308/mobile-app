@@ -266,6 +266,22 @@ class ReportRow extends Equatable {
         isLat: false,
       ) ?? longitude;
 
+  double? get refillLat =>
+      _extractCoordinate(
+        raw,
+        const <String>['refill_lat', 'refillLat', 'refill_latitude', 'refillLatitude'],
+        const <String>['refillLocation', 'refill_location'],
+        isLat: true,
+      ) ?? startLat;
+
+  double? get refillLng =>
+      _extractCoordinate(
+        raw,
+        const <String>['refill_lng', 'refillLng', 'refill_lon', 'refillLon', 'refill_longitude', 'refillLongitude'],
+        const <String>['refillLocation', 'refill_location'],
+        isLat: false,
+      ) ?? startLng;
+
   double? get endLat =>
       _extractCoordinate(
         raw,
@@ -547,15 +563,82 @@ class ReportRow extends Equatable {
         'fuelQty',
         'fuel',
       ]);
-  double? get consumption => asDoubleOrNull(raw, <String>['total_fuel_consume', 'totalFuelConsume', 'consumption', 'fuelConsumption', 'fuel_used', 'fuelUsed', 'totalConsumption', 'total_consumption', 'fuel_consumed']);
-  double? get filling => asDoubleOrNull(raw, <String>['total_fuel_fill', 'totalFuelFill', 'filling', 'fuelFilling', 'fuelFilled', 'refuels', 'refuel', 'totalFilling', 'total_filling', 'total_fill']);
-  double? get refillAmount => asDoubleOrNull(raw, <String>['refill_amount', 'refillAmount', 'refill', 'refilled_liters', 'refilledLiters', 'refill_qty', 'refillQty']) ?? filling;
-  double? get theft => asDoubleOrNull(raw, <String>['total_fuel_theft', 'totalFuelTheft', 'theft', 'fuelTheft', 'thefts', 'drain', 'totalTheft', 'total_theft', 'fuel_theft']);
-  double? get theftAmount => asDoubleOrNull(raw, <String>['theft_amount', 'theftAmount', 'drain_amount', 'drainAmount', 'drained_liters', 'drainedLiters']) ?? theft;
+  double? get consumption => asDoubleOrNull(raw, <String>[
+        'consumption',
+        'total_fuel_consume',
+        'totalFuelConsume',
+        'fuelConsumption',
+        'fuel_used',
+        'fuelUsed',
+        'totalConsumption',
+        'total_consumption',
+        'fuel_consumed',
+      ]);
+  double? get filling => asDoubleOrNull(raw, <String>[
+        'total_refill',
+        'totalRefill',
+        'refill_quantity',
+        'refillQuantity',
+        'total_fuel_fill',
+        'totalFuelFill',
+        'filling',
+        'fuelFilling',
+        'fuelFilled',
+        'refuels',
+        'refuel',
+        'totalFilling',
+        'total_filling',
+        'total_fill',
+      ]);
+  double? get refillAmount => asDoubleOrNull(raw, <String>[
+        'total_refill',
+        'totalRefill',
+        'refill_quantity',
+        'refillQuantity',
+        'refill_amount',
+        'refillAmount',
+        'refill',
+        'refilled_liters',
+        'refilledLiters',
+        'refill_qty',
+        'refillQty',
+      ]) ?? filling;
+  double? get theft => asDoubleOrNull(raw, <String>[
+        'total_theft',
+        'totalTheft',
+        'theft_quantity',
+        'theftQuantity',
+        'total_fuel_theft',
+        'totalFuelTheft',
+        'theft',
+        'fuelTheft',
+        'thefts',
+        'drain',
+        'fuel_theft',
+      ]);
+  double? get theftAmount => asDoubleOrNull(raw, <String>[
+        'total_theft',
+        'totalTheft',
+        'theft_quantity',
+        'theftQuantity',
+        'theft_amount',
+        'theftAmount',
+        'drain_amount',
+        'drainAmount',
+        'drained_liters',
+        'drainedLiters',
+      ]) ?? theft;
+  double? get dispensed => asDoubleOrNull(raw, <String>[
+        'total_dispensed',
+        'totalDispensed',
+        'dispensed',
+        'dispense',
+      ]);
   double? get kmpl => asDoubleOrNull(raw, <String>['kmpl', 'mileage', 'average', 'fuel_economy', 'fuelEconomy']);
   double? get lph => asDoubleOrNull(raw, <String>['lph', 'litresPerHour', 'avg_fuel_consumption_hourly']);
   String? get fromLocation {
     final String? direct = asStringOrNull(raw, const <String>[
+      'refillAddress', 'refill_address', 'refillLocation', 'refill_location',
       'startAddress', 'start_address', 'startLocation', 'start_location',
       'startPlace', 'start_place', 'fromLocation', 'from_location',
       'fromAddress', 'from_address', 'fromPlace', 'from_place',

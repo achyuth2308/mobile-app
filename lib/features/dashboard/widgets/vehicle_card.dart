@@ -15,6 +15,7 @@ import '../../../data/models/vehicle.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/live_address.dart';
 import '../../../providers/core_providers.dart';
+import '../../../providers/fleet_provider.dart';
 import '../../../data/repositories/vehicle_repository.dart';
 
 class VehicleCard extends ConsumerWidget {
@@ -41,6 +42,16 @@ class VehicleCard extends ConsumerWidget {
     final bool isDark = theme.brightness == Brightness.dark;
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
+    final List<FleetGroup> userGroups = ref.watch(availableFleetGroupsProvider);
+    final String userGroupLabel = () {
+      if (userGroups.isEmpty) return vehicle.displayGroupName;
+      final Set<String> allowed =
+          userGroups.map((g) => g.name.toLowerCase()).toSet();
+      final List<String> matching = vehicle.groupNames
+          .where((n) => allowed.contains(n.toLowerCase()))
+          .toList();
+      return matching.join(', ');
+    }();
 
     final String cleanName = () {
       final String raw = vehicle.displayName.trim();
@@ -149,6 +160,38 @@ class VehicleCard extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    if (userGroupLabel.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFE2E8F0),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          userGroupLabel,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -42,6 +42,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final FleetState fleet = ref.watch(fleetProvider);
     final int alertCount = ref.watch(unreadAlertsCountProvider);
     final List<Vehicle> vehicles = ref.watch(filteredVehiclesProvider);
+    final List<FleetGroup> groups = ref.watch(availableFleetGroupsProvider);
+    final String? activeGroupId = ref.watch(fleetGroupFilterProvider);
     final String? name = ref.watch(authProvider).user?.name;
 
     return Scaffold(
@@ -285,11 +287,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
+            // ── Group Dropdown Selector ─────────────────────────────
+            if (groups.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 2),
+                  child: _buildGroupDropdown(
+                    isDark: isDark,
+                    groups: groups,
+                    activeGroupId: activeGroupId,
+                    totalCount: fleet.vehicles.length,
+                  ),
+                ),
+              ),
+
             // ── List header ──────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding:
-                    const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.xs),
+                    const EdgeInsets.fromLTRB(Gap.lg, Gap.sm, Gap.lg, Gap.xs),
                 child: Row(
                   children: <Widget>[
                     Text('Vehicles', style: theme.textTheme.titleLarge),
@@ -307,6 +323,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                     ),
                     const Spacer(),
+                    if (activeGroupId != null && activeGroupId != 'all')
+                      TextButton.icon(
+                        onPressed: () =>
+                            ref.read(fleetGroupFilterProvider.notifier).state = null,
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        label: const Text('All groups'),
+                      ),
                     if (_search.text.isNotEmpty)
                       TextButton.icon(
                         onPressed: () {
@@ -364,6 +387,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           _search.clear();
                           ref.read(fleetSearchProvider.notifier).state = '';
                           ref.read(fleetFilterProvider.notifier).state = null;
+                          ref.read(fleetGroupFilterProvider.notifier).state = null;
                           setState(() {});
                         },
                 ),
@@ -390,6 +414,247 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupDropdown({
+    required bool isDark,
+    required List<FleetGroup> groups,
+    required String? activeGroupId,
+    required int totalCount,
+  }) {
+    final FleetGroup? selectedGroup = groups.cast<FleetGroup?>().firstWhere(
+          (g) => g?.id == activeGroupId || g?.name == activeGroupId,
+          orElse: () => null,
+        );
+    final String currentLabel = selectedGroup?.name ?? 'All Groups';
+    final int currentCount = selectedGroup?.vehicleCount ?? totalCount;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: Gap.lg, vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF162036) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? AppColors.brand.withValues(alpha: 0.35)
+              : const Color(0xFFCBD5E1),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: PopupMenuButton<String?>(
+        tooltip: 'Select Vehicle Group',
+        offset: const Offset(0, 48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        color: isDark ? const Color(0xFF162036) : Colors.white,
+        onSelected: (String? val) {
+          ref.read(fleetGroupFilterProvider.notifier).state = val;
+        },
+        itemBuilder: (BuildContext context) => <PopupMenuEntry<String?>>[
+          PopupMenuItem<String?>(
+            value: null,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.grid_view_rounded,
+                  size: 18,
+                  color: (activeGroupId == null || activeGroupId == 'all')
+                      ? AppColors.brand
+                      : (isDark
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF64748B)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'All Groups',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          (activeGroupId == null || activeGroupId == 'all')
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$totalCount',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(height: 1),
+          ...groups.map(
+            (FleetGroup g) => PopupMenuItem<String?>(
+              value: g.id,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.folder_shared_rounded,
+                    size: 18,
+                    color: (activeGroupId == g.id || activeGroupId == g.name)
+                        ? AppColors.brand
+                        : (isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      g.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            (activeGroupId == g.id || activeGroupId == g.name)
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${g.vehicleCount}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.brand
+                      .withValues(alpha: isDark ? 0.22 : 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.folder_shared_rounded,
+                  size: 18,
+                  color: AppColors.brand,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'VEHICLE GROUP',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      currentLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                margin: const EdgeInsets.only(right: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1E293B)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Text(
+                  '$currentCount vehs',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_drop_down_rounded,
+                size: 26,
+                color:
+                    isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ],
+          ),
         ),
       ),
     );

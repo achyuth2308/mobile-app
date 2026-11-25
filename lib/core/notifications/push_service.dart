@@ -385,7 +385,17 @@ class PushService {
     'fueltracks_alerts_v4',
     'Fleet Alerts',
     description: 'Overspeeding, geofence and ignition notifications.',
-    importance: Importance.defaultImportance,
+    importance: Importance.max,
+    enableVibration: true,
+    playSound: true,
+  );
+
+  static const AndroidNotificationChannel _defaultChannel =
+      AndroidNotificationChannel(
+    'default_channel',
+    'Fleet Notifications',
+    description: 'Real-time vehicle events and fleet push alerts.',
+    importance: Importance.max,
     enableVibration: true,
     playSound: true,
   );
@@ -473,6 +483,7 @@ class PushService {
     await androidImpl?.createNotificationChannel(_criticalChannel);
     await androidImpl?.createNotificationChannel(_theftChannel);
     await androidImpl?.createNotificationChannel(_generalChannel);
+    await androidImpl?.createNotificationChannel(_defaultChannel);
 
     // Clear stale spam notifications from the system notification tray
     try {

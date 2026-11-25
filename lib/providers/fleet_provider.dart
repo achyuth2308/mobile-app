@@ -85,6 +85,7 @@ class FleetStats {
 class FleetState {
   const FleetState({
     this.vehicles = const <Vehicle>[],
+    this.groups = const <FleetGroup>[],
     this.isLoading = true,
     this.isRefreshing = false,
     this.error,
@@ -92,6 +93,7 @@ class FleetState {
   });
 
   final List<Vehicle> vehicles;
+  final List<FleetGroup> groups;
   final bool isLoading;
   final bool isRefreshing;
   final String? error;
@@ -102,6 +104,7 @@ class FleetState {
 
   FleetState copyWith({
     List<Vehicle>? vehicles,
+    List<FleetGroup>? groups,
     bool? isLoading,
     bool? isRefreshing,
     String? error,
@@ -110,6 +113,7 @@ class FleetState {
   }) =>
       FleetState(
         vehicles: vehicles ?? this.vehicles,
+        groups: groups ?? this.groups,
         isLoading: isLoading ?? this.isLoading,
         isRefreshing: isRefreshing ?? this.isRefreshing,
         error: clearError ? null : (error ?? this.error),
@@ -274,9 +278,31 @@ class FleetController extends Notifier<FleetState> {
       // 1. Immediately index and render vehicles so the app opens instantly (< 1 second)
       _rebuildIndexes(cleanMerged);
 
+      // Fetch authoritative groups assigned to the user from /api/admin/groups
+      List<FleetGroup> userAssignedGroups = state.groups;
+      try {
+        final List<Map<String, dynamic>> rawGroups =
+            await ref.read(vehicleRepositoryProvider).getAssignedGroups();
+        if (rawGroups.isNotEmpty) {
+          userAssignedGroups = rawGroups
+              .map((Map<String, dynamic> m) {
+                final String gId = (m['id'] ?? '').toString().trim();
+                final String gName = (m['name'] ?? '').toString().trim();
+                return FleetGroup(
+                  id: gId,
+                  name: gName,
+                  vehicleCount: 0,
+                );
+              })
+              .where((g) => g.id.isNotEmpty && g.name.isNotEmpty)
+              .toList();
+        }
+      } catch (_) {}
+
       if (!_mounted) return;
       _safeSetState(state.copyWith(
         vehicles: cleanMerged,
+        groups: userAssignedGroups,
         isLoading: false,
         isRefreshing: false,
         lastSyncedAt: DateTime.now(),
@@ -857,6 +883,55 @@ enum FleetSortOption {
 final StateProvider<VehicleStatus?> fleetFilterProvider =
     StateProvider<VehicleStatus?>((Ref ref) => null);
 
+/// Active fleet group filter. `null` or `'all'` means all groups.
+final StateProvider<String?> fleetGroupFilterProvider =
+    StateProvider<String?>((Ref ref) => null);
+
+class FleetGroup {
+  final String id;
+  final String name;
+  final int vehicleCount;
+  final int onlineCount;
+
+  const FleetGroup({
+    required this.id,
+    required this.name,
+    required this.vehicleCount,
+    this.onlineCount = 0,
+  });
+}
+
+/// Authoritative groups assigned to the user from /api/admin/groups,
+/// populated with real-time vehicle counts and online counts.
+final Provider<List<FleetGroup>> availableFleetGroupsProvider =
+    Provider<List<FleetGroup>>((Ref ref) {
+  final FleetState fleet = ref.watch(fleetProvider);
+  final List<Vehicle> vehicles = fleet.vehicles;
+  final List<FleetGroup> userGroups = fleet.groups;
+
+  // 1. Authoritative: strictly use the groups assigned to this user!
+  if (userGroups.isNotEmpty) {
+    final List<FleetGroup> list = userGroups.map((g) {
+      final List<Vehicle> matching = vehicles.where((v) {
+        return v.belongsToGroup(g.id) || v.belongsToGroup(g.name);
+      }).toList();
+
+      return FleetGroup(
+        id: g.id,
+        name: g.name,
+        vehicleCount: matching.length,
+        onlineCount: matching.where((v) => v.isOnline).length,
+      );
+    }).toList();
+
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
+  }
+
+  // 2. If user has no specific groups returned, don't show arbitrary cross-tenant groups
+  return const <FleetGroup>[];
+});
+
 final StateProvider<String?> fleetTypeFilterProvider =
     StateProvider<String?>((Ref ref) => null);
 
@@ -872,10 +947,16 @@ final Provider<List<Vehicle>> filteredVehiclesProvider =
   final String query = ref.watch(fleetSearchProvider).trim().toLowerCase();
   final VehicleStatus? filter = ref.watch(fleetFilterProvider);
   final String? typeFilter = ref.watch(fleetTypeFilterProvider);
+  final String? groupFilter = ref.watch(fleetGroupFilterProvider);
   final bool alertsOnly = ref.watch(fleetAlertsOnlyProvider);
   final FleetSortOption sortOption = ref.watch(fleetSortProvider);
 
   final List<Vehicle> list = all.where((Vehicle v) {
+    if (groupFilter != null &&
+        groupFilter.isNotEmpty &&
+        groupFilter.toLowerCase() != 'all') {
+      if (!v.belongsToGroup(groupFilter)) return false;
+    }
     if (filter != null && v.status != filter) return false;
     if (typeFilter != null) {
       final String t = v.displayType.toLowerCase();

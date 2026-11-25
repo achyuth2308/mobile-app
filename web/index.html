@@ -79,12 +79,27 @@
     <span class="loading-text">Loading Fleet Data...</span>
   </div>
   <script>
-    window.addEventListener('flutter-first-frame', function() {
+    function hideLoader() {
       var loader = document.getElementById('loading-indicator');
       if (loader) {
-        loader.style.display = 'none';
+        loader.style.opacity = '0';
+        setTimeout(function() {
+          if (loader && loader.parentNode) {
+            loader.parentNode.removeChild(loader);
+          }
+        }, 200);
+      }
+    }
+    window.addEventListener('flutter-first-frame', hideLoader);
+    // Safety fallback: if flutter-first-frame doesn't fire, remove loader once flutter attaches or after 2.5s
+    setTimeout(hideLoader, 2500);
+    var observer = new MutationObserver(function() {
+      if (document.querySelector('flutter-view, flt-glass-pane, [flt-renderer]')) {
+        hideLoader();
+        observer.disconnect();
       }
     });
+    observer.observe(document.body, { childList: true, subtree: true });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

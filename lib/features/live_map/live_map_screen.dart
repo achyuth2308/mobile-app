@@ -533,11 +533,14 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen>
         ref.watch(vehicleDailyHistoryProvider(activeId));
 
     // If focusVehicleId is passed (e.g. Live Tracking from Vehicle Detail),
-    // show only that specific vehicle. Otherwise show all fleet vehicles.
+    // show only that specific vehicle. Otherwise respect group filter if active.
+    final String? groupFilter = ref.watch(fleetGroupFilterProvider);
     final List<Vehicle> visibleVehicles =
         widget.focusVehicleId != null && widget.focusVehicleId!.isNotEmpty
             ? vehicles.where((v) => v.id == widget.focusVehicleId).toList()
-            : vehicles;
+            : (groupFilter != null && groupFilter.isNotEmpty && groupFilter != 'all')
+                ? vehicles.where((v) => v.belongsToGroup(groupFilter)).toList()
+                : vehicles;
 
     final Vehicle? targetVehicle =
         (widget.focusVehicleId != null && widget.focusVehicleId!.isNotEmpty)
