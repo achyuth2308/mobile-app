@@ -303,17 +303,6 @@ class VehicleCard extends ConsumerWidget {
                                            valueColor: const Color(0xFFB45309),
                                            onTap: () => context.push('/vehicle/${vehicle.id}'),
                                          ),
-                                         const SizedBox(height: 6),
-                                         _MetricItem(
-                                           icon: Icons.speed_rounded,
-                                           label: 'Range',
-                                           value: vehicle.effectiveEstimatedRange != null
-                                               ? '~${vehicle.effectiveEstimatedRange!.round()} km'
-                                               : 'N/A',
-                                           labelColor: const Color(0xFF0D9488),
-                                           valueColor: const Color(0xFF0F766E),
-                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
-                                         ),
                                        ],
                                      ],
                                     const SizedBox(height: 6),
@@ -412,17 +401,6 @@ class VehicleCard extends ConsumerWidget {
                                                : '0 L',
                                            labelColor: const Color(0xFFD97706),
                                            valueColor: const Color(0xFFB45309),
-                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
-                                         ),
-                                         const SizedBox(height: 6),
-                                         _MetricItem(
-                                           icon: Icons.speed_rounded,
-                                           label: 'Range',
-                                           value: vehicle.effectiveEstimatedRange != null
-                                               ? '~${vehicle.effectiveEstimatedRange!.round()} km'
-                                               : 'N/A',
-                                           labelColor: const Color(0xFF0D9488),
-                                           valueColor: const Color(0xFF0F766E),
                                            onTap: () => context.push('/vehicle/${vehicle.id}'),
                                          ),
                                        ],
