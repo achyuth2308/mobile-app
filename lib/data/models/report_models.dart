@@ -729,6 +729,21 @@ class ReportRow extends Equatable {
         'driverName',
       ]) ?? driverName;
 
+  DateTime? get lastRefillDate => asDate(raw, const <String>[
+        'last_refill_date',
+        'lastRefillDate',
+      ]);
+
+  DateTime? get lastEntryDate => asDate(raw, const <String>[
+        'last_entry_date',
+        'lastEntryDate',
+      ]);
+
+  double? get totalFuelRefilled => asDoubleOrNull(raw, const <String>[
+        'total_fuel_refilled',
+        'totalFuelRefilled',
+      ]);
+
   String? get lastRemarks => asStringOrNull(raw, const <String>[
         'last_remarks',
         'remarks',
