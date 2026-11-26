@@ -919,7 +919,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
 
           _MenuItemCard(
             title: 'Manual Fuel Entry',
-            subtitle: 'Log refill, level check & view mileage',
+            subtitle: 'Log refill & view mileage',
             icon: Icons.local_gas_station_rounded,
             accentColor: const Color(0xFFEA580C),
             badgeText: 'ESTIMATED',

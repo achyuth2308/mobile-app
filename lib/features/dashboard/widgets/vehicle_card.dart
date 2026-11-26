@@ -43,6 +43,12 @@ class VehicleCard extends ConsumerWidget {
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
+    final bool showFuelMetric = vehicle.hasHardwareFuelSensor
+        ? vehicle.hasFuel
+        : (vehicle.isNonSensorFuel &&
+            (vehicle.hasInitialFuelSetup ||
+                (vehicle.fuelLevel != null && vehicle.fuelLevel! > 0)));
+
     final String cleanName = () {
       final String raw = vehicle.displayName.trim();
       if (raw.contains('_')) {
@@ -279,7 +285,7 @@ class VehicleCard extends ConsumerWidget {
                                         focusOdometer: true,
                                       ),
                                     ),
-                                    if (vehicle.hasFuel || vehicle.isNonSensorFuel) ...[
+                                    if (showFuelMetric) ...[
                                        const SizedBox(height: 6),
                                        _MetricItem(
                                          icon: Icons.local_gas_station_rounded,
@@ -379,7 +385,7 @@ class VehicleCard extends ConsumerWidget {
                                       valueColor: const Color(0xFFD95D0B), // Burnt Orange
                                       icon: Icons.near_me_rounded,
                                     ),
-                                    if (vehicle.hasFuel || vehicle.isNonSensorFuel) ...[
+                                    if (showFuelMetric) ...[
                                        const SizedBox(height: 6),
                                        _MetricItem(
                                          icon: Icons.local_gas_station_rounded,

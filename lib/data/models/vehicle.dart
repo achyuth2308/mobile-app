@@ -459,24 +459,18 @@ class Vehicle extends Equatable {
   /// True if this vehicle is configured for non-sensor / manual fuel monitoring
   /// (no hardware fuel sensor equipped, and non-sensor fuel parameters or setup configured).
   bool get isNonSensorFuel {
-    // 1. Explicit non-sensor telemetry from backend enrichVehicleFuel
-    if (raw['manual_estimated_range'] != null ||
-        raw['manual_fuel_consumed'] != null ||
-        raw['manual_mileage'] != null ||
-        raw['manualTankCapacity'] != null ||
-        raw['manual_tank_capacity'] != null) {
+    // 1. Hardware calibrated sensor vehicles are NEVER non-sensor fuel
+    if (hasHardwareFuelSensor) return false;
+
+    // 2. Must have initial fuel setup completed or active fuel in tank (> 0)
+    if (hasInitialFuelSetup || (fuelLevel != null && fuelLevel! > 0)) {
       return true;
     }
 
-    // 2. Explicit non-sensor flags in root or metadata
+    // 3. Explicit non-sensor setup flags in metadata or raw
     final dynamic meta = raw['metadata'];
     if (meta is Map) {
-      if (meta['manual_estimated_range'] != null ||
-          meta['manual_fuel_consumed'] != null ||
-          meta['manual_mileage'] != null ||
-          meta['manualTankCapacity'] != null ||
-          meta['manual_tank_capacity'] != null ||
-          meta['isNonSensor'] == true ||
+      if (meta['isNonSensor'] == true ||
           meta['isNonSensor'] == 'YES' ||
           meta['isNonSensor'] == 'true' ||
           meta['manualFuel'] == true ||
@@ -501,23 +495,6 @@ class Vehicle extends Equatable {
         raw['manualFuelSetup'] == true ||
         raw['initialSetup'] == true ||
         raw['hasInitialFuel'] == true) {
-      return true;
-    }
-
-    // 3. Name indicators
-    final String n = name.trim().toLowerCase();
-    if (n.startsWith('mfuel') ||
-        n.contains('manualfuel') ||
-        n.contains('manual_fuel') ||
-        n.contains('non-sensor') ||
-        n.contains('nonsensor')) {
-      return true;
-    }
-
-    if (hasInitialFuelSetup) return true;
-
-    // 4. If vehicle has fuel tracking but has NO calibrated fuel sensor, it is non-sensor fuel
-    if (hasFuel && !hasHardwareFuelSensor) {
       return true;
     }
 
