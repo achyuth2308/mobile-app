@@ -27,11 +27,18 @@ import '../../shared/widgets/connectivity_banner.dart';
 /// Foreground `alert:new` socket events prepend to the list; while the app is
 /// backgrounded the same events arrive as FCM push instead.
 class AlertsScreen extends ConsumerStatefulWidget {
-  const AlertsScreen({super.key, this.vehicleId, this.alertId, this.typeFilter});
+  const AlertsScreen({
+    super.key,
+    this.vehicleId,
+    this.alertId,
+    this.typeFilter,
+    this.groupId,
+  });
 
   final String? vehicleId;
   final String? alertId;
   final String? typeFilter;
+  final String? groupId;
 
   @override
   ConsumerState<AlertsScreen> createState() => _AlertsScreenState();
@@ -39,6 +46,37 @@ class AlertsScreen extends ConsumerStatefulWidget {
 
 class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   final ScrollController _scroll = ScrollController();
+
+  String? get _effectiveGroupId {
+    if (widget.groupId != null && widget.groupId!.trim().isNotEmpty) {
+      if (widget.groupId!.trim().toLowerCase() == 'all') return null;
+      return widget.groupId!.trim();
+    }
+    // If not explicitly provided, fall back to current group filter only if not vehicle-specific
+    if (widget.vehicleId != null && widget.vehicleId!.isNotEmpty) return null;
+    final String? activeGroup = ref.read(fleetGroupFilterProvider);
+    if (activeGroup != null && activeGroup.trim().isNotEmpty && activeGroup.trim().toLowerCase() != 'all') {
+      return activeGroup.trim();
+    }
+    return null;
+  }
+
+  List<Vehicle> get _groupVehicles {
+    final List<Vehicle> all = ref.read(fleetProvider).vehicles;
+    final String? gid = _effectiveGroupId;
+    if (gid == null || gid.isEmpty) return all;
+    return all.where((Vehicle v) => v.belongsToGroup(gid)).toList();
+  }
+
+  String? get _effectiveGroupName {
+    final String? gid = _effectiveGroupId;
+    if (gid == null || gid.isEmpty) return null;
+    final List<FleetGroup> groups = ref.read(availableFleetGroupsProvider);
+    for (final FleetGroup g in groups) {
+      if (g.id == gid || g.name == gid) return g.name;
+    }
+    return gid;
+  }
 
   final List<FleetAlert> _alerts = <FleetAlert>[];
   String? _typeFilter;
@@ -188,6 +226,17 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
               }
             }
           }
+          final String? gid = _effectiveGroupId;
+          if (gid != null && gid.isNotEmpty) {
+            final List<Vehicle> groupVehicles = _groupVehicles;
+            final bool inGroup = groupVehicles.any((v) =>
+                v.id == newAlert.vehicleId ||
+                (newAlert.vehicleName != null &&
+                    newAlert.vehicleName!.isNotEmpty &&
+                    (v.displayName.toLowerCase() == newAlert.vehicleName!.toLowerCase() ||
+                        v.registrationNumber.toLowerCase() == newAlert.vehicleName!.toLowerCase())));
+            if (!inGroup) return;
+          }
           final bool matchesVehicle = _selectedVehicleId == null ||
               _selectedVehicleId!.isEmpty ||
               newAlert.vehicleId == _selectedVehicleId;
@@ -226,7 +275,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     }
 
     try {
-      final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
+      final List<Vehicle> vehicles = _groupVehicles;
       final List<String> vIds = vehicles.map((Vehicle v) => v.id).toList();
 
       final List<FleetAlert> data =
@@ -260,7 +309,13 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         _loadingMore = false;
       });
       final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead && !a.isGenericFleetAlert).length;
-      ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+      if (_effectiveGroupId != null) {
+        ref.read(groupUnreadAlertsCountProvider.notifier).setCount(unreadCount);
+        unawaited(ref.read(unreadAlertsCountProvider.notifier).refresh());
+      } else {
+        ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+        unawaited(ref.read(groupUnreadAlertsCountProvider.notifier).refresh());
+      }
       final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed && !a.isGenericFleetAlert).length;
       ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
     } on ApiException catch (e) {
@@ -295,7 +350,13 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     setState(() => _markingRead = true);
 
     try {
-      await ref.read(alertRepositoryProvider).markAllAsRead();
+      if (_effectiveGroupId != null) {
+        for (final FleetAlert alert in visibleAlerts.where((FleetAlert a) => !a.isRead)) {
+          unawaited(ref.read(alertRepositoryProvider).markAsRead(alert.id));
+        }
+      } else {
+        await ref.read(alertRepositoryProvider).markAllAsRead();
+      }
       if (!mounted) return;
 
       setState(() {
@@ -307,7 +368,13 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
         _markingRead = false;
       });
       final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
-      ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+      if (_effectiveGroupId != null) {
+        ref.read(groupUnreadAlertsCountProvider.notifier).setCount(unreadCount);
+        unawaited(ref.read(unreadAlertsCountProvider.notifier).refresh());
+      } else {
+        ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+        unawaited(ref.read(groupUnreadAlertsCountProvider.notifier).refresh());
+      }
       final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
       ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
 
@@ -339,7 +406,13 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       if (i != -1) _alerts[i] = alert.copyWith(isRead: true);
     });
     final int unreadCount = _alerts.where((FleetAlert a) => !a.isRead).length;
-    ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+    if (_effectiveGroupId != null) {
+      ref.read(groupUnreadAlertsCountProvider.notifier).setCount(unreadCount);
+      unawaited(ref.read(unreadAlertsCountProvider.notifier).refresh());
+    } else {
+      ref.read(unreadAlertsCountProvider.notifier).setCount(unreadCount);
+      unawaited(ref.read(groupUnreadAlertsCountProvider.notifier).refresh());
+    }
     final int unreadOverspeed = _alerts.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;
     ref.read(unreadOverspeedCountProvider.notifier).setCount(unreadOverspeed);
   }
@@ -382,6 +455,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
           _alerts.clear();
         });
         ref.read(unreadAlertsCountProvider.notifier).reset();
+        ref.read(groupUnreadAlertsCountProvider.notifier).reset();
         ref.read(unreadOverspeedCountProvider.notifier).reset();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -404,7 +478,6 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<Vehicle> allVehicles = ref.watch(fleetProvider).vehicles;
 
     final DateTime now = DateTime.now();
     final DateTime todayStart = DateTime(now.year, now.month, now.day);
@@ -468,7 +541,22 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                     ),
                     const SizedBox(width: Gap.md),
                   ],
-                  Text('Alerts', style: theme.textTheme.headlineMedium),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Alerts', style: theme.textTheme.headlineMedium),
+                      if (_effectiveGroupName != null)
+                        Text(
+                          _effectiveGroupName!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                    ],
+                  ),
                   const Spacer(),
                   // Sort button
                   IconButton(
@@ -557,28 +645,40 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                             isExpanded: true,
                             icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
                             hint: Row(
-                              children: const [
-                                Icon(Icons.directions_car_outlined, size: 16),
-                                SizedBox(width: 6),
+                              children: [
+                                const Icon(Icons.directions_car_outlined, size: 16),
+                                const SizedBox(width: 6),
                                 Expanded(
-                                  child: Text('All Vehicles',
-                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                      overflow: TextOverflow.ellipsis),
+                                  child: Text(
+                                    _effectiveGroupName != null
+                                        ? 'All ${_effectiveGroupName!} Vehicles'
+                                        : 'All Vehicles',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ],
                             ),
                             items: [
-                              const DropdownMenuItem<String?>(
+                              DropdownMenuItem<String?>(
                                 value: null,
                                 child: Row(
                                   children: [
-                                    Icon(Icons.grid_view_rounded, size: 16),
-                                    SizedBox(width: 6),
-                                    Text('All Vehicles', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    const Icon(Icons.grid_view_rounded, size: 16),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        _effectiveGroupName != null
+                                            ? 'All ${_effectiveGroupName!} Vehicles'
+                                            : 'All Vehicles',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
-                              ...allVehicles.map((v) => DropdownMenuItem<String?>(
+                              ..._groupVehicles.map((v) => DropdownMenuItem<String?>(
                                     value: v.id,
                                     child: Row(
                                       children: [
@@ -747,7 +847,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                               child: ListView.builder(
                                 controller: _scroll,
                                 padding: const EdgeInsets.fromLTRB(
-                                    Gap.lg, Gap.sm, Gap.lg, Gap.navClearance),
+                                    14, Gap.sm, 14, Gap.navClearance),
                                 itemCount: _flatCount(grouped, visibleAlerts.length) +
                                     (_hasMore ? 1 : 0),
                                 itemBuilder: (BuildContext context, int index) =>
@@ -1061,55 +1161,52 @@ class AlertTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: Gap.sm),
       decoration: BoxDecoration(
-        color: isHighlighted
-            ? (theme.brightness == Brightness.dark
-                ? theme.colorScheme.primary.withOpacity(0.18)
-                : theme.colorScheme.primary.withOpacity(0.08))
-            : (alert.isRead
-                ? theme.colorScheme.surfaceContainer
-                : (theme.brightness == Brightness.dark
-                    ? color.withOpacity(0.12)
-                    : color.withOpacity(0.06))),
-        borderRadius: Corners.rMd,
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF1E293B)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isHighlighted
-              ? theme.colorScheme.primary
-              : (!alert.isRead
-                  ? color.withOpacity(alert.severity == AlertSeverity.critical ? 0.6 : 0.45)
-                  : theme.colorScheme.outlineVariant.withOpacity(0.4)),
-          width: isHighlighted ? 2.0 : (!alert.isRead ? 1.5 : 1.0),
+              ? color
+              : (theme.brightness == Brightness.dark
+                  ? const Color(0xFF334155)
+                  : (alert.isRead
+                      ? const Color(0xFFF1F5F9)
+                      : color.withOpacity(0.35))),
+          width: isHighlighted ? 1.5 : 0.8,
         ),
-        boxShadow: isHighlighted
-            ? <BoxShadow>[
-                BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.25),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.25 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+          if (isHighlighted)
+            BoxShadow(
+              color: color.withOpacity(0.25),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: Corners.rMd,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: Corners.rMd,
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: Gap.cardTight,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: color.withOpacity(0.25),
-                      width: 1,
-                    ),
+                    color: color.withOpacity(0.12),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(
                     VehicleIcons.forAlert(alert.type),

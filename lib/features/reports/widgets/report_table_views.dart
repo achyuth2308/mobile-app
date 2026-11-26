@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/models/json_utils.dart';
-import 'engine_on_table.dart';
 import '../../../data/models/report_models.dart';
 import '../../../data/models/vehicle.dart';
+import 'engine_on_table.dart';
 
 /// Async cell that fetches and displays the reverse-geocoded address.
 class AddressCell extends StatefulWidget {
@@ -14,6 +14,7 @@ class AddressCell extends StatefulWidget {
     this.lng,
     this.fallback,
     this.maxWidth = 300,
+    this.hideCoords = false,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class AddressCell extends StatefulWidget {
   final double? lng;
   final String? fallback;
   final double maxWidth;
+  final bool hideCoords;
 
   @override
   State<AddressCell> createState() => _AddressCellState();
@@ -137,6 +139,40 @@ class _AddressCellState extends State<AddressCell> {
         _address == null || _address == 'Location unavailable';
 
     if (isUnavailable && hasValidCoords) {
+      if (widget.hideCoords) {
+        return InkWell(
+          onTap: () {
+            setState(() {
+              _loading = true;
+            });
+            _resolve();
+          },
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            width: containerWidth,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Flexible(
+                  child: Text(
+                    'Loading address...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontStyle: FontStyle.italic,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.refresh_rounded, size: 12, color: Color(0xFF2563EB)),
+              ],
+            ),
+          ),
+        );
+      }
+
       return InkWell(
         onTap: () {
           setState(() {
@@ -362,7 +398,7 @@ class TripReportTable extends StatelessWidget {
         }
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -370,7 +406,7 @@ class TripReportTable extends StatelessWidget {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -820,7 +856,7 @@ class DailyDistanceReportTable extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ReportRow r = rows[index];
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -828,7 +864,7 @@ class DailyDistanceReportTable extends StatelessWidget {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -890,18 +926,23 @@ class DailyDistanceReportTable extends StatelessWidget {
                       value: r.startOdometer != null
                           ? '${r.startOdometer!.round()} km'
                           : '-',
+                      labelColor: const Color(0xFF059669),
+                      valueColor: const Color(0xFF10B981),
                     ),
                     _buildStat(
                       label: 'END ODOMETER',
                       value: r.endOdometer != null
                           ? '${r.endOdometer!.round()} km'
                           : '-',
+                      labelColor: const Color(0xFF0284C7),
+                      valueColor: const Color(0xFF2563EB),
                     ),
                     _buildStat(
                       label: 'DISTANCE',
                       value:
                           '${r.distanceTravelled?.toStringAsFixed(0) ?? '0'} km',
-                      isHighlight: true,
+                      labelColor: const Color(0xFFD95D0B),
+                      valueColor: const Color(0xFFEA580C),
                     ),
                   ],
                 ),
@@ -913,30 +954,33 @@ class DailyDistanceReportTable extends StatelessWidget {
     );
   }
 
-  Widget _buildStat(
-      {required String label,
-      required String value,
-      bool isHighlight = false}) {
+  Widget _buildStat({
+    required String label,
+    required String value,
+    Color? labelColor,
+    Color? valueColor,
+    bool isHighlight = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 9,
+          style: TextStyle(
+            fontSize: 9.5,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF94A3B8),
+            color: labelColor ?? const Color(0xFF94A3B8),
             letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 3),
         Text(
           value,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: FontWeight.bold,
-            color:
-                isHighlight ? const Color(0xFF10B981) : const Color(0xFF0F172A),
+            color: valueColor ??
+                (isHighlight ? const Color(0xFF10B981) : const Color(0xFF0F172A)),
           ),
         ),
       ],
@@ -952,15 +996,21 @@ class OverspeedingReportTable extends StatelessWidget {
     required this.rows,
     required this.startDate,
     required this.endDate,
+    this.speedLimit = 60,
     super.key,
   });
 
   final List<ReportRow> rows;
   final DateTime startDate;
   final DateTime endDate;
+  final int speedLimit;
 
   @override
   Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     // Group rows by vehicle
     final Map<String, List<ReportRow>> groups = <String, List<ReportRow>>{};
     for (final ReportRow r in rows) {
@@ -969,194 +1019,399 @@ class OverspeedingReportTable extends StatelessWidget {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: groups.entries.map((MapEntry<String, List<ReportRow>> entry) {
         final String vehicleName = entry.key;
         final List<ReportRow> vehicleRows = entry.value;
 
+        // Peak speed and total duration across this vehicle
+        double peakSpeed = 0;
+        int totalDuration = 0;
+        for (final ReportRow r in vehicleRows) {
+          final double s = r.maxSpeedVal ?? 0;
+          if (s > peakSpeed) peakSpeed = s;
+          totalDuration += (r.durationSecVal ?? 0);
+        }
+
         return Container(
-          margin: const EdgeInsets.only(bottom: 20),
+          margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 0.8),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x080F172A),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // Sub-header 4-column Info Banner
+              // Vehicle Group Header Banner
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFDCE4EF),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(13)),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFFF1F5F9)),
+                  ),
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  runSpacing: 8,
+                  spacing: 10,
+                  runSpacing: 6,
                   children: <Widget>[
-                    Text(
-                      'Vehicle : $vehicleName',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: const Text(
-                        'Speed Limit : 60',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.directions_car_rounded,
+                          size: 17,
                           color: Color(0xFFDC2626),
                         ),
-                      ),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        'Start Time : ${Fmt.dateWeb(startDate)} 00:00:00',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
+                        const SizedBox(width: 7),
+                        Text(
+                          vehicleName,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        'End Time : ${Fmt.dateWeb(endDate)} 23:59:59',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFDC2626)),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${vehicleRows.length} Violation${vehicleRows.length > 1 ? 's' : ''}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFED7AA)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Icon(Icons.speed_rounded, size: 12, color: Color(0xFFEA580C)),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Peak: ${peakSpeed.round()} km/h',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFEA580C),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Icon(Icons.tune_rounded, size: 12, color: Color(0xFF475569)),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Limit: $speedLimit km/h',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
 
-              // Horizontal Table for this Vehicle
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Table(
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  columnWidths: const <int, TableColumnWidth>{
-                    0: FixedColumnWidth(170), // Date & Time
-                    1: FixedColumnWidth(110), // OverSpeed
-                    2: FixedColumnWidth(180), // OverSpeed Duration (HH:MM:SS)
-                    3: FixedColumnWidth(130), // Driver Name
-                    4: FixedColumnWidth(160), // Driver Mobile Number
-                    5: FixedColumnWidth(300), // Nearest Location
-                    6: FixedColumnWidth(160), // Distance Covered(KMS)
-                  },
-                  children: <TableRow>[
-                    const TableRow(
-                      decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
-                      children: <Widget>[
-                        TableHeaderCell('Date & Time'),
-                        TableHeaderCell('OverSpeed', align: TextAlign.right),
-                        TableHeaderCell('OverSpeed Duration (HH:MM:SS)'),
-                        TableHeaderCell('Driver Name'),
-                        TableHeaderCell('Driver Mobile Number'),
-                        TableHeaderCell('Nearest Location'),
-                        TableHeaderCell('Distance Covered(KMS)',
-                            align: TextAlign.right),
-                      ],
-                    ),
-                    ...vehicleRows
-                        .asMap()
-                        .entries
-                        .map((MapEntry<int, ReportRow> rowEntry) {
-                      final int idx = rowEntry.key;
-                      final ReportRow r = rowEntry.value;
-                      final Color rowColor =
-                          idx.isEven ? Colors.white : const Color(0xFFFAFAFA);
+              // Individual Overspeeding Event Cards for this vehicle
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                child: Column(
+                  children: vehicleRows.asMap().entries.map((entry) {
+                    final int idx = entry.key;
+                    final ReportRow r = entry.value;
+                    final double maxSpd = r.maxSpeedVal ?? 0;
+                    final double excessSpd = (maxSpd - speedLimit).clamp(0, 999);
 
-                      return TableRow(
-                        decoration: BoxDecoration(color: rowColor),
-                        children: <Widget>[
-                          TableDataCell(
-                            text: Fmt.dateTimeWeb(r.startTime),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E293B),
-                            ),
-                          ),
-                          TableDataCell(
-                            text: r.maxSpeedVal != null
-                                ? r.maxSpeedVal!.round().toString()
-                                : '-',
-                            align: TextAlign.right,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          TableDataCell(
-                            text: Fmt.durationWeb(r.durationSecVal),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF475569),
-                            ),
-                          ),
-                          TableDataCell(
-                            text: r.driverName ?? '-',
-                            style: const TextStyle(
-                                fontSize: 12, color: Color(0xFF334155)),
-                          ),
-                          TableDataCell(
-                            text: r.driverPhone ?? '-',
-                            style: const TextStyle(
-                                fontSize: 12, color: Color(0xFF334155)),
-                          ),
-                          TableDataCell(
-                            child: AddressCell(
-                              lat: r.startLat,
-                              lng: r.startLng,
-                              fallback: r.address,
-                              maxWidth: 290,
-                            ),
-                          ),
-                          TableDataCell(
-                            text: r.distanceTravelled != null
-                                ? r.distanceTravelled!.toStringAsFixed(2)
-                                : '0.00',
-                            align: TextAlign.right,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              color: Color(0xFF334155),
-                            ),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.0),
+                        boxShadow: const <BoxShadow>[
+                          BoxShadow(
+                            color: Color(0x060F172A),
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
                           ),
                         ],
-                      );
-                    }),
-                  ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          // Event Header Row: Index Pill + Date & Time
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    const Icon(
+                                      Icons.tag_rounded,
+                                      size: 11,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '#${idx + 1}',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFFDC2626),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 13,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    Fmt.dateTimeWeb(r.startTime),
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // 4-Metric Grid Row (Max Speed, Over Limit, Duration, Distance)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: <Widget>[
+                                _buildMetric(
+                                  icon: Icons.speed_rounded,
+                                  label: 'MAX SPEED',
+                                  value: '${maxSpd.round()} km/h',
+                                  labelColor: const Color(0xFFDC2626),
+                                  valueColor: const Color(0xFFDC2626),
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 24,
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                                _buildMetric(
+                                  icon: Icons.trending_up_rounded,
+                                  label: 'OVER LIMIT',
+                                  value: '+${excessSpd.round()} km/h',
+                                  labelColor: const Color(0xFFD95D0B),
+                                  valueColor: const Color(0xFFEA580C),
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 24,
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                                _buildMetric(
+                                  icon: Icons.access_time_rounded,
+                                  label: 'DURATION',
+                                  value: Fmt.durationWeb(r.durationSecVal),
+                                  labelColor: const Color(0xFFBE185D),
+                                  valueColor: const Color(0xFFBE185D),
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 24,
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                                _buildMetric(
+                                  icon: Icons.straighten_rounded,
+                                  label: 'DISTANCE',
+                                  value: r.distanceTravelled != null
+                                      ? '${r.distanceTravelled!.toStringAsFixed(1)} km'
+                                      : '0.0 km',
+                                  labelColor: const Color(0xFF059669),
+                                  valueColor: const Color(0xFF10B981),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // Address Row: Dark Green Location Pin + Reverse Geocoded Address (NO Lat/Lng)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2, right: 6),
+                                child: Icon(
+                                  Icons.location_on_rounded,
+                                  size: 15,
+                                  color: Color(0xFF15803D), // Dark Green
+                                ),
+                              ),
+                              Expanded(
+                                child: AddressCell(
+                                  lat: r.startLat ?? r.latitude,
+                                  lng: r.startLng ?? r.longitude,
+                                  fallback: r.address,
+                                  maxWidth: double.infinity,
+                                  hideCoords: true, // NEVER show raw coordinates
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          // Optional Driver Row
+                          if ((r.driverName != null && r.driverName!.trim().isNotEmpty && r.driverName != '-') ||
+                              (r.driverPhone != null && r.driverPhone!.trim().isNotEmpty && r.driverPhone != '-')) ...<Widget>[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: <Widget>[
+                                const Icon(
+                                  Icons.person_outline_rounded,
+                                  size: 13,
+                                  color: Color(0xFF0284C7),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Driver: ${r.driverName ?? '-'} ${r.driverPhone != null && r.driverPhone!.isNotEmpty ? '(${r.driverPhone})' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
             ],
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color labelColor,
+    required Color valueColor,
+  }) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(icon, size: 11, color: labelColor),
+                const SizedBox(width: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
+                    color: labelColor,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: valueColor,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1877,7 +2132,7 @@ class ConsolidatedReportTable extends StatelessWidget {
         final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -1885,7 +2140,7 @@ class ConsolidatedReportTable extends StatelessWidget {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -3946,7 +4201,7 @@ class GeofenceTransitReportTable extends StatelessWidget {
         final Color pillColor = _badgeColor(tripLabel);
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -3954,7 +4209,7 @@ class GeofenceTransitReportTable extends StatelessWidget {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -4248,7 +4503,7 @@ class GeofenceSinglePlaceReportTable extends StatelessWidget {
         final bool isStillInside = r.exitTime == null;
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -4256,7 +4511,7 @@ class GeofenceSinglePlaceReportTable extends StatelessWidget {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -4508,7 +4763,7 @@ class _DailyTripReportTableState extends State<DailyTripReportTable> {
         final List<Map<String, dynamic>> legs = r.legs;
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -4516,7 +4771,7 @@ class _DailyTripReportTableState extends State<DailyTripReportTable> {
           ),
           color: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[

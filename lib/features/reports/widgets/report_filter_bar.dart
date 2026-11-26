@@ -8,8 +8,6 @@ import '../../../data/models/vehicle.dart';
 import '../../../providers/fleet_provider.dart';
 import 'report_top_tabs.dart';
 
-enum DatePreset { today, yesterday, last7days, last30days, custom }
-
 class ReportFilterBar extends ConsumerWidget {
   const ReportFilterBar({
     required this.type,
@@ -31,6 +29,8 @@ class ReportFilterBar extends ConsumerWidget {
     this.singleGeofenceId,
     this.onSingleGeofenceChanged,
     this.geofences = const <Geofence>[],
+    this.speedLimit,
+    this.onSpeedLimitChanged,
     super.key,
   });
 
@@ -53,6 +53,8 @@ class ReportFilterBar extends ConsumerWidget {
   final String? singleGeofenceId;
   final ValueChanged<String?>? onSingleGeofenceChanged;
   final List<Geofence> geofences;
+  final int? speedLimit;
+  final ValueChanged<int>? onSpeedLimitChanged;
 
   String _shortReportTitle(ReportType t) {
     switch (t) {
@@ -226,71 +228,15 @@ class ReportFilterBar extends ConsumerWidget {
     }
   }
 
-  DatePreset _detectPreset(DateTime s, DateTime e) {
-    final DateTime now = DateTime.now();
-    final DateTime todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0);
-
-    if (type != ReportType.dailyTrip &&
-        s.year == todayStart.year &&
-        s.month == todayStart.month &&
-        s.day == todayStart.day) {
-      return DatePreset.today;
-    }
-
-    final DateTime yStart = todayStart.subtract(const Duration(days: 1));
-    if (s.year == yStart.year && s.month == yStart.month && s.day == yStart.day) {
-      return DatePreset.yesterday;
-    }
-
-    final DateTime s7 = todayStart.subtract(const Duration(days: 7));
-    if (s.year == s7.year && s.month == s7.month && s.day == s7.day) {
-      return DatePreset.last7days;
-    }
-
-    final DateTime s30 = todayStart.subtract(const Duration(days: 30));
-    if (s.year == s30.year && s.month == s30.month && s.day == s30.day) {
-      return DatePreset.last30days;
-    }
-
-    return DatePreset.custom;
-  }
-
-  void _applyPreset(DatePreset preset, BuildContext context) {
-    final DateTime now = DateTime.now();
-    final DateTime todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0);
-    final DateTime todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
-
-    switch (preset) {
-      case DatePreset.today:
-        onDateRangeChanged(todayStart, todayEnd);
-        break;
-      case DatePreset.yesterday:
-        final DateTime yStart = todayStart.subtract(const Duration(days: 1));
-        final DateTime yEnd = DateTime(yStart.year, yStart.month, yStart.day, 23, 59, 59);
-        onDateRangeChanged(yStart, yEnd);
-        break;
-      case DatePreset.last7days:
-        final DateTime s7 = todayStart.subtract(const Duration(days: 7));
-        onDateRangeChanged(s7, todayEnd);
-        break;
-      case DatePreset.last30days:
-        final DateTime s30 = todayStart.subtract(const Duration(days: 30));
-        onDateRangeChanged(s30, todayEnd);
-        break;
-      case DatePreset.custom:
-        _pickDateOrTime(context);
-        break;
-    }
-  }
-
   Widget _buildChip({
     required BuildContext context,
     required String label,
     required bool selected,
     required VoidCallback onTap,
     IconData? icon,
+    Color? activeColor,
   }) {
-    final Color activeColor = _getAccentColor(type);
+    final Color effectiveActiveColor = activeColor ?? _getAccentColor(type);
 
     return InkWell(
       onTap: onTap,
@@ -299,16 +245,16 @@ class ReportFilterBar extends ConsumerWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? activeColor : const Color(0xFFF1F5F9),
+          color: selected ? effectiveActiveColor : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? activeColor : const Color(0xFFE2E8F0),
+            color: selected ? effectiveActiveColor : const Color(0xFFE2E8F0),
             width: selected ? 1.5 : 1.0,
           ),
           boxShadow: selected
               ? <BoxShadow>[
                   BoxShadow(
-                    color: activeColor.withOpacity(0.25),
+                    color: effectiveActiveColor.withOpacity(0.25),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -345,12 +291,6 @@ class ReportFilterBar extends ConsumerWidget {
     final List<Vehicle> vehicles = type.isFuelReport
         ? allVehicles.where((Vehicle v) => v.hasFuel).toList()
         : allVehicles;
-    final bool isTrip = type == ReportType.trip;
-    final String dateText = isTrip
-        ? '${Fmt.dateTimeFilter(startDate)}   →   ${Fmt.dateTimeFilter(endDate)}'
-        : '${Fmt.dateWeb(startDate)}   →   ${Fmt.dateWeb(endDate)}';
-
-    final DatePreset preset = _detectPreset(startDate, endDate);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -874,229 +814,214 @@ class ReportFilterBar extends ConsumerWidget {
           ],
 
 
-          // Vehicle Selection
-          () {
-            final String? cleanId = vehicleId?.trim().toLowerCase();
-            final Vehicle? selectedV = vehicleId != null
-                ? vehicles.where((Vehicle v) =>
-                    v.id == vehicleId ||
-                    v.id.toLowerCase() == cleanId ||
-                    v.registrationNumber.toLowerCase() == cleanId).firstOrNull
-                : null;
-
-            return Column(
+          // Overspeeding Speed Limit Input Field
+          if (type == ReportType.overspeeding) ...<Widget>[
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const Row(
                   children: <Widget>[
+                    Icon(Icons.speed_rounded, size: 14, color: Color(0xFFDC2626)),
+                    SizedBox(width: 6),
                     Text(
-                      selectedV != null ? 'ACTIVE VEHICLE' : 'VEHICLE',
-                      style: const TextStyle(
+                      'SPEED LIMIT (KM/H)',
+                      style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF64748B),
                         letterSpacing: 0.5,
                       ),
                     ),
-                    if (selectedV != null && vehicles.length > 1)
-                      InkWell(
-                        onTap: () => _showVehiclePickerModal(context, vehicles),
-                        borderRadius: BorderRadius.circular(4),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(Icons.swap_horiz_rounded, size: 14, color: Color(0xFF2563EB)),
-                              SizedBox(width: 4),
-                              Text(
-                                'Switch Vehicle',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF2563EB),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                if (selectedV != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _getAccentColor(type).withOpacity(0.35)),
+                const SizedBox(height: 6),
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1.0,
                     ),
-                    child: Row(
-                      children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _getAccentColor(type).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(Icons.directions_car_rounded,
-                              size: 18, color: _getAccentColor(type)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                selectedV.displayName,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF0F172A),
-                                ),
-                                maxLines: 2,
-                                softWrap: true,
-                              ),
-                              if (selectedV.registrationNumber.isNotEmpty &&
-                                  selectedV.registrationNumber != selectedV.displayName) ...<Widget>[
-                                const SizedBox(height: 2),
-                                Text(
-                                  selectedV.registrationNumber,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        if (vehicles.length > 1)
-                          InkWell(
-                            onTap: () => _showVehiclePickerModal(context, vehicles),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: const Color(0xFFBFDBFE)),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Icon(Icons.swap_horiz_rounded, size: 14, color: Color(0xFF2563EB)),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Change',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF2563EB),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  ),
+                  child: Row(
                     children: <Widget>[
-                      if (!requiresVehicle)
-                        _buildChip(
-                          context: context,
-                          label: 'All Vehicles',
-                          selected: vehicleId == null,
-                          onTap: () => onVehicleChanged(null),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Icon(Icons.speed_rounded, size: 18, color: Color(0xFFDC2626)),
+                      ),
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: (speedLimit ?? 60).toString(),
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Enter speed limit (e.g. 60)',
+                            hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onChanged: (String val) {
+                            final int? limit = int.tryParse(val.trim());
+                            if (limit != null && limit > 0) {
+                              onSpeedLimitChanged?.call(limit);
+                            }
+                          },
                         ),
-                      _buildChip(
-                        context: context,
-                        label: 'Choose Vehicle...',
-                        selected: false,
-                        icon: Icons.search_rounded,
-                        onTap: () => _showVehiclePickerModal(context, vehicles),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: const Text(
+                          'km/h',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ],
+
+          // Vehicle Selection Dropdown
+          () {
+            final String? selectedValue = (vehicleId != null &&
+                    (vehicleId == '__all__' ||
+                        vehicleId == 'all' ||
+                        vehicles.any((Vehicle v) => v.id == vehicleId)))
+                ? (vehicleId == 'all' ? '__all__' : vehicleId)
+                : null;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'VEHICLE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                      width: 1.1,
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      value: selectedValue,
+                      isExpanded: true,
+                      icon: const Icon(Icons.arrow_drop_down_rounded,
+                          size: 24, color: Color(0xFF64748B)),
+                      hint: const Row(
+                        children: [
+                          Icon(Icons.directions_car_outlined,
+                              size: 18, color: Color(0xFF94A3B8)),
+                          SizedBox(width: 8),
+                          Text(
+                            'Select Vehicle...',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: '__all__',
+                          child: Row(
+                            children: [
+                              Icon(Icons.grid_view_rounded,
+                                  size: 18, color: Color(0xFF2563EB)),
+                              SizedBox(width: 8),
+                              Text(
+                                'All Vehicles',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...vehicles.asMap().entries.map((entry) {
+                          final int idx = entry.key;
+                          final Vehicle v = entry.value;
+                          final Color vehicleIconColor = <Color>[
+                            const Color(0xFF10B981), // Emerald Green
+                            const Color(0xFFEA580C), // Vibrant Orange
+                            const Color(0xFF2563EB), // Royal Blue
+                            const Color(0xFF9333EA), // Purple
+                            const Color(0xFFDB2777), // Pink
+                            const Color(0xFF06B6D4), // Cyan
+                            const Color(0xFFD97706), // Amber
+                          ][idx % 7];
+
+                          return DropdownMenuItem<String?>(
+                            value: v.id,
+                            child: Row(
+                              children: [
+                                Icon(Icons.directions_car_rounded,
+                                    size: 18, color: vehicleIconColor),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    v.registrationNumber.isNotEmpty &&
+                                            v.registrationNumber !=
+                                                v.displayName
+                                        ? '${v.displayName} (${v.registrationNumber})'
+                                        : v.displayName,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (String? val) {
+                        onVehicleChanged(val);
+                      },
+                    ),
+                  ),
+                ),
               ],
             );
           }(),
-          const SizedBox(height: 16),
-
-          // Inline Date Preset Picker
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Text(
-                'DATE FILTER',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF64748B),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  if (type != ReportType.dailyTrip)
-                    _buildChip(
-                      context: context,
-                      label: 'Today',
-                      selected: preset == DatePreset.today,
-                      onTap: () => _applyPreset(DatePreset.today, context),
-                    ),
-                  _buildChip(
-                    context: context,
-                    label: 'Yesterday',
-                    selected: preset == DatePreset.yesterday,
-                    onTap: () => _applyPreset(DatePreset.yesterday, context),
-                  ),
-                  _buildChip(
-                    context: context,
-                    label: 'Last 7 Days',
-                    selected: preset == DatePreset.last7days,
-                    onTap: () => _applyPreset(DatePreset.last7days, context),
-                  ),
-                  _buildChip(
-                    context: context,
-                    label: 'Last 30 Days',
-                    selected: preset == DatePreset.last30days,
-                    onTap: () => _applyPreset(DatePreset.last30days, context),
-                  ),
-                  _buildChip(
-                    context: context,
-                    label: preset == DatePreset.custom ? 'Custom' : 'Custom Range...',
-                    selected: preset == DatePreset.custom,
-                    onTap: () => _applyPreset(DatePreset.custom, context),
-                    icon: Icons.edit_calendar_rounded,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Active: $dateText',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF64748B),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-
           const SizedBox(height: 16),
 
           // Generate Button with Web Gradient
@@ -1151,594 +1076,6 @@ class ReportFilterBar extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-
-  Future<void> _showVehiclePickerModal(
-    BuildContext context,
-    List<Vehicle> vehicles,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      constraints: const BoxConstraints(maxWidth: 560),
-      builder: (BuildContext ctx) => _VehiclePickerSheet(
-        vehicles: vehicles,
-        selectedId: vehicleId,
-        allowAll: !requiresVehicle,
-        onSelect: (String? id) {
-          Navigator.pop(ctx);
-          onVehicleChanged(id);
-        },
-      ),
-    );
-  }
-
-  Future<void> _pickDateOrTime(BuildContext context) async {
-    if (type == ReportType.trip) {
-      await showModalBottomSheet<void>(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        builder: (BuildContext ctx) => _DateTimeRangePickerSheet(
-          initialStart: startDate,
-          initialEnd: endDate,
-          onApply: (DateTime start, DateTime end) {
-            Navigator.of(ctx, rootNavigator: true).pop();
-            onDateRangeChanged(start, end);
-          },
-        ),
-      );
-    } else {
-      final DateTime now = DateTime.now();
-      final DateTime minDate = DateTime(now.year - 3, 1, 1);
-      final DateTime maxDate = DateTime(now.year + 1, 12, 31);
-      final DateTime initialStart = startDate.isBefore(minDate)
-          ? minDate
-          : (startDate.isAfter(maxDate) ? maxDate : startDate);
-      final DateTime initialEnd = endDate.isBefore(minDate)
-          ? minDate
-          : (endDate.isAfter(maxDate) ? maxDate : endDate);
-
-      final DateTimeRange? picked = await showDateRangePicker(
-        context: context,
-        firstDate: minDate,
-        lastDate: maxDate,
-        initialDateRange: DateTimeRange(
-          start: initialStart.isAfter(initialEnd) ? initialEnd : initialStart,
-          end: initialEnd,
-        ),
-        helpText: 'Select Report Date Range',
-        saveText: 'Apply',
-      );
-      if (picked != null) {
-        final DateTime s = DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0);
-        final DateTime e = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
-        onDateRangeChanged(s, e);
-      }
-    }
-  }
-}
-
-class _VehiclePickerSheet extends StatefulWidget {
-  const _VehiclePickerSheet({
-    required this.vehicles,
-    required this.selectedId,
-    required this.allowAll,
-    required this.onSelect,
-  });
-
-  final List<Vehicle> vehicles;
-  final String? selectedId;
-  final bool allowAll;
-  final ValueChanged<String?> onSelect;
-
-  @override
-  State<_VehiclePickerSheet> createState() => _VehiclePickerSheetState();
-}
-
-class _VehiclePickerSheetState extends State<_VehiclePickerSheet> {
-  String _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Vehicle> filtered = widget.vehicles
-        .where((Vehicle v) =>
-            _query.isEmpty ||
-            v.displayName.toLowerCase().contains(_query.toLowerCase()) ||
-            v.registrationNumber.toLowerCase().contains(_query.toLowerCase()) ||
-            v.name.toLowerCase().contains(_query.toLowerCase()))
-        .toList();
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (BuildContext context, ScrollController scroll) => Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Column(
-              children: <Widget>[
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: <Widget>[
-                    const Text(
-                      'Select Vehicle',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${filtered.length} vehicles',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search by vehicle name or plate...',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    filled: true,
-                    fillColor: const Color(0xFFF1F5F9),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  onChanged: (String v) => setState(() => _query = v),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView.builder(
-              controller: scroll,
-              itemCount: filtered.length + (widget.allowAll ? 1 : 0),
-              itemBuilder: (BuildContext context, int i) {
-                if (widget.allowAll && i == 0) {
-                  final bool isSelected = widget.selectedId == null;
-                  return ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.apps_rounded,
-                        color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-                        size: 20,
-                      ),
-                    ),
-                    title: const Text('All Vehicles', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                    subtitle: const Text('Generate combined report for all fleet', style: TextStyle(fontSize: 12)),
-                    trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB)) : null,
-                    onTap: () => widget.onSelect(null),
-                  );
-                }
-
-                final Vehicle v = filtered[i - (widget.allowAll ? 1 : 0)];
-                final String? selClean = widget.selectedId?.trim().toLowerCase();
-                final bool isSelected = widget.selectedId == v.id ||
-                    (selClean != null &&
-                        (v.id.toLowerCase() == selClean ||
-                            v.registrationNumber.toLowerCase() == selClean));
-
-                return ListTile(
-                  leading: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    child: Text(
-                      v.displayName.characters.take(2).toString().toUpperCase(),
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 12),
-                    ),
-                  ),
-                  title: Text(
-                    v.displayName,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0F172A)),
-                  ),
-                  subtitle: Text(
-                    v.registrationNumber.isNotEmpty ? v.registrationNumber : 'No plate registered',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                  trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB)) : null,
-                  onTap: () => widget.onSelect(v.id),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateTimeRangePickerSheet extends StatefulWidget {
-  const _DateTimeRangePickerSheet({
-    required this.initialStart,
-    required this.initialEnd,
-    required this.onApply,
-  });
-
-  final DateTime initialStart;
-  final DateTime initialEnd;
-  final void Function(DateTime start, DateTime end) onApply;
-
-  @override
-  State<_DateTimeRangePickerSheet> createState() => _DateTimeRangePickerSheetState();
-}
-
-class _DateTimeRangePickerSheetState extends State<_DateTimeRangePickerSheet> {
-  late DateTime _start;
-  late DateTime _end;
-  int? _selectedPresetDays;
-
-  @override
-  void initState() {
-    super.initState();
-    _start = widget.initialStart;
-    _end = widget.initialEnd;
-    _selectedPresetDays = _detectPreset(_start, _end);
-  }
-
-  int? _detectPreset(DateTime s, DateTime e) {
-    final DateTime now = DateTime.now();
-    final DateTime todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0);
-    final DateTime todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
-
-    // Check Today:
-    if (s.year == todayStart.year &&
-        s.month == todayStart.month &&
-        s.day == todayStart.day &&
-        e.year == todayEnd.year &&
-        e.month == todayEnd.month &&
-        e.day == todayEnd.day) {
-      return 0;
-    }
-
-    // Check Yesterday:
-    final DateTime yStart = todayStart.subtract(const Duration(days: 1));
-    final DateTime yEnd = DateTime(yStart.year, yStart.month, yStart.day, 23, 59, 59);
-    if (s.year == yStart.year &&
-        s.month == yStart.month &&
-        s.day == yStart.day &&
-        e.year == yEnd.year &&
-        e.month == yEnd.month &&
-        e.day == yEnd.day) {
-      return 1;
-    }
-
-    // Check Last 7 Days:
-    final DateTime s7 = todayStart.subtract(const Duration(days: 7));
-    if (s.year == s7.year &&
-        s.month == s7.month &&
-        s.day == s7.day &&
-        e.year == todayEnd.year &&
-        e.month == todayEnd.month &&
-        e.day == todayEnd.day) {
-      return 7;
-    }
-
-    // Check Last 30 Days:
-    final DateTime s30 = todayStart.subtract(const Duration(days: 30));
-    if (s.year == s30.year &&
-        s.month == s30.month &&
-        s.day == s30.day &&
-        e.year == todayEnd.year &&
-        e.month == todayEnd.month &&
-        e.day == todayEnd.day) {
-      return 30;
-    }
-
-    return null;
-  }
-
-  void _setPreset(int daysAgo) {
-    final DateTime now = DateTime.now();
-    setState(() {
-      _selectedPresetDays = daysAgo;
-      if (daysAgo == 0) {
-        _start = DateTime(now.year, now.month, now.day, 0, 0, 0);
-        _end = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      } else if (daysAgo == 1) {
-        final DateTime y = now.subtract(const Duration(days: 1));
-        _start = DateTime(y.year, y.month, y.day, 0, 0, 0);
-        _end = DateTime(y.year, y.month, y.day, 23, 59, 59);
-      } else {
-        _start = DateTime(now.year, now.month, now.day, 0, 0, 0).subtract(Duration(days: daysAgo));
-        _end = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      }
-    });
-  }
-
-  Future<void> _pickDateTime({required bool isStart}) async {
-    final DateTime current = isStart ? _start : _end;
-    final DateTime now = DateTime.now();
-    final DateTime minDate = DateTime(now.year - 3, 1, 1);
-    final DateTime maxDate = DateTime(now.year + 1, 12, 31);
-    final DateTime safeInitial = current.isBefore(minDate)
-        ? minDate
-        : (current.isAfter(maxDate) ? maxDate : current);
-
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: safeInitial,
-      firstDate: minDate,
-      lastDate: maxDate,
-      builder: (BuildContext context, Widget? child) => Theme(
-        data: Theme.of(context).copyWith(
-          datePickerTheme: DatePickerThemeData(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            headerHeadlineStyle: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
-            headerHelpStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        child: Transform.scale(
-          scale: 0.82,
-          child: child!,
-        ),
-      ),
-    );
-    if (pickedDate == null || !mounted) return;
-
-    final TimeOfDay? pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(current),
-      initialEntryMode: TimePickerEntryMode.input,
-    );
-    if (pickedTime == null || !mounted) return;
-
-    final DateTime result = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
-    setState(() {
-      if (isStart) {
-        _start = result;
-        if (_end.isBefore(_start)) {
-          _end = _start.add(const Duration(hours: 1));
-        }
-      } else {
-        _end = result;
-        if (_end.isBefore(_start)) {
-          _start = _end.subtract(const Duration(hours: 1));
-        }
-      }
-      _selectedPresetDays = _detectPreset(_start, _end);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          16,
-          20,
-          MediaQuery.paddingOf(context).bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: <Widget>[
-                const Text(
-                  'Select Date & Time',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const Spacer(),
-                FilledButton.tonal(
-                  onPressed: () => widget.onApply(_start, _end),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF9333EA).withOpacity(0.12),
-                    foregroundColor: const Color(0xFF9333EA),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text(
-                    'Apply',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Quick Presets
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: <Widget>[
-                  _presetChip('Today', 0, () => _setPreset(0)),
-                  const SizedBox(width: 8),
-                  _presetChip('Yesterday', 1, () => _setPreset(1)),
-                  const SizedBox(width: 8),
-                  _presetChip('Last 7 Days', 7, () => _setPreset(7)),
-                  const SizedBox(width: 8),
-                  _presetChip('Last 30 Days', 30, () => _setPreset(30)),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Start Time Card
-            InkWell(
-              onTap: () => _pickDateTime(isStart: true),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: <Widget>[
-                    const Icon(Icons.access_time_rounded, color: Color(0xFF9333EA), size: 20),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          'START DATE & TIME',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B)),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          Fmt.dateTimeFilter(_start),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.edit_rounded, color: Color(0xFF94A3B8), size: 18),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // End Time Card
-            InkWell(
-              onTap: () => _pickDateTime(isStart: false),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: <Widget>[
-                    const Icon(Icons.access_time_rounded, color: Color(0xFF0284C7), size: 20),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          'END DATE & TIME',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B)),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          Fmt.dateTimeFilter(_end),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.edit_rounded, color: Color(0xFF94A3B8), size: 18),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            ElevatedButton(
-              onPressed: () => widget.onApply(_start, _end),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF9333EA),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Apply Date & Time Range', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _presetChip(String label, int days, VoidCallback onTap) {
-    final bool isSelected = _selectedPresetDays == days;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF9333EA) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF9333EA) : const Color(0xFFE2E8F0),
-            width: isSelected ? 1.5 : 1.0,
-          ),
-          boxShadow: isSelected
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: const Color(0xFF9333EA).withOpacity(0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xFF334155),
-          ),
-        ),
       ),
     );
   }

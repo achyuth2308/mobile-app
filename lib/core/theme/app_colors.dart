@@ -31,8 +31,8 @@ class AppColors {
   static const Color nightBorder = Color(0xFF2A3757);
 
   // ── Light surfaces ───────────────────────────────────────────────
-  static const Color day0 = Color(0xFFF6F8FC);
-  static const Color day1 = Color(0xFFFFFFFF);
+  static const Color day0 = Color(0xFFEDF1F7); // Reference app soft slate-blue background
+  static const Color day1 = Color(0xFFFFFFFF); // Pure crisp white card surface
   static const Color day2 = Color(0xFFEFF3FA);
   static const Color day3 = Color(0xFFE2E8F5);
   static const Color dayBorder = Color(0xFFD8E0EE);

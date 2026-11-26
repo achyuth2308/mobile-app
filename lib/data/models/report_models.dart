@@ -228,6 +228,9 @@ class ReportRow extends Equatable {
     return direct;
   }
 
+  double? get lat => startLat ?? latitude;
+  double? get lng => startLng ?? longitude;
+
   double? get startLat =>
       _extractCoordinate(
         raw,

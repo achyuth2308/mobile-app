@@ -5,14 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/theme/app_spacing.dart';
-import '../../data/models/alert.dart';
 import '../../providers/core_providers.dart';
 import '../../providers/fleet_provider.dart';
-import '../../core/utils/formatters.dart';
-import '../live_map/providers/live_map_providers.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'dart:convert';
 
 /// Root shell: owns the bottom navigation and starts the real-time session
 /// once, for the whole authenticated experience.
@@ -77,6 +71,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           return;
         }
 
+        // On Dashboard, return to group selection screen if a group filter is active
+        if (ref.read(fleetGroupFilterProvider) != null) {
+          context.go('/select-group');
+          return;
+        }
+
         final DateTime now = DateTime.now();
         if (_lastPressedAt == null ||
             now.difference(_lastPressedAt!) > const Duration(seconds: 2)) {
@@ -90,7 +90,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           return;
         }
 
-        SystemNavigator.pop();
+        unawaited(SystemNavigator.pop());
       },
       child: Scaffold(
         extendBody: false,
@@ -120,11 +120,8 @@ class _ModernBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color activeColor =
-        isDark ? const Color(0xFF818CF8) : const Color(0xFF4F6BFF);
-    // Crisp Solid Black in light mode, clean white in dark mode (no washed-out grey!)
-    final Color inactiveColor =
-        isDark ? Colors.white70 : const Color(0xFF0F172A);
+    final Color inactiveTextColor =
+        isDark ? Colors.white70 : const Color(0xFF64748B);
     final Color bgColor =
         isDark ? const Color(0xFF0F172A) : Colors.white;
     final Color borderColor =
@@ -135,21 +132,25 @@ class _ModernBottomNavBar extends StatelessWidget {
         label: 'Home',
         activeIcon: Icons.home_rounded,
         inactiveIcon: Icons.home_outlined,
+        color: Color(0xFFE11D48), // Pinkish Red
       ),
       _NavItemData(
         label: 'Live Map',
         activeIcon: Icons.explore_rounded,
         inactiveIcon: Icons.explore_outlined,
+        color: Color(0xFF047857), // Dark Green
       ),
       _NavItemData(
         label: 'Reports',
         activeIcon: Icons.bar_chart_rounded,
         inactiveIcon: Icons.bar_chart_outlined,
+        color: Color(0xFF6D28D9), // Dark Violet
       ),
       _NavItemData(
         label: 'Profile',
         activeIcon: Icons.person_rounded,
         inactiveIcon: Icons.person_outline_rounded,
+        color: Color(0xFFC2410C), // Dark Orange
       ),
     ];
 
@@ -164,7 +165,7 @@ class _ModernBottomNavBar extends StatelessWidget {
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(isDark ? 0.3 : 0.05),
+            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.3 : 0.05),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -191,20 +192,10 @@ class _ModernBottomNavBar extends StatelessWidget {
                     highlightColor: Colors.transparent,
                     hoverColor: Colors.transparent,
                     child: Center(
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isSelected ? 12 : 6,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
                           vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? (isDark
-                                  ? const Color(0xFF1E293B)
-                                  : const Color(0xFFF1F5F9))
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -212,15 +203,17 @@ class _ModernBottomNavBar extends StatelessWidget {
                           children: <Widget>[
                             // Bouncy animated scaling icon
                             AnimatedScale(
-                              scale: isSelected ? 1.14 : 1.0,
+                              scale: isSelected ? 1.15 : 1.0,
                               duration: const Duration(milliseconds: 260),
                               curve: Curves.easeOutBack,
                               child: Icon(
                                 isSelected
                                     ? item.activeIcon
                                     : item.inactiveIcon,
-                                size: 23,
-                                color: isSelected ? activeColor : inactiveColor,
+                                size: 24,
+                                color: isSelected
+                                    ? item.color
+                                    : item.color.withValues(alpha: isDark ? 0.60 : 0.70),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -232,9 +225,9 @@ class _ModernBottomNavBar extends StatelessWidget {
                                 fontSize: isSelected ? 11.5 : 11.0,
                                 fontWeight: isSelected
                                     ? FontWeight.w800
-                                    : FontWeight.w700,
+                                    : FontWeight.w600,
                                 letterSpacing: isSelected ? -0.2 : -0.1,
-                                color: isSelected ? activeColor : inactiveColor,
+                                color: isSelected ? item.color : inactiveTextColor,
                                 height: 1.1,
                               ),
                               child: Text(
@@ -252,13 +245,13 @@ class _ModernBottomNavBar extends StatelessWidget {
                               height: 3,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? activeColor
+                                    ? item.color
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(2),
                                 boxShadow: isSelected
                                     ? <BoxShadow>[
                                         BoxShadow(
-                                          color: activeColor.withOpacity(0.4),
+                                          color: item.color.withValues(alpha: 0.4),
                                           blurRadius: 4,
                                           offset: const Offset(0, 1),
                                         ),
@@ -286,9 +279,11 @@ class _NavItemData {
     required this.label,
     required this.activeIcon,
     required this.inactiveIcon,
+    required this.color,
   });
 
   final String label;
   final IconData activeIcon;
   final IconData inactiveIcon;
+  final Color color;
 }

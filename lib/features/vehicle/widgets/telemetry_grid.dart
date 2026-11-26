@@ -85,8 +85,12 @@ class TelemetryGrid extends StatelessWidget {
                   Expanded(
                     child: _PrimaryCard(
                       icon: Icons.local_gas_station_rounded,
-                      label: 'Fuel Level',
-                      value: fuelStr,
+                      label: vehicle.fuelDisplayLabel,
+                      value: vehicle.effectiveFuelValue != null
+                          ? (vehicle.effectiveFuelValue! % 1 == 0
+                              ? vehicle.effectiveFuelValue!.round().toString()
+                              : vehicle.effectiveFuelValue!.toStringAsFixed(1))
+                          : fuelStr,
                       unit: 'L',
                       accentColor: vehicle.fuelLevel! < 15
                           ? const Color(0xFFEF4444)

@@ -16,7 +16,7 @@ extension VehicleStatusX on VehicleStatus {
         VehicleStatus.idle => 'Idle',
         VehicleStatus.stopped => 'Stopped',
         VehicleStatus.offline => 'No Data',
-        VehicleStatus.noData => 'Offline',
+        VehicleStatus.noData => 'Unreachable',
       };
 
   String get sinceLabel => switch (this) {
@@ -55,6 +55,7 @@ class Vehicle extends Equatable {
     this.isMoving = false,
     this.odometer,
     this.fuelLevel,
+    this.fuelUsed,
     this.batteryLevel,
     this.gsmSignal,
     this.satellites,
@@ -72,6 +73,7 @@ class Vehicle extends Equatable {
     this.isImmobilized = false,
     this.isAcOff = false,
     this.isOnline = true,
+    this.estimatedMileage,
   });
 
   final Map<String, dynamic> raw;
@@ -97,6 +99,7 @@ class Vehicle extends Equatable {
   final bool isMoving;
   final double? odometer; // km
   final double? fuelLevel; // %
+  final double? fuelUsed; // L consumed
   final double? batteryLevel; // %
   final int? gsmSignal; // 0-5
   final int? satellites;
@@ -123,6 +126,9 @@ class Vehicle extends Equatable {
 
   /// Whether the vehicle is currently online according to the server.
   final bool isOnline;
+
+  /// Estimated or expected fuel economy in km/L (for non-sensor or calibrated fuel vehicles).
+  final double? estimatedMileage;
 
   String get displayType {
     final String lowerType = type.toLowerCase().trim();
@@ -340,30 +346,255 @@ class Vehicle extends Equatable {
     return false;
   }
 
+  /// True only if this vehicle is equipped with a physical hardware fuel sensor (BLE, Analog, Ultrasonic, etc.).
+  bool get hasHardwareFuelSensor {
+    final String n = name.trim().toLowerCase();
+    if (n.startsWith('mfuel') ||
+        n.contains('manualfuel') ||
+        n.contains('manual_fuel') ||
+        n.contains('non-sensor') ||
+        n.contains('nonsensor')) {
+      return false;
+    }
+
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      if (meta['hasFuelSensor'] == false ||
+          meta['hasFuelSensor'] == 'NO' ||
+          meta['hasFuelSensor'] == 'false' ||
+          meta['fuelSensor'] == false ||
+          meta['fuelSensor'] == 'NO' ||
+          meta['fuelSensor'] == 'false' ||
+          meta['isNonSensor'] == true ||
+          meta['isNonSensor'] == 'YES') {
+        return false;
+      }
+      if (meta['hasFuelSensor'] == true ||
+          meta['hasFuelSensor'] == 'YES' ||
+          meta['hasFuelSensor'] == 'true' ||
+          meta['fuelSensor'] == true ||
+          meta['fuelSensor'] == 'YES' ||
+          meta['fuelSensor'] == 'true') {
+        return true;
+      }
+
+      final dynamic cal = meta['fuelCalibration'] ?? meta['calibrationPoints'];
+      if (cal is Map && cal.isNotEmpty) {
+        final dynamic pts = cal['calibrationPoints'] ?? cal['points'];
+        if (pts is List && pts.isNotEmpty) return true;
+      } else if (cal is List && cal.isNotEmpty) {
+        return true;
+      }
+
+      final String sensorNo = (meta['sensorNo'] ?? meta['sensor_no'] ?? meta['fuelSensorNo'] ?? '').toString().trim();
+      if (sensorNo.isNotEmpty && sensorNo != '0' && sensorNo.toLowerCase() != 'none') {
+        return true;
+      }
+
+      final String ft = (meta['fuelType'] ?? meta['fuel_type'] ?? '').toString().trim().toLowerCase();
+      if (ft.isNotEmpty) {
+        const List<String> sensorKeywords = <String>[
+          'ble',
+          'sensor',
+          'analog',
+          'ultrasonic',
+          'capacitive',
+          'rs485',
+          'rs232',
+          'rod',
+          'level 1',
+          'level 2',
+          'probe',
+        ];
+        final bool isHardwareType = sensorKeywords.any((String k) => ft.contains(k));
+        final bool isNonSensorKeyword = ft.contains('non') || ft.contains('manual');
+        if (isHardwareType && !isNonSensorKeyword) {
+          return true;
+        }
+      }
+    }
+
+    if (raw['hasFuelSensor'] == false || raw['fuelSensor'] == false) return false;
+    if (raw['hasFuelSensor'] == true || raw['fuelSensor'] == true) return true;
+
+    final dynamic rawCal = raw['fuelCalibration'] ?? raw['calibrationPoints'];
+    if (rawCal is List && rawCal.isNotEmpty) return true;
+    if (rawCal is Map && rawCal.isNotEmpty) return true;
+
+    return false;
+  }
+
+  /// True if non-sensor vehicle has had its initial manual fuel setup configured
+  /// (e.g. initial tank level entered in Manual Fuel Entry).
+  bool get hasInitialFuelSetup {
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      if (meta['hasInitialFuel'] == true ||
+          meta['hasInitialFuel'] == 'YES' ||
+          meta['initialSetup'] == true ||
+          meta['initial_setup'] == true ||
+          meta['hasManualFuelSetup'] == true ||
+          meta['manualFuelInitial'] == true ||
+          meta['manualInitialSetup'] == true ||
+          meta['has_initial_entry'] == true ||
+          meta['hasInitialEntry'] == true) {
+        return true;
+      }
+      final dynamic initFuel = meta['initialFuel'] ?? meta['initial_fuel'] ?? meta['manualInitialFuel'];
+      if (initFuel != null) {
+        final double? f = double.tryParse(initFuel.toString());
+        if (f != null && f > 0) return true;
+      }
+    }
+
+    if (raw['hasInitialFuel'] == true ||
+        raw['has_initial_entry'] == true ||
+        raw['hasInitialEntry'] == true ||
+        raw['initialSetup'] == true ||
+        raw['initial_setup'] == true ||
+        raw['manualFuelSetup'] == true) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// True if this vehicle is configured for non-sensor / manual fuel monitoring
+  /// (no hardware fuel sensor equipped, and non-sensor fuel parameters or setup configured).
+  bool get isNonSensorFuel {
+    if (hasHardwareFuelSensor) return false;
+    if (hasInitialFuelSetup) return true;
+
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      if (meta['isNonSensor'] == true ||
+          meta['isNonSensor'] == 'YES' ||
+          meta['isNonSensor'] == 'true' ||
+          meta['manualFuel'] == true ||
+          meta['hasManualFuel'] == true ||
+          meta['hasManualFuelSetup'] == true ||
+          meta['manualFuelInitial'] == true ||
+          meta['initialSetup'] == true ||
+          meta['hasInitialFuel'] == true) {
+        return true;
+      }
+      final String ft = (meta['fuelType'] ?? meta['fuel_type'] ?? '').toString().toLowerCase();
+      if (ft.contains('non') || ft.contains('manual')) {
+        return true;
+      }
+      if (meta['expectedMileage'] != null ||
+          meta['expected_mileage'] != null ||
+          meta['estimatedMileage'] != null ||
+          meta['estimated_mileage'] != null ||
+          meta['mileage'] != null ||
+          meta['kmpl'] != null) {
+        return true;
+      }
+    }
+
+    if (raw['isNonSensor'] == true ||
+        raw['isNonSensor'] == 'YES' ||
+        raw['isNonSensor'] == 'true' ||
+        raw['manualFuel'] == true ||
+        raw['hasManualFuel'] == true ||
+        raw['manualFuelSetup'] == true ||
+        raw['initialSetup'] == true ||
+        raw['hasInitialFuel'] == true ||
+        raw['expectedMileage'] != null ||
+        raw['expected_mileage'] != null ||
+        raw['estimatedMileage'] != null ||
+        raw['estimated_mileage'] != null ||
+        raw['kmpl'] != null) {
+      return true;
+    }
+
+    final String n = name.trim().toLowerCase();
+    if (n.startsWith('mfuel') ||
+        n.contains('manualfuel') ||
+        n.contains('manual_fuel') ||
+        n.contains('non-sensor') ||
+        n.contains('nonsensor')) {
+      return true;
+    }
+
+    // Configured for fuel monitoring but has no physical hardware sensor
+    if (hasFuel && !hasHardwareFuelSensor) return true;
+
+    return false;
+  }
+
+  /// Effective estimated or expected fuel mileage in km/L.
+  double? get effectiveEstimatedMileage {
+    if (estimatedMileage != null && estimatedMileage! > 0) {
+      return estimatedMileage;
+    }
+    final dynamic meta = raw['metadata'];
+    if (meta is Map) {
+      final dynamic m = meta['expectedMileage'] ??
+          meta['expected_mileage'] ??
+          meta['estimatedMileage'] ??
+          meta['estimated_mileage'] ??
+          meta['mileage'] ??
+          meta['avgMileage'] ??
+          meta['avg_mileage'] ??
+          meta['kmpl'] ??
+          meta['fuelEconomy'];
+      if (m != null) {
+        final double? val = double.tryParse(m.toString());
+        if (val != null && val > 0) return val;
+      }
+    }
+    final dynamic directM = raw['expectedMileage'] ??
+        raw['expected_mileage'] ??
+        raw['estimatedMileage'] ??
+        raw['estimated_mileage'] ??
+        raw['targetMileage'] ??
+        raw['avgMileage'] ??
+        raw['avg_mileage'] ??
+        raw['kmpl'] ??
+        raw['fuelEconomy'];
+    if (directM != null) {
+      final double? val = double.tryParse(directM.toString());
+      if (val != null && val > 0) return val;
+    }
+
+    // Dynamic calculation fallback: todayDistanceKm / fuelUsed (if both valid and realistic)
+    if (todayDistanceKm != null &&
+        todayDistanceKm! > 0 &&
+        fuelUsed != null &&
+        fuelUsed! > 0) {
+      final double calc = todayDistanceKm! / fuelUsed!;
+      if (calc >= 0.5 && calc <= 80.0) {
+        return calc;
+      }
+    }
+    return null;
+  }
+
+  /// Whether the fuel metric in UI cards should display as 'Fuel' (tank level).
+  /// Strictly true ONLY if the vehicle has a physical fuel sensor OR has configured non-sensor initial fuel setup.
+  /// For all other non-sensor vehicles, fuel telemetry represents consumption and should display as 'Fuel Used'.
+  bool get shouldDisplayAsFuelLevel => hasHardwareFuelSensor || hasInitialFuelSetup;
+
+  /// Label for the fuel metric: 'Fuel' for sensor/initialized vehicles, 'Fuel Used' for non-sensor vehicles.
+  String get fuelDisplayLabel => shouldDisplayAsFuelLevel ? 'Fuel' : 'Fuel Used';
+
+  /// Value for the fuel metric in liters.
+  double? get effectiveFuelValue {
+    if (shouldDisplayAsFuelLevel) {
+      return fuelLevel;
+    }
+    return fuelUsed ?? fuelLevel;
+  }
+
   /// True if this asset is a stationary Diesel Generator / Genset.
   bool get isGenerator =>
       displayType == 'generator' ||
       type.toLowerCase().trim() == 'generator' ||
       type.toLowerCase().trim() == 'genset';
 
-  /// Human-friendly operating status label (e.g. "Running" / "Standby" for generators, "Moving" / "Stopped" for vehicles).
-  String get effectiveStatusLabel {
-    if (isGenerator) {
-      switch (status) {
-        case VehicleStatus.moving:
-          return 'Running';
-        case VehicleStatus.idle:
-          return 'Idle';
-        case VehicleStatus.stopped:
-          return 'Standby';
-        case VehicleStatus.offline:
-          return 'No Data';
-        case VehicleStatus.noData:
-          return 'Offline';
-      }
-    }
-    return status.label;
-  }
+  /// Human-friendly operating status label (e.g. "Moving", "Idle", "Stopped", "No Data", "Unreachable").
+  String get effectiveStatusLabel => status.label;
 
   /// True if Safety Parking (Theft Alarm) is armed for this vehicle.
   bool get isSafetyParkActive {
@@ -985,6 +1216,28 @@ class Vehicle extends Equatable {
 
         return val;
       }(),
+      fuelUsed: () {
+        const List<String> usedKeys = <String>[
+          'fuel_used',
+          'fuelUsed',
+          'fuel_consumed',
+          'fuelConsumed',
+          'fuel_consumption',
+          'fuelConsumption',
+          'total_fuel_used',
+          'totalFuelUsed',
+          'today_fuel_used',
+          'todayFuelUsed',
+          'consumed_fuel',
+          'consumedFuel',
+        ];
+        return asDoubleOrNull(src, usedKeys) ??
+            asDoubleOrNull(srcAttrs, usedKeys) ??
+            asDoubleOrNull(json, usedKeys) ??
+            asDoubleOrNull(jsonAttrs, usedKeys) ??
+            asDoubleOrNull(device, usedKeys) ??
+            asDoubleOrNull(deviceAttrs, usedKeys);
+      }(),
       batteryLevel:
           asDoubleOrNull(src, <String>['current_voltage', 'voltage', 'external_voltage']) ??
               asDoubleOrNull(
@@ -1204,6 +1457,30 @@ class Vehicle extends Equatable {
         }
         return val;
       }(),
+      estimatedMileage: () {
+        const List<String> mileageKeys = <String>[
+          'expectedMileage',
+          'expected_mileage',
+          'estimatedMileage',
+          'estimated_mileage',
+          'targetMileage',
+          'target_mileage',
+          'standardMileage',
+          'standard_mileage',
+          'avgMileage',
+          'avg_mileage',
+          'fuelEconomy',
+          'fuel_economy',
+          'kmpl',
+          'mileageKmpl',
+        ];
+        return asDoubleOrNull(src, mileageKeys) ??
+            asDoubleOrNull(srcAttrs, mileageKeys) ??
+            asDoubleOrNull(json, mileageKeys) ??
+            asDoubleOrNull(jsonAttrs, mileageKeys) ??
+            asDoubleOrNull(device, mileageKeys) ??
+            asDoubleOrNull(deviceAttrs, mileageKeys);
+      }(),
       isActive: asBool(json, <String>['isActive', 'active', 'enabled'],
           fallback: true),
       rawStatus: parsedStatus,
@@ -1364,6 +1641,8 @@ class Vehicle extends Equatable {
               incoming.fuelLevel! <= 1500)
           ? incoming.fuelLevel
           : fuelLevel,
+      fuelUsed: incoming.fuelUsed ?? fuelUsed,
+      estimatedMileage: incoming.estimatedMileage ?? estimatedMileage,
       batteryLevel: incoming.batteryLevel ?? batteryLevel,
       gsmSignal: incoming.gsmSignal ?? gsmSignal,
       satellites: incoming.satellites ?? satellites,
@@ -1452,6 +1731,8 @@ class Vehicle extends Equatable {
     bool? isMoving,
     double? odometer,
     double? fuelLevel,
+    double? fuelUsed,
+    double? estimatedMileage,
     double? batteryLevel,
     int? gsmSignal,
     int? satellites,
@@ -1488,6 +1769,8 @@ class Vehicle extends Equatable {
         isMoving: isMoving ?? this.isMoving,
         odometer: odometer ?? this.odometer,
         fuelLevel: fuelLevel ?? this.fuelLevel,
+        fuelUsed: fuelUsed ?? this.fuelUsed,
+        estimatedMileage: estimatedMileage ?? this.estimatedMileage,
         batteryLevel: batteryLevel ?? this.batteryLevel,
         gsmSignal: gsmSignal ?? this.gsmSignal,
         satellites: satellites ?? this.satellites,
@@ -1521,6 +1804,8 @@ class Vehicle extends Equatable {
         isOnline,
         lastPacketAt,
         fuelLevel,
+        fuelUsed,
+        estimatedMileage,
         batteryLevel,
         address,
         expiryDate,

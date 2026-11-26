@@ -59,7 +59,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (user == null) return const SizedBox.shrink();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? const Color(0xFF0B1020) : const Color(0xFFEDF1F7),
       appBar: AppBar(
         title: const Text(
           'Profile & Settings',
@@ -72,12 +72,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
+        backgroundColor: isDark ? const Color(0xFF0B1020) : const Color(0xFFEDF1F7),
       ),
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
           children: <Widget>[
             // ── Executive Profile Card ─────────────────────────────
             _ExecutiveProfileCard(
@@ -281,29 +281,97 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final bool? confirm = await showDialog<bool>(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text(
-          'Sign out?',
-          style: TextStyle(fontWeight: FontWeight.w700),
+      builder: (BuildContext ctx) => Dialog(
+        backgroundColor: isDark ? const Color(0xFF1E2235) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        content: const Text(
-          'Are you sure you want to sign out? You will need to log in again to monitor live fleet telemetry.',
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Logout',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Are you sure you want to logout?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF374151),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: isDark ? const Color(0xFF2E384D) : const Color(0xFFE5E7EB),
+              ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.pop(ctx, false),
+                      child: Container(
+                        height: 50,
+                        alignment: Alignment.center,
+                        child: Text(
+                          'No',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF374151),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 50,
+                    color: isDark ? const Color(0xFF2E384D) : const Color(0xFFE5E7EB),
+                  ),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.pop(ctx, true),
+                      child: Container(
+                        height: 50,
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Yes',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF374151),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sign out'),
-          ),
-        ],
       ),
     );
 
@@ -430,20 +498,20 @@ class _ExecutiveProfileCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-          width: 1,
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          width: 0.8,
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(isDark ? 0.3 : 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.3 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -674,34 +742,37 @@ class _SettingsGroup extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-              width: 1,
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              width: 0.8,
             ),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: const Color(0xFF0F172A).withOpacity(isDark ? 0.2 : 0.02),
-                blurRadius: 8,
+                color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Column(
-            children: <Widget>[
-              for (int i = 0; i < children.length; i++) ...<Widget>[
-                children[i],
-                if (i < children.length - 1)
-                  Divider(
-                    height: 1,
-                    indent: 64,
-                    endIndent: 16,
-                    color: isDark
-                        ? const Color(0xFF334155)
-                        : const Color(0xFFF1F5F9),
-                  ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              children: <Widget>[
+                for (int i = 0; i < children.length; i++) ...<Widget>[
+                  children[i],
+                  if (i < children.length - 1)
+                    Divider(
+                      height: 1,
+                      indent: 52,
+                      endIndent: 16,
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFF1F5F9),
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ],
@@ -744,24 +815,14 @@ class _SettingsTile extends StatelessWidget {
         focusColor: Colors.transparent,
         highlightColor: theme.colorScheme.primary.withOpacity(0.06),
         splashColor: theme.colorScheme.primary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14.5),
           child: Row(
             children: <Widget>[
-              // Colored Squircle Icon Container
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Center(
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-              ),
-              const SizedBox(width: 14),
+              // Direct Clean Colored Vector Icon (Matching Reference App)
+              Icon(icon, color: iconColor, size: 23),
+              const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,9 +830,9 @@ class _SettingsTile extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
                         letterSpacing: -0.2,
                       ),
                     ),
@@ -799,7 +860,7 @@ class _SettingsTile extends StatelessWidget {
                   color: isDark
                       ? const Color(0xFF475569)
                       : const Color(0xFFCBD5E1),
-                  size: 20,
+                  size: 22,
                 ),
             ],
           ),

@@ -372,8 +372,11 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
     final bool canArm = _canArmSafetyParking(vehicle);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF12151F) : const Color(0xFFF4F7FC),
+      backgroundColor:
+          isDark ? const Color(0xFF12151F) : const Color(0xFFEDF1F7),
       appBar: AppBar(
+        backgroundColor:
+            isDark ? const Color(0xFF161A26) : const Color(0xFFEDF1F7),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
@@ -455,24 +458,24 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.x4l),
+          padding: const EdgeInsets.fromLTRB(14, Gap.md, 14, Gap.x4l),
           children: [
           // ── Hero Card ────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E2238) : Colors.white,
-              borderRadius: Corners.rLg,
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
+                  color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.3 : 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
               ],
               border: Border.all(
-                color: statusColor.withOpacity(0.3),
-                width: 1.5,
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                width: 0.8,
               ),
             ),
             child: Column(
@@ -783,276 +786,148 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           // ── Priority 3: Quick Remote Controls ─────────────────────────
           const _SectionHeader(label: 'QUICK CONTROLS'),
 
-          // ── Safety Parking Quick Control Banner ───────────────────────
-          DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: Corners.rLg,
-              boxShadow: [
-                BoxShadow(
-                  color: (isArmed ? const Color(0xFFDC2626) : Colors.black)
-                      .withValues(alpha: isArmed ? 0.15 : 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Material(
-              color: isArmed
-                  ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
-                  : (isDark ? const Color(0xFF1E2640) : const Color(0xFFF0F7FF)),
-              shape: RoundedRectangleBorder(
-                borderRadius: Corners.rLg,
-                side: BorderSide(
-                  color: isArmed
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFF2563EB).withOpacity(0.4),
-                  width: 1.5,
-                ),
-              ),
-              child: InkWell(
-                borderRadius: Corners.rLg,
-                onTap: () async {
-                  final bool nextState = !isArmed;
+          // ── 3-Column Quick Action Controls ───────────────────────────
+          Builder(
+            builder: (context) {
+              final bool isCut = vehicle.isImmobilized;
+              final bool isAcOff = _optimisticAcOff ?? vehicle.isAcOff;
 
-                  // Block arming while vehicle is moving or engine is ON
-                  if (nextState && !_canArmSafetyParking(vehicle)) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            '⚠️ Safety Parking can only be armed when the vehicle is parked (Engine OFF & Speed = 0).',
-                          ),
-                          backgroundColor: Color(0xFFB45309),
-                          duration: Duration(seconds: 3),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                    return;
-                  }
+              return Row(
+                children: [
+                  // 1. Safety Parking (Royal Purple)
+                  Expanded(
+                    child: _QuickControlActionTile(
+                      title: 'Safety Park',
+                      icon: isArmed ? Icons.security_rounded : Icons.shield_rounded,
+                      statusText: isArmed
+                          ? 'ARMED'
+                          : (!canArm
+                              ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
+                              : 'OFF'),
+                      actionLabel: isArmed
+                          ? 'DISARM'
+                          : (!canArm
+                              ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
+                              : 'ARM'),
+                      themeColor: const Color(0xFF7C3AED),
+                      isActive: isArmed,
+                      isDisabled: !isArmed && !canArm,
+                      onTap: () async {
+                        final bool nextState = !isArmed;
 
-                  setState(() {
-                    _optimisticSafetyPark = nextState;
-                  });
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          nextState
-                              ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
-                              : 'Safety Parking Disarmed.',
-                        ),
-                        backgroundColor: nextState ? const Color(0xFFDC2626) : const Color(0xFF475569),
-                        duration: const Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-
-                  try {
-                    if (nextState) {
-                      await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
-                    } else {
-                      await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      setState(() {
-                        _optimisticSafetyPark = !nextState;
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to update Safety Parking: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(7.5),
-                        decoration: BoxDecoration(
-                          color: isArmed
-                              ? const Color(0xFFDC2626)
-                              : const Color(0xFF2563EB),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isArmed ? const Color(0xFFDC2626) : const Color(0xFF2563EB))
-                                  .withOpacity(0.35),
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          isArmed ? Icons.security_rounded : Icons.shield_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    'Safety Parking',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 12.5,
-                                      color: isDark ? Colors.white : const Color(0xFF1E293B),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                        // Block arming while vehicle is moving or engine is ON
+                        if (nextState && !_canArmSafetyParking(vehicle)) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  '⚠️ Safety Parking can only be armed when the vehicle is parked (Engine OFF & Speed = 0).',
                                 ),
-                                const SizedBox(width: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: isArmed
-                                        ? const Color(0xFFDC2626)
-                                        : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    isArmed ? 'ARMED' : 'OFF',
-                                    style: TextStyle(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w900,
-                                      color: isArmed ? Colors.white : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isArmed
-                                  ? 'Siren triggers if moved or ignition ON'
-                                  : !canArm
-                                      ? (vehicle.speed > 0
-                                          ? 'Unavailable while moving'
-                                          : 'Unavailable while engine ON')
-                                      : 'Anti-theft guard',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: isArmed
-                                    ? const Color(0xFFDC2626)
-                                    : !canArm
-                                        ? const Color(0xFFB45309)
-                                        : (isDark ? Colors.grey.shade400 : const Color(0xFF64748B)),
-                                fontWeight: FontWeight.w500,
+                                backgroundColor: Color(0xFFB45309),
+                                duration: Duration(seconds: 3),
+                                behavior: SnackBarBehavior.floating,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
-                        decoration: BoxDecoration(
-                          gradient: isArmed
-                              ? const LinearGradient(colors: [Color(0xFFB91C1C), Color(0xFFDC2626)])
-                              : !canArm
-                                  ? null
-                                  : const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)]),
-                          color: !canArm
-                              ? (isDark ? Colors.orange.withOpacity(0.2) : const Color(0xFFFEF3C7))
-                              : null,
-                          borderRadius: BorderRadius.circular(14),
-                          border: !canArm
-                              ? Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5), width: 1.2)
-                              : null,
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isArmed
-                                      ? const Color(0xFFDC2626)
-                                      : !canArm
-                                          ? const Color(0xFFF59E0B)
-                                          : const Color(0xFF2563EB))
-                                  .withOpacity(0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              isArmed
-                                  ? Icons.shield_rounded
-                                  : !canArm
-                                      ? (vehicle.speed > 0
-                                          ? Icons.directions_car_rounded
-                                          : Icons.power_settings_new_rounded)
-                                      : Icons.shield_outlined,
-                              size: 12,
-                              color: isArmed || canArm ? Colors.white : const Color(0xFFB45309),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              isArmed
-                                  ? 'ARMED'
-                                  : !canArm
-                                      ? (vehicle.speed > 0 ? 'MOVING' : 'IDLE')
-                                      : 'ARM',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: isArmed || canArm
-                                    ? Colors.white
-                                    : const Color(0xFFB45309),
-                                letterSpacing: 0.4,
+                            );
+                          }
+                          return;
+                        }
+
+                        setState(() {
+                          _optimisticSafetyPark = nextState;
+                        });
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                nextState
+                                    ? '🛡️ Safety Parking ARMED for ${vehicle.displayName}!'
+                                    : 'Safety Parking Disarmed.',
                               ),
+                              backgroundColor: nextState
+                                  ? const Color(0xFF7C3AED)
+                                  : const Color(0xFF475569),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
+                          );
+                        }
+
+                        try {
+                          if (nextState) {
+                            await ref.read(safetyParkingProvider.notifier).arm(vehicle.id);
+                          } else {
+                            await ref.read(safetyParkingProvider.notifier).disarm(vehicle.id);
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            setState(() {
+                              _optimisticSafetyPark = !nextState;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to update Safety Parking: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
                   ),
-                ),
-              ),
-            ),
-          ),
 
-          const SizedBox(height: Gap.md),
+                  const SizedBox(width: 8),
 
-          // ── Special Emergency Engine Cut Off Banner ───────────────────
-          _EngineCutSpecialBanner(
-            vehicle: vehicle,
-            onToggle: () => _handleEngineCutToggle(context, ref, vehicle),
-          ),
+                  // 2. Engine Cut Off (Crimson Red)
+                  Expanded(
+                    child: _QuickControlActionTile(
+                      title: 'Engine Cut',
+                      icon: isCut ? Icons.power_rounded : Icons.power_settings_new_rounded,
+                      statusText: isCut ? 'CUT' : 'ACTIVE',
+                      actionLabel: isCut ? 'RESTORE' : 'CUT OFF',
+                      themeColor: const Color(0xFFEF4444),
+                      isActive: isCut,
+                      onTap: () => _handleEngineCutToggle(context, ref, vehicle),
+                    ),
+                  ),
 
-          const SizedBox(height: Gap.md),
+                  const SizedBox(width: 8),
 
-          // ── Air Conditioning Quick Control Banner ─────────────────────────
-          _AcControlSpecialBanner(
-            vehicle: vehicle,
-            isAcOff: _optimisticAcOff ?? vehicle.isAcOff,
-            onToggle: () => _handleAcToggle(context, ref, vehicle),
+                  // 3. Air Conditioner (Electric Cyan)
+                  Expanded(
+                    child: _QuickControlActionTile(
+                      title: 'AC Climate',
+                      icon: isAcOff ? Icons.power_off_rounded : Icons.ac_unit_rounded,
+                      statusText: isAcOff ? 'OFF' : 'ON',
+                      actionLabel: isAcOff ? 'TURN ON' : 'TURN OFF',
+                      themeColor: const Color(0xFF06B6D4),
+                      isActive: !isAcOff,
+                      onTap: () => _handleAcToggle(context, ref, vehicle),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
 
           const SizedBox(height: Gap.lg),
 
           // ── Vehicle Operations ─────────────────────────────────────────
           const _SectionHeader(label: 'VEHICLE OPERATIONS'),
+
+          _MenuItemCard(
+            title: 'Manual Fuel Entry',
+            subtitle: 'Log refill, level check & view mileage',
+            icon: Icons.local_gas_station_rounded,
+            accentColor: const Color(0xFFEA580C),
+            badgeText: 'ESTIMATED',
+            badgeColor: const Color(0xFFEA580C),
+            onTap: () =>
+                context.push('/vehicle/${widget.vehicleId}/manual-fuel-entry'),
+          ),
+          const SizedBox(height: 5),
 
           _MenuItemCard(
             title: 'Vehicle Detail',
@@ -1147,13 +1022,16 @@ class _HeroMetric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, size: 13, color: color),
+          Icon(
+            icon,
+            size: 16,
+            color: color,
+            shadows: [
+              Shadow(
+                color: color.withValues(alpha: isDark ? 0.6 : 0.4),
+                blurRadius: 5,
+              ),
+            ],
           ),
           const SizedBox(width: 7),
           Flexible(
@@ -1254,18 +1132,23 @@ class _TrackDockButton extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
+                    SizedBox(
                       width: 36,
                       height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.35),
-                          width: 1.2,
+                      child: Center(
+                        child: Icon(
+                          icon,
+                          color: Colors.white,
+                          size: 26,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black38,
+                              blurRadius: 6,
+                              offset: Offset(0, 1.5),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Icon(icon, color: Colors.white, size: 21),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
@@ -1395,25 +1278,23 @@ class _MenuItemCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8.5),
             child: Row(
               children: [
-                Container(
+                SizedBox(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        accentColor.withOpacity(0.18),
-                        accentColor.withOpacity(0.08),
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      color: accentColor,
+                      size: 25,
+                      shadows: [
+                        Shadow(
+                          color: accentColor.withValues(alpha: isDark ? 0.65 : 0.45),
+                          blurRadius: 8,
+                          offset: const Offset(0, 1.5),
+                        ),
                       ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: accentColor.withOpacity(0.2),
-                      width: 1,
                     ),
                   ),
-                  child: Icon(icon, color: accentColor, size: 18),
                 ),
                 const SizedBox(width: 11),
                 Expanded(
@@ -1468,17 +1349,10 @@ class _MenuItemCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(3.5),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
-                    size: 16,
-                  ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                  size: 20,
                 ),
               ],
             ),
@@ -1489,354 +1363,180 @@ class _MenuItemCard extends StatelessWidget {
   }
 }
 
-class _EngineCutSpecialBanner extends StatelessWidget {
-  const _EngineCutSpecialBanner({
-    required this.vehicle,
-    required this.onToggle,
+class _QuickControlActionTile extends StatelessWidget {
+  const _QuickControlActionTile({
+    required this.title,
+    required this.icon,
+    required this.statusText,
+    required this.actionLabel,
+    required this.themeColor,
+    required this.isActive,
+    required this.onTap,
+    this.isDisabled = false,
   });
 
-  final Vehicle vehicle;
-  final VoidCallback onToggle;
+  final String title;
+  final IconData icon;
+  final String statusText;
+  final String actionLabel;
+  final Color themeColor;
+  final bool isActive;
+  final VoidCallback onTap;
+  final bool isDisabled;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final bool isCut = vehicle.isImmobilized;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final Color primaryColor = isCut ? const Color(0xFF10B981) : const Color(0xFFDC2626);
-    final Color bgColor = isCut
-        ? (isDark ? const Color(0xFF064E3B).withOpacity(0.4) : const Color(0xFFECFDF5))
-        : (isDark ? const Color(0xFF450A0A).withOpacity(0.5) : const Color(0xFFFEF2F2));
-    final Color borderColor = isCut
-        ? const Color(0xFF10B981).withOpacity(0.5)
-        : const Color(0xFFDC2626).withOpacity(0.4);
+    final Color effectiveColor = isDisabled
+        ? (isDark ? const Color(0xFFF59E0B) : const Color(0xFFD97706))
+        : themeColor;
 
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
-        borderRadius: Corners.rLg,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(isDark ? 0.2 : 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: bgColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: Corners.rLg,
-          side: BorderSide(color: borderColor, width: 1.2),
-        ),
-        child: InkWell(
-          borderRadius: Corners.rLg,
-          onTap: onToggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            child: Row(
-              children: [
-                // Icon badge
-                Container(
-                  padding: const EdgeInsets.all(7.5),
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.35),
-                        blurRadius: 6,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isCut ? Icons.power_rounded : Icons.power_settings_new_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Engine Cut Off',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12.5,
-                                color: isDark ? Colors.white : const Color(0xFF1E293B),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: isCut
-                                  ? const Color(0xFF10B981)
-                                  : (isDark ? const Color(0xFFDC2626).withOpacity(0.3) : const Color(0xFFFEE2E2)),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: primaryColor,
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Text(
-                              isCut ? 'CUT' : 'ACTIVE',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w900,
-                                color: isCut
-                                    ? Colors.white
-                                    : (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isCut ? 'Circuit disabled' : 'Emergency cut',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: isCut
-                              ? const Color(0xFF059669)
-                              : (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C)),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Action Button
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isCut
-                          ? [const Color(0xFF059669), const Color(0xFF10B981)]
-                          : [const Color(0xFFB91C1C), const Color(0xFFEF4444)],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isCut ? Icons.settings_backup_restore_rounded : Icons.power_settings_new_rounded,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        isCut ? 'RESTORE' : 'CUT OFF',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            color: effectiveColor.withValues(
+              alpha: isDark ? (isActive ? 0.30 : 0.08) : (isActive ? 0.18 : 0.05),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AcControlSpecialBanner extends StatelessWidget {
-  const _AcControlSpecialBanner({
-    required this.vehicle,
-    required this.isAcOff,
-    required this.onToggle,
-  });
-
-  final Vehicle vehicle;
-  final bool isAcOff;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-
-    final Color primaryColor = isAcOff ? const Color(0xFFF59E0B) : const Color(0xFF0284C7);
-    final Color bgColor = isAcOff
-        ? (isDark ? const Color(0xFF332200).withOpacity(0.4) : const Color(0xFFFFFBEB))
-        : (isDark ? const Color(0xFF0C243B).withOpacity(0.4) : const Color(0xFFF0F9FF));
-    final Color borderColor = isAcOff
-        ? const Color(0xFFF59E0B).withOpacity(0.45)
-        : const Color(0xFF0284C7).withOpacity(0.35);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: Corners.rLg,
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withOpacity(isDark ? 0.2 : 0.08),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 3),
           ),
         ],
+        gradient: LinearGradient(
+          colors: [
+            effectiveColor.withValues(
+              alpha: isDark ? (isActive ? 0.22 : 0.10) : (isActive ? 0.12 : 0.04),
+            ),
+            isDark ? const Color(0xFF1E2238) : Colors.white,
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        border: Border.all(
+          color: effectiveColor.withValues(
+            alpha: isDark ? (isActive ? 0.6 : 0.25) : (isActive ? 0.5 : 0.20),
+          ),
+          width: isActive ? 1.4 : 1.0,
+        ),
       ),
       child: Material(
-        color: bgColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: Corners.rLg,
-          side: BorderSide(color: borderColor, width: 1.2),
-        ),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: Corners.rLg,
-          onTap: onToggle,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            child: Row(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // AC icon badge
-                Container(
-                  padding: const EdgeInsets.all(7.5),
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.35),
-                        blurRadius: 6,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isAcOff ? Icons.power_off_rounded : Icons.ac_unit_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Air Conditioner',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12.5,
-                                color: isDark ? Colors.white : const Color(0xFF1E293B),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: isAcOff
-                                  ? (isDark ? const Color(0xFFF59E0B).withOpacity(0.25) : const Color(0xFFFEF3C7))
-                                  : (isDark ? const Color(0xFF0284C7).withOpacity(0.25) : const Color(0xFFE0F2FE)),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: primaryColor.withOpacity(0.7),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Text(
-                              isAcOff ? 'OFF' : 'ON',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w900,
-                                color: isAcOff
-                                    ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309))
-                                    : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isAcOff ? 'AC relay cut' : 'AC running',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: isAcOff
-                              ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309))
-                              : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0284C7)),
-                          fontWeight: FontWeight.w500,
+                // Glowing Icon
+                SizedBox(
+                  height: 32,
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      color: effectiveColor,
+                      size: 26,
+                      shadows: [
+                        Shadow(
+                          color: effectiveColor.withValues(alpha: isDark ? 0.75 : 0.5),
+                          blurRadius: 8,
+                          offset: const Offset(0, 1.5),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Dedicated Action Button
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isAcOff
-                          ? [const Color(0xFF0284C7), const Color(0xFF0EA5E9)]
-                          : [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isAcOff ? Icons.ac_unit_rounded : Icons.power_settings_new_rounded,
-                        size: 12,
-                        color: Colors.white,
+                ),
+                const SizedBox(height: 6),
+                // Title
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 5),
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: effectiveColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: effectiveColor.withValues(alpha: 0.35),
+                      width: 0.7,
+                    ),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w900,
+                      color: effectiveColor,
+                      letterSpacing: 0.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Action Button Pill
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: isDisabled
+                        ? null
+                        : LinearGradient(
+                            colors: isActive
+                                ? [effectiveColor, effectiveColor.withValues(alpha: 0.82)]
+                                : [effectiveColor.withValues(alpha: 0.88), effectiveColor],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    color: isDisabled
+                        ? (isDark
+                            ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
+                            : const Color(0xFFFEF3C7))
+                        : null,
+                    borderRadius: BorderRadius.circular(9),
+                    border: isDisabled
+                        ? Border.all(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.6),
+                            width: 1.0,
+                          )
+                        : null,
+                    boxShadow: isDisabled
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: effectiveColor.withValues(alpha: 0.35),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      actionLabel,
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: isDisabled ? const Color(0xFFB45309) : Colors.white,
+                        letterSpacing: 0.3,
                       ),
-                      const SizedBox(width: 3),
-                      Text(
-                        isAcOff ? 'TURN ON' : 'TURN OFF',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ],

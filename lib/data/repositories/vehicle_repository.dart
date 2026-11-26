@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 
 import '../../core/network/api_client.dart';
-import '../../core/network/api_exception.dart';
 import '../models/json_utils.dart';
 import '../models/trip.dart';
 import '../models/vehicle.dart';
@@ -238,6 +237,37 @@ class VehicleRepository {
         await _api.put<dynamic>('/vehicles/$vehicleId', body: body);
       } catch (_) {
         await _api.patch<dynamic>('/vehicles/$vehicleId', body: body);
+      }
+    }
+  }
+
+  /// Updates vehicle display name and/or odometer reading.
+  Future<void> updateVehicleDetails(
+    String vehicleId, {
+    String? name,
+    double? odometer,
+  }) async {
+    final Map<String, dynamic> body = <String, dynamic>{};
+    if (name != null && name.trim().isNotEmpty) {
+      body['name'] = name.trim();
+      body['vehicleName'] = name.trim();
+    }
+    if (odometer != null) {
+      body['odometer'] = odometer;
+      body['odometerReading'] = odometer;
+      body['current_odometer'] = odometer;
+    }
+    if (body.isEmpty) return;
+
+    try {
+      await _api.patch<dynamic>('/vehicles/$vehicleId/settings', body: body);
+    } catch (_) {
+      try {
+        await _api.post<dynamic>('/vehicles/$vehicleId/rename', body: body);
+      } catch (_) {
+        try {
+          await _api.put<dynamic>('/vehicles/$vehicleId', body: body);
+        } catch (_) {}
       }
     }
   }

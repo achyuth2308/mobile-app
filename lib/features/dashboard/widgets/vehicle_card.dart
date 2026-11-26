@@ -42,16 +42,6 @@ class VehicleCard extends ConsumerWidget {
     final bool isDark = theme.brightness == Brightness.dark;
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
-    final List<FleetGroup> userGroups = ref.watch(availableFleetGroupsProvider);
-    final String userGroupLabel = () {
-      if (userGroups.isEmpty) return vehicle.displayGroupName;
-      final Set<String> allowed =
-          userGroups.map((g) => g.name.toLowerCase()).toSet();
-      final List<String> matching = vehicle.groupNames
-          .where((n) => allowed.contains(n.toLowerCase()))
-          .toList();
-      return matching.join(', ');
-    }();
 
     final String cleanName = () {
       final String raw = vehicle.displayName.trim();
@@ -80,39 +70,60 @@ class VehicleCard extends ConsumerWidget {
                   children: [
                     Image.asset(
                       vehicle.statusAssetPath,
-                      height: 46,
+                      height: 42,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Image.asset(
                         'assets/images/vehicles/${vehicle.displayType}.png',
-                        height: 46,
+                        height: 42,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) => Icon(
                           VehicleIcons.forType(vehicle.displayType),
-                          size: 36,
+                          size: 34,
                           color: statusColor,
                         ),
                       ),
                     ),
                     const SizedBox(height: 3),
-                    SizedBox(
-                      height: 32,
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            cleanName,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              height: 1.15,
-                              letterSpacing: 0.2,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1E293B),
+                    InkWell(
+                      onTap: () => _showEditVehicleDialog(
+                        context,
+                        ref,
+                        vehicle,
+                        focusOdometer: false,
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 2, vertical: 1),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                cleanName,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.15,
+                                  letterSpacing: 0.2,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF1E293B),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 3),
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 11,
+                              color: isDark
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -160,38 +171,6 @@ class VehicleCard extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    if (userGroupLabel.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1E293B)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isDark
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFE2E8F0),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          userGroupLabel,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -209,7 +188,7 @@ class VehicleCard extends ConsumerWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            'Last update • ${_formatDateTimeShort(vehicle.lastPacketAt)}',
+                            'Last update \u2022 ${_formatDateTimeShort(vehicle.lastPacketAt)}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -252,15 +231,18 @@ class VehicleCard extends ConsumerWidget {
                                     _MetricItem(
                                       label: 'Speed',
                                       value: '${vehicle.speed.round()} km/h',
-                                      dotColor:
-                                          const Color(0xFF4CAF50), // Green
+                                      labelColor: const Color(0xFFF43F5E), // Sharp Rose
+                                      valueColor: const Color(0xFFEC4899), // Primary Pink
+                                      icon: Icons.speed_rounded,
                                     ),
                                     const SizedBox(height: 6),
                                     _MetricItem(
                                       label: 'Today km',
                                       value:
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
-                                      dotColor: const Color(0xFFE91E63), // Pink
+                                      labelColor: const Color(0xFFEA580C), // Sharp Orange
+                                      valueColor: const Color(0xFFD95D0B), // Burnt Orange
+                                      icon: Icons.near_me_rounded,
                                     ),
                                     const SizedBox(height: 6),
                                     _MetricItem(
@@ -269,7 +251,9 @@ class VehicleCard extends ConsumerWidget {
                                               vehicle.batteryLevel! > 0)
                                           ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V'
                                           : 'N/A',
-                                      dotColor: Colors.orange,
+                                      labelColor: const Color(0xFF8B5CF6), // Sharp Violet/Lilac
+                                      valueColor: const Color(0xFF421477), // Dark Purple
+                                      icon: Icons.battery_charging_full_rounded,
                                     ),
                                   ],
                                 ),
@@ -285,7 +269,15 @@ class VehicleCard extends ConsumerWidget {
                                       value: vehicle.odometer != null
                                           ? '${vehicle.odometer!.toStringAsFixed(0)} km'
                                           : 'N/A',
-                                      dotColor: Colors.cyan,
+                                      labelColor: const Color(0xFF059669), // Sharp Emerald Green
+                                      valueColor: const Color(0xFF10B981), // Emerald
+                                      icon: Icons.alt_route_rounded,
+                                      onTap: () => _showEditVehicleDialog(
+                                        context,
+                                        ref,
+                                        vehicle,
+                                        focusOdometer: true,
+                                      ),
                                     ),
                                     if (vehicle.hasFuel) ...[
                                       const SizedBox(height: 6),
@@ -295,7 +287,8 @@ class VehicleCard extends ConsumerWidget {
                                         value: vehicle.fuelLevel != null
                                             ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
                                             : '0 L',
-                                        dotColor: const Color(0xFFF97316),
+                                        labelColor: const Color(0xFF0284C7), // Sharp Blue
+                                        valueColor: const Color(0xFF1D4ED8), // Dark Blue (from Orange)
                                         onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),
                                     ],
@@ -318,7 +311,7 @@ class VehicleCard extends ConsumerWidget {
                                                   size: 20,
                                                   color: Colors.grey),
                                               Text(
-                                                  '${vehicle.satellites}',
+                                                '${vehicle.satellites}',
                                                 style: const TextStyle(
                                                   fontSize: 8,
                                                   fontWeight: FontWeight.bold,
@@ -342,8 +335,9 @@ class VehicleCard extends ConsumerWidget {
                                     _MetricItem(
                                       label: 'Speed',
                                       value: '${vehicle.speed.round()} km/h',
-                                      dotColor:
-                                          const Color(0xFF4CAF50), // Green
+                                      labelColor: const Color(0xFFF43F5E), // Sharp Rose
+                                      valueColor: const Color(0xFFEC4899), // Primary Pink
+                                      icon: Icons.speed_rounded,
                                     ),
                                     const SizedBox(height: 6),
                                     _MetricItem(
@@ -352,7 +346,9 @@ class VehicleCard extends ConsumerWidget {
                                               vehicle.batteryLevel! > 0)
                                           ? '${vehicle.batteryLevel!.toStringAsFixed(2)} V'
                                           : 'N/A',
-                                      dotColor: Colors.orange,
+                                      labelColor: const Color(0xFF8B5CF6), // Sharp Violet/Lilac
+                                      valueColor: const Color(0xFF421477), // Dark Purple
+                                      icon: Icons.battery_charging_full_rounded,
                                     ),
                                   ],
                                 ),
@@ -366,7 +362,9 @@ class VehicleCard extends ConsumerWidget {
                                       label: 'Today km',
                                       value:
                                           '${vehicle.todayDistanceKm?.toStringAsFixed(0) ?? '0'} km',
-                                      dotColor: const Color(0xFFE91E63), // Pink
+                                      labelColor: const Color(0xFFEA580C), // Sharp Orange
+                                      valueColor: const Color(0xFFD95D0B), // Burnt Orange
+                                      icon: Icons.near_me_rounded,
                                     ),
                                     if (vehicle.hasFuel) ...[
                                       const SizedBox(height: 6),
@@ -376,7 +374,8 @@ class VehicleCard extends ConsumerWidget {
                                         value: vehicle.fuelLevel != null
                                             ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
                                             : '0 L',
-                                        dotColor: const Color(0xFFF97316),
+                                        labelColor: const Color(0xFF0284C7), // Sharp Blue
+                                        valueColor: const Color(0xFF1D4ED8), // Dark Blue (from Orange)
                                         onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
                                       ),
                                     ],
@@ -393,7 +392,15 @@ class VehicleCard extends ConsumerWidget {
                                       value: vehicle.odometer != null
                                           ? '${vehicle.odometer!.toStringAsFixed(0)} km'
                                           : 'N/A',
-                                      dotColor: Colors.cyan,
+                                      labelColor: const Color(0xFF059669), // Sharp Emerald Green
+                                      valueColor: const Color(0xFF10B981), // Emerald
+                                      icon: Icons.alt_route_rounded,
+                                      onTap: () => _showEditVehicleDialog(
+                                        context,
+                                        ref,
+                                        vehicle,
+                                        focusOdometer: true,
+                                      ),
                                     ),
                                     const SizedBox(height: 6),
                                     Wrap(
@@ -449,9 +456,8 @@ class VehicleCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
-                  padding: EdgeInsets.only(top: 1),
-                  child: Icon(Icons.location_on,
-                      size: 16, color: Color(0xFFE91E63)),
+                  padding: EdgeInsets.only(top: 2),
+                  child: _ColorfulLocationPin(),
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -778,55 +784,83 @@ class _MetricItem extends StatelessWidget {
   const _MetricItem({
     required this.label,
     required this.value,
-    required this.dotColor,
-    this.icon,
+    required this.labelColor,
+    required this.valueColor,
+    required this.icon,
     this.onTap,
   });
 
   final String label;
   final String value;
-  final Color dotColor;
-  final IconData? icon;
+  final Color labelColor;
+  final Color valueColor;
+  final IconData icon;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    Color valColor = valueColor;
+    if (isDark) {
+      if (valueColor == const Color(0xFF421477)) {
+        valColor = const Color(0xFFC084FC);
+      } else if (valueColor == const Color(0xFF1D4ED8)) {
+        valColor = const Color(0xFF60A5FA);
+      }
+    }
+
     final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
+        // ── VARIABLE NAME UP (Sharp micro-icon + crisp typography) ──
         Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (icon != null)
-              Icon(icon, size: 12, color: dotColor)
-            else
-              Icon(Icons.circle, size: 8, color: dotColor),
-            const SizedBox(width: 5),
-            Expanded(
+            Icon(
+              icon,
+              size: 13,
+              color: labelColor,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
               child: Text(
-                value,
+                label,
                 style: TextStyle(
-                  color: isDark
-                      ? Colors.grey.shade200
-                      : const Color(0xFF0F172A),
-                  fontSize: 12,
+                  color: labelColor,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: 0.15,
+                  height: 1.15,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (onTap != null && label == 'Odometer') ...[
+              const SizedBox(width: 2.5),
+              Icon(
+                Icons.edit_rounded,
+                size: 9.5,
+                color: labelColor.withValues(alpha: 0.8),
+              ),
+            ],
           ],
         ),
-        const SizedBox(height: 1),
+        const SizedBox(height: 1.5),
+
+        // ── VALUE DOWN (Sharp & vibrant) ──
         Padding(
-          padding: EdgeInsets.only(left: icon != null ? 15 : 12),
+          padding: const EdgeInsets.only(left: 17),
           child: Text(
-            label,
+            value,
             style: TextStyle(
-              color: isDark ? Colors.grey.shade400 : const Color(0xFF0F172A),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
+              color: valColor,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+              height: 1.2,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -856,10 +890,40 @@ const String _googleMapsPinSvg = '''
 </svg>
 ''';
 
+class _ColorfulLocationPin extends StatelessWidget {
+  const _ColorfulLocationPin();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 16,
+      height: 18,
+      child: SvgPicture.string(
+        '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 28" width="16" height="18">
+          <defs>
+            <linearGradient id="pinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FF3366" />
+              <stop offset="35%" stop-color="#FF6B4A" />
+              <stop offset="70%" stop-color="#FFA800" />
+              <stop offset="100%" stop-color="#00D26A" />
+            </linearGradient>
+            <radialGradient id="innerPin" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#FFFFFF" />
+              <stop offset="100%" stop-color="#E2E8F0" />
+            </radialGradient>
+          </defs>
+          <path fill="url(#pinGrad)" d="M12 2C7.58 2 4 5.58 4 10c0 5.6 8 16 8 16s8-10.4 8-16c0-4.42-3.58-8-8-8z"/>
+          <circle cx="12" cy="10" r="3.5" fill="url(#innerPin)"/>
+          <circle cx="12" cy="10" r="1.8" fill="#FF3366"/>
+        </svg>''',
+      ),
+    );
+  }
+}
+
 class _JumpingGoogleMapPinButton extends StatefulWidget {
   const _JumpingGoogleMapPinButton({
     required this.onTap,
-    super.key,
   });
 
   final VoidCallback onTap;
@@ -936,29 +1000,10 @@ class _JumpingGoogleMapPinButtonState
           unawaited(HapticFeedback.selectionClick());
           widget.onTap();
         },
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF1E293B)
-                : const Color(0xFFEFF6FF),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isDark
-                  ? const Color(0xFF334155)
-                  : const Color(0xFFDBEAFE),
-              width: 1,
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: const Color(0xFF4285F4).withOpacity(isDark ? 0.2 : 0.08),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 32,
+          height: 32,
           child: AnimatedBuilder(
             animation: _controller,
             builder: (BuildContext ctx, Widget? child) {
@@ -967,7 +1012,7 @@ class _JumpingGoogleMapPinButtonState
                 children: <Widget>[
                   // Dynamic Ground Shadow that shrinks when pin jumps up
                   Positioned(
-                    bottom: 5,
+                    bottom: 4,
                     child: Transform.scale(
                       scaleX: _shadowScaleAnim.value,
                       scaleY: 0.6,
@@ -975,8 +1020,8 @@ class _JumpingGoogleMapPinButtonState
                         width: 12,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(
-                            isDark ? 0.35 : 0.18,
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.35 : 0.18,
                           ),
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -988,8 +1033,8 @@ class _JumpingGoogleMapPinButtonState
                     offset: Offset(0, _jumpAnim.value - 1.5),
                     child: SvgPicture.string(
                       _googleMapsPinSvg,
-                      width: 20,
-                      height: 20,
+                      width: 22,
+                      height: 22,
                     ),
                   ),
                 ],
@@ -1000,4 +1045,305 @@ class _JumpingGoogleMapPinButtonState
       ),
     );
   }
+}
+
+void _showEditVehicleDialog(
+  BuildContext context,
+  WidgetRef ref,
+  Vehicle vehicle, {
+  bool focusOdometer = false,
+}) {
+  final TextEditingController nameCtrl =
+      TextEditingController(text: vehicle.name);
+  final TextEditingController odoCtrl = TextEditingController(
+    text: vehicle.odometer != null ? vehicle.odometer!.toStringAsFixed(0) : '',
+  );
+  final FocusNode nameFocus = FocusNode();
+  final FocusNode odoFocus = FocusNode();
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+  showDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) {
+      final ThemeData theme = Theme.of(ctx);
+      final bool isDark = theme.brightness == Brightness.dark;
+      bool isSaving = false;
+
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          Future<void> save() async {
+            if (!formKey.currentState!.validate()) return;
+            setState(() => isSaving = true);
+            try {
+              final String newName = nameCtrl.text.trim();
+              final double? newOdo = double.tryParse(odoCtrl.text.trim());
+
+              await ref.read(fleetProvider.notifier).updateVehicleDetails(
+                    vehicle.id,
+                    name: newName,
+                    odometer: newOdo,
+                  );
+
+              if (ctx.mounted) {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded,
+                            color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Vehicle updated successfully',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF10B981),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (ctx.mounted) {
+                setState(() => isSaving = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to update vehicle: $e'),
+                    backgroundColor: Colors.red.shade600,
+                  ),
+                );
+              }
+            }
+          }
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (focusOdometer && odoFocus.canRequestFocus) {
+              odoFocus.requestFocus();
+            } else if (!focusOdometer && nameFocus.canRequestFocus) {
+              nameFocus.requestFocus();
+            }
+          });
+
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            title: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.edit_note_rounded,
+                    color: Color(0xFF2563EB),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Edit Vehicle',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        vehicle.registrationNumber.isNotEmpty
+                            ? vehicle.registrationNumber
+                            : vehicle.name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: isDark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: Form(
+              key: formKey,
+              child: SizedBox(
+                width: 320,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Vehicle Name Field
+                    Text(
+                      'Vehicle Name',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: nameCtrl,
+                      focusNode: nameFocus,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Enter vehicle name',
+                        prefixIcon: const Icon(Icons.directions_car_rounded, size: 18),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF2563EB),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Vehicle name cannot be empty';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Odometer Field
+                    Text(
+                      'Odometer Reading',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: odoCtrl,
+                      focusNode: odoFocus,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 15420',
+                        suffixText: 'km',
+                        prefixIcon: const Icon(Icons.alt_route_rounded, size: 18),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF10B981),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      validator: (val) {
+                        if (val != null && val.trim().isNotEmpty) {
+                          final num? parsed = num.tryParse(val.trim());
+                          if (parsed == null || parsed < 0) {
+                            return 'Enter a valid positive number';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: isSaving ? null : save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Save Changes',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }

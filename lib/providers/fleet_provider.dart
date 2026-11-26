@@ -139,10 +139,22 @@ class FleetController extends Notifier<FleetState> {
   final Map<String, Vehicle> _pending = <String, Vehicle>{};
   final Map<String, Vehicle> _vehiclesById = <String, Vehicle>{};
   final Map<String, String> _identifierToVehicleId = <String, String>{};
+  final Map<String, Map<String, dynamic>> _customOverrides =
+      <String, Map<String, dynamic>>{};
 
   void _rebuildIndexes(List<Vehicle> list) {
     _vehiclesById.clear();
     _identifierToVehicleId.clear();
+    for (int i = 0; i < list.length; i++) {
+      final Vehicle v = list[i];
+      if (_customOverrides.containsKey(v.id)) {
+        final Map<String, dynamic> o = _customOverrides[v.id]!;
+        list[i] = v.copyWith(
+          name: o['name'] as String? ?? v.name,
+          odometer: o['odometer'] as double? ?? v.odometer,
+        );
+      }
+    }
     for (final Vehicle v in list) {
       if (v.id.isNotEmpty) {
         _vehiclesById[v.id] = v;
@@ -717,8 +729,15 @@ class FleetController extends Notifier<FleetState> {
     final List<Vehicle> updatedList = <Vehicle>[];
 
     for (final Vehicle current in state.vehicles) {
-      final Vehicle? live = snapshot[current.id];
+      Vehicle? live = snapshot[current.id];
       if (live != null) {
+        if (_customOverrides.containsKey(live.id)) {
+          final Map<String, dynamic> o = _customOverrides[live.id]!;
+          live = live.copyWith(
+            name: o['name'] as String? ?? live.name,
+            odometer: o['odometer'] as double? ?? live.odometer,
+          );
+        }
         updatedList.add(live);
         updatedVehicleIds.add(current.id);
       } else {
@@ -838,6 +857,58 @@ class FleetController extends Notifier<FleetState> {
     }
   }
 
+  /// Updates vehicle name and/or odometer reading immediately in state and persists to backend.
+  Future<void> updateVehicleDetails(
+    String vehicleId, {
+    String? name,
+    double? odometer,
+  }) async {
+    try {
+      final Map<String, dynamic> override = Map<String, dynamic>.from(
+        _customOverrides[vehicleId] ?? <String, dynamic>{},
+      );
+      if (name != null && name.trim().isNotEmpty) {
+        override['name'] = name.trim();
+      }
+      if (odometer != null) {
+        override['odometer'] = odometer;
+      }
+      _customOverrides[vehicleId] = override;
+
+      final Vehicle? existing = _vehiclesById[vehicleId] ??
+          state.vehicles.where((v) => v.id == vehicleId).firstOrNull;
+      if (existing != null) {
+        final Map<String, dynamic> rawCopy =
+            Map<String, dynamic>.from(existing.raw);
+        if (name != null && name.trim().isNotEmpty) {
+          rawCopy['name'] = name.trim();
+          rawCopy['vehicleName'] = name.trim();
+        }
+        if (odometer != null) {
+          rawCopy['odometer'] = odometer;
+          rawCopy['current_odometer'] = odometer;
+          rawCopy['odometerReading'] = odometer;
+        }
+
+        final Vehicle updated = existing.copyWith(
+          name: override['name'] as String? ?? existing.name,
+          odometer: override['odometer'] as double? ?? existing.odometer,
+        );
+        upsertVehicle(updated);
+      }
+
+      await ref.read(vehicleRepositoryProvider).updateVehicleDetails(
+            vehicleId,
+            name: name,
+            odometer: odometer,
+          );
+      await load(silent: true);
+    } catch (e) {
+      debugPrint('[FleetNotifier] updateVehicleDetails error: $e');
+      rethrow;
+    }
+  }
+
   void clear() {
     detachSocket();
     _staleTimer?.cancel();
@@ -928,7 +999,32 @@ final Provider<List<FleetGroup>> availableFleetGroupsProvider =
     return list;
   }
 
-  // 2. If user has no specific groups returned, don't show arbitrary cross-tenant groups
+  // 2. Fallback: extract distinct groups assigned on vehicles
+  if (vehicles.isNotEmpty) {
+    final Map<String, FleetGroup> groupMap = <String, FleetGroup>{};
+    for (final Vehicle v in vehicles) {
+      for (final String gName in v.groupNames) {
+        final String trimmed = gName.trim();
+        if (trimmed.isEmpty) continue;
+        final String key = trimmed.toLowerCase();
+        final FleetGroup? existing = groupMap[key];
+        final int vCount = (existing?.vehicleCount ?? 0) + 1;
+        final int onCount = (existing?.onlineCount ?? 0) + (v.isOnline ? 1 : 0);
+        groupMap[key] = FleetGroup(
+          id: existing?.id ?? trimmed,
+          name: existing?.name ?? trimmed,
+          vehicleCount: vCount,
+          onlineCount: onCount,
+        );
+      }
+    }
+    if (groupMap.isNotEmpty) {
+      final List<FleetGroup> list = groupMap.values.toList();
+      list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      return list;
+    }
+  }
+
   return const <FleetGroup>[];
 });
 

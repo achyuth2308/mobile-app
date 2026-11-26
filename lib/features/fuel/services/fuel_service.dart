@@ -12,6 +12,12 @@ import '../models/fuel_telemetry_point.dart';
 final Provider<FuelService> fuelServiceProvider =
     Provider<FuelService>((Ref ref) => FuelService(ref.read(apiClientProvider)));
 
+final AutoDisposeFutureProviderFamily<Map<String, dynamic>?, String> manualFuelStateProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>?, String>((Ref ref, String vehicleId) async {
+  final FuelService service = ref.watch(fuelServiceProvider);
+  return service.getManualFuelState(vehicleId);
+});
+
 enum FuelInterval {
   filtered('Filtered', Duration.zero),
   raw('Raw', Duration.zero),
@@ -609,5 +615,58 @@ class FuelService {
     }
 
     return sampled;
+  }
+
+  Future<Map<String, dynamic>?> getManualFuelState(String vehicleId) async {
+    try {
+      final Response<dynamic> response =
+          await _api.raw.get('/api/fuel/manual/state/$vehicleId');
+      if (response.data is Map && response.data['success'] == true) {
+        return response.data['data'] as Map<String, dynamic>?;
+      }
+    } catch (e) {
+      debugPrint('[FUEL] getManualFuelState error: $e');
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> submitManualFuelEntry({
+    required String vehicleId,
+    required String entryType,
+    required double fuelQuantity,
+    double fuelFilled = 0.0,
+    required double odometer,
+    String? remarks,
+  }) async {
+    final Response<dynamic> response = await _api.raw.post(
+      '/api/fuel/manual/entry/$vehicleId',
+      data: <String, dynamic>{
+        'entryType': entryType,
+        'fuelQuantity': fuelQuantity,
+        'fuelFilled': fuelFilled,
+        'odometer': odometer,
+        if (remarks != null && remarks.isNotEmpty) 'remarks': remarks,
+      },
+    );
+    if (response.data is Map && response.data['success'] == true) {
+      return response.data as Map<String, dynamic>;
+    }
+    throw Exception(response.data['error'] ?? 'Failed to submit fuel entry');
+  }
+
+  Future<List<Map<String, dynamic>>> getManualFuelEntries(String vehicleId) async {
+    try {
+      final Response<dynamic> response =
+          await _api.raw.get('/api/fuel/manual/entries/$vehicleId');
+      if (response.data is Map && response.data['success'] == true) {
+        final dynamic data = response.data['data'];
+        if (data is Map && data['entries'] is List) {
+          return (data['entries'] as List).cast<Map<String, dynamic>>();
+        }
+      }
+    } catch (e) {
+      debugPrint('[FUEL] getManualFuelEntries error: $e');
+    }
+    return <Map<String, dynamic>>[];
   }
 }

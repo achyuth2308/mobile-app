@@ -28,6 +28,7 @@ class ReportRepository {
     String? fromGeofenceId,
     String? toGeofenceId,
     String? geofenceId,
+    int? speedLimit,
     CancelToken? cancelToken,
   }) async {
     // For consolidated and geofence endpoints: backend handles fleet-wide in one query.
@@ -47,7 +48,13 @@ class ReportRepository {
         type != ReportType.dailyTrip &&
         type != ReportType.ignition;
 
-    final List<Vehicle> vehicles = _ref.read(fleetProvider).vehicles;
+    final String? activeGroup = _ref.read(fleetGroupFilterProvider);
+    final List<Vehicle> allFleetVehicles = _ref.read(fleetProvider).vehicles;
+    final List<Vehicle> vehicles = (activeGroup != null &&
+            activeGroup.trim().isNotEmpty &&
+            activeGroup.trim().toLowerCase() != 'all')
+        ? allFleetVehicles.where((Vehicle v) => v.belongsToGroup(activeGroup)).toList()
+        : allFleetVehicles;
 
     if (isFleetWideParallel) {
       final List<String> allIds = vehicles.map((v) => v.id).toList();
@@ -64,6 +71,7 @@ class ReportRepository {
                 end: end,
                 vehicleId: id,
                 vehicle: vehicle,
+                speedLimit: speedLimit,
                 cancelToken: cancelToken,
               );
 
@@ -131,8 +139,8 @@ class ReportRepository {
           uniqueMap[key] = r;
         }
         final List<ReportRow> deduplicated = uniqueMap.values.toList();
-
-        return ReportResult(rows: deduplicated, summary: ReportSummary.fromRows(deduplicated));
+        final List<ReportRow> filtered = filterZeroRecords(deduplicated, type);
+        return ReportResult(rows: filtered, summary: ReportSummary.fromRows(filtered));
       }
     }
 
@@ -151,6 +159,7 @@ class ReportRepository {
       fromGeofenceId: fromGeofenceId,
       toGeofenceId: toGeofenceId,
       geofenceId: geofenceId,
+      speedLimit: speedLimit,
       cancelToken: cancelToken,
     );
 
@@ -203,11 +212,49 @@ class ReportRepository {
         uniqueMap[key] = r;
       }
       final List<ReportRow> deduplicated = uniqueMap.values.toList();
-      return ReportResult(rows: deduplicated, summary: ReportSummary.fromRows(deduplicated));
+      final List<ReportRow> filtered = filterZeroRecords(deduplicated, type);
+      return ReportResult(rows: filtered, summary: ReportSummary.fromRows(filtered));
+    }
+
+    ReportResult finalSingleRes = singleRes;
+    if (vehicleId == null &&
+        activeGroup != null &&
+        activeGroup.trim().isNotEmpty &&
+        activeGroup.trim().toLowerCase() != 'all' &&
+        singleRes.rows.isNotEmpty) {
+      final Set<String> groupIds = vehicles.map((v) => v.id).toSet();
+      final Set<String> groupPlates = vehicles
+          .map((v) => v.registrationNumber.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), ''))
+          .where((p) => p.isNotEmpty)
+          .toSet();
+      final Set<String> groupNames = vehicles
+          .map((v) => v.displayName.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), ''))
+          .where((n) => n.isNotEmpty)
+          .toSet();
+
+      final List<ReportRow> filteredRows = singleRes.rows.where((ReportRow row) {
+        if (row.vehicleId != null && groupIds.contains(row.vehicleId)) return true;
+        final String rawId = row.raw['vehicle_id']?.toString() ??
+            row.raw['id']?.toString() ??
+            row.raw['_id']?.toString() ??
+            '';
+        if (rawId.isNotEmpty && groupIds.contains(rawId)) return true;
+        final String p = (row.plate ?? '').toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+        if (p.isNotEmpty && groupPlates.contains(p)) return true;
+        final String n = (row.vehicleName ?? '').toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+        if (n.isNotEmpty && groupNames.contains(n)) return true;
+        return false;
+      }).toList();
+
+      finalSingleRes = ReportResult(
+        rows: filteredRows,
+        summary: ReportSummary.fromRows(filteredRows),
+        columns: singleRes.columns,
+      );
     }
 
     return await _enrichResult(
-      res: singleRes,
+      res: finalSingleRes,
       type: type,
       vehicle: vehicle,
       id: vehicleId,
@@ -426,7 +473,12 @@ class ReportRepository {
       }
     }
 
-    return processedRes;
+    final List<ReportRow> filteredRows = filterZeroRecords(processedRes.rows, type);
+    return ReportResult(
+      rows: filteredRows,
+      summary: ReportSummary.fromRows(filteredRows),
+      columns: filteredRows.isEmpty ? processedRes.columns : filteredRows.first.cells.keys.toList(),
+    );
   }
 
   Future<ReportResult> _fetch({
@@ -440,6 +492,7 @@ class ReportRepository {
     String? fromGeofenceId,
     String? toGeofenceId,
     String? geofenceId,
+    int? speedLimit,
     CancelToken? cancelToken,
   }) async {
     // Special handling for manual trips: merge remote + local stored trips
@@ -595,6 +648,10 @@ class ReportRepository {
           if (geofenceId != null && geofenceId.isNotEmpty) ...<String, dynamic>{
             'geofenceId': geofenceId,
             'geofence_id': geofenceId,
+          },
+          if (speedLimit != null) ...<String, dynamic>{
+            'speedLimit': speedLimit.toString(),
+            'speed_limit': speedLimit.toString(),
           },
         },
         cancelToken: cancelToken,
@@ -761,5 +818,72 @@ class ReportRepository {
         }
       });
     }
+  }
+
+  /// Filters out records with zero activity based on report type.
+  /// E.g. If distance is zero (vehicle hasn't moved today) or idle duration is zero,
+  /// the row is excluded so the report only shows meaningful activity.
+  static List<ReportRow> filterZeroRecords(List<ReportRow> rows, ReportType type) {
+    return rows.where((ReportRow row) {
+      switch (type) {
+        case ReportType.distance:
+        case ReportType.trip:
+        case ReportType.manualTrip:
+        case ReportType.dailyTrip:
+          final double dist = row.distanceTravelled ?? (row.distanceKm ?? 0.0);
+          return dist > 0.001;
+
+        case ReportType.idle:
+          final int idle = row.idleSeconds ?? row.durationSecVal ?? 0;
+          if (idle > 0) return true;
+          if (row.startTime != null && row.endTime != null) {
+            return row.endTime!.difference(row.startTime!).inSeconds.abs() > 0;
+          }
+          final String? durStr = row.cells['duration'] ??
+              row.cells['idle_duration'] ??
+              row.cells['idle_time'];
+          if (durStr != null &&
+              durStr.isNotEmpty &&
+              durStr != '0' &&
+              durStr != '0s' &&
+              durStr != '00:00:00' &&
+              durStr != '00:00') {
+            return true;
+          }
+          return false;
+
+        case ReportType.stoppages:
+          final int stop = row.stoppedSeconds ?? row.durationSecVal ?? 0;
+          if (stop > 0) return true;
+          if (row.startTime != null && row.endTime != null) {
+            return row.endTime!.difference(row.startTime!).inSeconds.abs() > 0;
+          }
+          final String? durStr = row.cells['duration'] ??
+              row.cells['stoppage_duration'] ??
+              row.cells['stop_time'];
+          if (durStr != null &&
+              durStr.isNotEmpty &&
+              durStr != '0' &&
+              durStr != '0s' &&
+              durStr != '00:00:00' &&
+              durStr != '00:00') {
+            return true;
+          }
+          return false;
+
+        case ReportType.consolidated:
+        case ReportType.fuelConsolidated:
+          final double dist = row.distanceTravelled ?? (row.distanceKm ?? 0.0);
+          final int dur = row.durationSecVal ?? row.runningSeconds ?? 0;
+          return dist > 0.001 || dur > 0;
+
+        case ReportType.overspeeding:
+          final double spd = row.maxSpeedVal ?? (row.speed ?? 0.0);
+          return spd > 0.0;
+
+        default:
+          return true;
+      }
+    }).toList();
   }
 }

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/theme/app_spacing.dart';
 import '../../data/models/report_models.dart';
 import '../../providers/fleet_provider.dart';
 import 'report_detail_screen.dart';
+import 'widgets/report_date_picker_dialog.dart';
 
 /// Reports Hub: 4-category executive entry point
 /// 1. Reports (General Fleet Telemetry: Idle, Stoppage, Distance, Overspeed, Engine On, Consolidated)
@@ -34,6 +34,8 @@ class ReportsHubScreen extends ConsumerStatefulWidget {
 
 class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
   ReportType? _selectedType;
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
 
   @override
   void initState() {
@@ -58,7 +60,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Idle Report',
       description: 'Engine idling duration without movement (fuel waste logs)',
       icon: Icons.access_time_rounded,
-      color: Color(0xFFD97706),
+      color: Color(0xFFF59E0B),
       bg: Color(0xFFFEF3C7),
     ),
     _ReportItemDef(
@@ -66,7 +68,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Stoppage Report',
       description: 'Standstill & parking locations with exact halt durations',
       icon: Icons.pause_circle_rounded,
-      color: Color(0xFFEA580C),
+      color: Color(0xFFFF5722),
       bg: Color(0xFFFFEDD5),
     ),
     _ReportItemDef(
@@ -74,7 +76,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Distance Report',
       description: 'Daily odometer accumulation and total distance covered',
       icon: Icons.trending_up_rounded,
-      color: Color(0xFF2563EB),
+      color: Color(0xFF3B82F6),
       bg: Color(0xFFEFF6FF),
     ),
     _ReportItemDef(
@@ -82,7 +84,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Overspeed Report',
       description: 'Speed threshold breaches with peak speed & locations',
       icon: Icons.speed_rounded,
-      color: Color(0xFFE11D48),
+      color: Color(0xFFF43F5E),
       bg: Color(0xFFFFF1F2),
     ),
     _ReportItemDef(
@@ -90,7 +92,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Engine On / Off',
       description: 'Key ignition on/off events timeline and operating hours',
       icon: Icons.power_settings_new_rounded,
-      color: Color(0xFF059669),
+      color: Color(0xFF10B981),
       bg: Color(0xFFECFDF5),
     ),
     _ReportItemDef(
@@ -98,7 +100,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Vehicle Consolidated',
       description: 'Fleet-wide operational roll-up and multi-vehicle summary',
       icon: Icons.group_work_rounded,
-      color: Color(0xFF7C3AED),
+      color: Color(0xFF8B5CF6),
       bg: Color(0xFFF5F3FF),
     ),
   ];
@@ -110,7 +112,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Fuel Graph',
       description: 'Interactive dual-axis graph with 2-stage zoom telemetry',
       icon: Icons.show_chart_rounded,
-      color: Color(0xFF0284C7),
+      color: Color(0xFF0EA5E9),
       bg: Color(0xFFF0F9FF),
       isFuelGraph: true,
     ),
@@ -119,7 +121,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'KMPL Report',
       description: 'Kilometers per liter operational efficiency metric',
       icon: Icons.speed_rounded,
-      color: Color(0xFF059669),
+      color: Color(0xFF10B981),
       bg: Color(0xFFECFDF5),
     ),
     _ReportItemDef(
@@ -127,7 +129,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'LPH Report',
       description: 'Liters per hour consumption rate during operations',
       icon: Icons.timelapse_rounded,
-      color: Color(0xFFD97706),
+      color: Color(0xFFF59E0B),
       bg: Color(0xFFFEF3C7),
     ),
     _ReportItemDef(
@@ -135,7 +137,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Refill Report',
       description: 'Verified fuel intake events with volume & location stamps',
       icon: Icons.local_gas_station_rounded,
-      color: Color(0xFF16A34A),
+      color: Color(0xFF22C55E),
       bg: Color(0xFFDCFCE7),
     ),
     _ReportItemDef(
@@ -143,7 +145,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Theft Report',
       description: 'Abrupt level drops, siphoning alerts & drain detection',
       icon: Icons.warning_amber_rounded,
-      color: Color(0xFFDC2626),
+      color: Color(0xFFEF4444),
       bg: Color(0xFFFEF2F2),
     ),
     _ReportItemDef(
@@ -151,7 +153,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Fuel Consolidated',
       description: 'Fleet-wide fuel telemetry roll-up and audit summary',
       icon: Icons.summarize_rounded,
-      color: Color(0xFF0D9488),
+      color: Color(0xFF14B8A6),
       bg: Color(0xFFF0FDFA),
     ),
     _ReportItemDef(
@@ -159,7 +161,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Fuel Consumption',
       description: 'Fuel volume burned across driving vs idle intervals',
       icon: Icons.water_drop_rounded,
-      color: Color(0xFF0891B2),
+      color: Color(0xFF06B6D4),
       bg: Color(0xFFECFEFF),
     ),
   ];
@@ -171,7 +173,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Automated Trips',
       description: 'Start/end points, distance, duration & route replays',
       icon: Icons.alt_route_rounded,
-      color: Color(0xFF2563EB),
+      color: Color(0xFF3B82F6),
       bg: Color(0xFFEFF6FF),
     ),
     _ReportItemDef(
@@ -179,7 +181,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Full Day Trips',
       description: '24-hour daily journey summary & day-by-day logs',
       icon: Icons.today_rounded,
-      color: Color(0xFF4F46E5),
+      color: Color(0xFF6366F1),
       bg: Color(0xFFEEF2FF),
     ),
     _ReportItemDef(
@@ -187,7 +189,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Geofence Trips',
       description: 'Entry, exit & dwell times across defined operational zones',
       icon: Icons.fence_rounded,
-      color: Color(0xFF0D9488),
+      color: Color(0xFF14B8A6),
       bg: Color(0xFFF0FDFA),
     ),
   ];
@@ -199,7 +201,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Manual Fuel Log',
       description: 'Non-sensor vehicle fuel purchase & manual intake entries',
       icon: Icons.edit_note_rounded,
-      color: Color(0xFF7C3AED),
+      color: Color(0xFF8B5CF6),
       bg: Color(0xFFF5F3FF),
       isManualFuel: true,
     ),
@@ -208,7 +210,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       title: 'Non-Sensor Mileage Summary',
       description: 'Calculated KM/L and consumption for manual fuel vehicles',
       icon: Icons.calculate_rounded,
-      color: Color(0xFF9333EA),
+      color: Color(0xFFA855F7),
       bg: Color(0xFFFAF5FF),
       isManualFuel: true,
     ),
@@ -407,8 +409,10 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
     if (_selectedType != null) {
       return ReportDetailScreen(
         key: ValueKey<String>(
-            '${widget.initialVehicleId}_${_selectedType!.name}'),
+            '${widget.initialVehicleId}_${_selectedType!.name}_${_selectedStartDate?.millisecondsSinceEpoch}'),
         type: _selectedType!,
+        initialStartDate: _selectedStartDate,
+        initialEndDate: _selectedEndDate,
         initialVehicleId: widget.initialVehicleId,
         initialFromGeofenceId: widget.initialFromGeofenceId,
         initialToGeofenceId: widget.initialToGeofenceId,
@@ -426,18 +430,20 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
 
     return Scaffold(
       backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFEDF1F7),
       appBar: AppBar(
         title: const Text(
           'Reports',
           style: TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 18,
-            letterSpacing: -0.3,
+            fontSize: 20,
+            letterSpacing: -0.4,
+            color: Color(0xFF0F172A),
           ),
         ),
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF162036) : Colors.white,
+        backgroundColor:
+            isDark ? const Color(0xFF162036) : const Color(0xFFEDF1F7),
         foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
@@ -450,19 +456,12 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
             }
           },
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(
-            height: 1,
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-          ),
-        ),
       ),
       body: ListView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.only(top: 6, bottom: 48),
+        padding: const EdgeInsets.only(top: 4, bottom: 48),
         children: [
-          _buildReportSection('Reports', _generalReports, isDark),
+          _buildReportSection('Activity', _generalReports, isDark),
           _buildReportSection('Fuel & Sensors', _fuelReports, isDark),
           _buildReportSection('Trips', _tripsReports, isDark),
           _buildReportSection('Non-Sensor Fuel', _manualFuelReports, isDark),
@@ -480,14 +479,14 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 13.5,
               fontWeight: FontWeight.w700,
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-              letterSpacing: 0.2,
+              letterSpacing: 0.1,
             ),
           ),
         ),
@@ -497,13 +496,13 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
             color: isDark ? const Color(0xFF162036) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-              width: 1.0,
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              width: 0.8,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.25 : 0.03),
-                blurRadius: 8,
+                color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.04),
+                blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -518,8 +517,8 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
                     Divider(
                       height: 1,
                       thickness: 0.8,
-                      indent: 58,
-                      endIndent: 0,
+                      indent: 54,
+                      endIndent: 16,
                       color: isDark
                           ? const Color(0xFF1E293B)
                           : const Color(0xFFF1F5F9),
@@ -543,43 +542,54 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
           } else if (item.isManualFuel) {
             _showManualFuelInfoDialog(context);
           } else if (item.type != null) {
-            setState(() {
-              _selectedType = item.type;
-            });
+            final DateTime now = DateTime.now();
+            final DateTime defaultStart =
+                DateTime(now.year, now.month, now.day, 0, 0, 0);
+            final DateTime defaultEnd =
+                DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+            showReportDatePickerDialog(
+              context: context,
+              title: item.title,
+              primaryColor: item.color,
+              initialStart: _selectedStartDate ?? defaultStart,
+              initialEnd: _selectedEndDate ?? defaultEnd,
+              onApply: (DateTime start, DateTime end) {
+                setState(() {
+                  _selectedType = item.type;
+                  _selectedStartDate = start;
+                  _selectedEndDate = end;
+                });
+              },
+            );
           }
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14.5),
           child: Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? item.color.withOpacity(0.18)
-                      : item.color.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(item.icon, size: 18, color: item.color),
+              Icon(
+                item.icon,
+                size: 23,
+                color: item.color,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 15),
               Expanded(
                 child: Text(
                   item.title,
                   style: TextStyle(
-                    fontSize: 14.5,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.2,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
               ),
               Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 13,
+                Icons.chevron_right_rounded,
+                size: 22,
                 color:
-                    isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    isDark ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
               ),
             ],
           ),

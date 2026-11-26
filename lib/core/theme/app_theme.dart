@@ -99,13 +99,13 @@ class AppTheme {
       ),
 
       cardTheme: CardThemeData(
-        color: scheme.surfaceContainer,
+        color: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: Corners.rLg,
-          side: BorderSide(color: scheme.outlineVariant),
+          side: BorderSide(color: Color(0xFFF1F5F9), width: 0.8),
         ),
       ),
 

@@ -9,6 +9,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/reset_password_screen.dart';
 import '../../features/billing/renewals_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
+import '../../features/dashboard/group_selection_screen.dart';
 import '../../features/geofences/geofences_screen.dart';
 import '../../features/live_map/live_map_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -27,6 +28,7 @@ import '../../features/vehicle/screens/vehicle_info_screen.dart';
 import '../../features/vehicle/screens/vehicle_alerts_screen.dart';
 import '../../features/vehicle/screens/vehicle_settings_screen.dart';
 import '../../features/fuel/screens/fuel_analytics_screen.dart';
+import '../../features/fuel/screens/manual_fuel_entry_screen.dart';
 import '../../features/vehicle/screens/fitment_certificate_screen.dart';
 import '../../providers/auth_provider.dart';
 
@@ -92,7 +94,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         return isPublic ? null : '/login';
       }
 
-      if (path == '/splash' || path == '/login') return '/dashboard';
+      if (path == '/splash' || path == '/login') return '/select-group';
 
       return null;
     },
@@ -101,6 +103,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/splash',
         builder: (BuildContext c, GoRouterState s) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/select-group',
+        builder: (BuildContext c, GoRouterState s) =>
+            const GroupSelectionScreen(),
       ),
       GoRoute(
         path: '/login',
@@ -249,6 +256,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
                 PrimaryEngineOnScreen(vehicleId: s.pathParameters['id']),
           ),
           GoRoute(
+            path: 'manual-fuel-entry',
+            builder: (BuildContext c, GoRouterState s) =>
+                ManualFuelEntryScreen(initialVehicleId: s.pathParameters['id']),
+          ),
+          GoRoute(
             path: 'fuel-analytics',
             builder: (BuildContext c, GoRouterState s) =>
                 FuelAnalyticsScreen(vehicleId: s.pathParameters['id']),
@@ -263,7 +275,15 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         ],
       ),
       GoRoute(
-        path: '/fuel-analytics',
+        path: '/manual-fuel-entry',
+          parentNavigatorKey: _rootKey,
+          builder: (BuildContext c, GoRouterState s) => ManualFuelEntryScreen(
+            initialVehicleId: s.uri.queryParameters['vehicle'] ??
+                s.uri.queryParameters['vehicleId'],
+          ),
+        ),
+        GoRoute(
+          path: '/fuel-analytics',
         parentNavigatorKey: _rootKey,
         builder: (BuildContext c, GoRouterState s) => FuelAnalyticsScreen(
           vehicleId: s.uri.queryParameters['vehicle'] ??
@@ -302,6 +322,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
           vehicleId: s.uri.queryParameters['vehicleId'],
           alertId: s.uri.queryParameters['alertId'],
           typeFilter: s.uri.queryParameters['type'],
+          groupId: s.uri.queryParameters['groupId'],
         ),
       ),
       GoRoute(

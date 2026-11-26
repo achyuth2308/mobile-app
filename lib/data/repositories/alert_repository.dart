@@ -83,18 +83,36 @@ class AlertRepository {
           .toList(growable: false);
     } catch (_) {}
 
+    // If vehicleIds filter was passed but is empty (e.g. empty group), return empty list immediately
+    if (vehicleId == null && vehicleIds != null && vehicleIds.isEmpty) {
+      return const <FleetAlert>[];
+    }
+
     // 3. Merge server alerts and local push notifications (deduplicated by ID)
     final Map<String, FleetAlert> byId = <String, FleetAlert>{};
-    for (final FleetAlert a in localAlerts) {
-      if (vehicleId == null || a.vehicleId == vehicleId) {
-        if (vehicleId == null && vehicleIds != null && vehicleIds.isNotEmpty && a.vehicleId != null && a.vehicleId!.isNotEmpty) {
-          if (!vehicleIds.contains(a.vehicleId)) continue;
+
+    bool matchesVehicle(FleetAlert a) {
+      if (vehicleId != null && vehicleId.isNotEmpty) {
+        return a.vehicleId == vehicleId;
+      }
+      if (vehicleIds != null && vehicleIds.isNotEmpty) {
+        if (a.vehicleId != null && a.vehicleId!.isNotEmpty) {
+          return vehicleIds.contains(a.vehicleId);
         }
+        return false;
+      }
+      return true;
+    }
+
+    for (final FleetAlert a in localAlerts) {
+      if (matchesVehicle(a)) {
         byId[a.id] = a;
       }
     }
     for (final FleetAlert a in apiAlerts) {
-      byId[a.id] = a;
+      if (matchesVehicle(a)) {
+        byId[a.id] = a;
+      }
     }
 
     final List<FleetAlert> merged = byId.values.toList();
@@ -174,7 +192,7 @@ class AlertRepository {
   Future<int> getUnreadCount({List<String>? vehicleIds}) async {
     // Compute accurate unread count from recent alerts
     final List<FleetAlert> recent = await getAlerts(
-      limit: 50,
+      limit: 100,
       vehicleIds: vehicleIds,
     );
     return recent.where((FleetAlert a) => !a.isRead).length;
@@ -182,7 +200,7 @@ class AlertRepository {
 
   Future<int> getUnreadOverspeedCount({List<String>? vehicleIds}) async {
     final List<FleetAlert> recent = await getAlerts(
-      limit: 50,
+      limit: 100,
       vehicleIds: vehicleIds,
     );
     return recent.where((FleetAlert a) => !a.isRead && a.isOverspeed).length;

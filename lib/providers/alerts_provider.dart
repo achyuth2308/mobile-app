@@ -151,6 +151,114 @@ final StateNotifierProvider<UnreadAlertsCountNotifier, int>
   (Ref ref) => UnreadAlertsCountNotifier(ref),
 );
 
+/// Manages the unread alert count filtered by the currently active group in fleetGroupFilterProvider.
+class GroupUnreadAlertsCountNotifier extends StateNotifier<int> {
+  GroupUnreadAlertsCountNotifier(this._ref) : super(0) {
+    _init();
+  }
+
+  final Ref _ref;
+  StreamSubscription<SocketEvent>? _socketSub;
+
+  Future<void> _init() async {
+    unawaited(refresh());
+
+    // Listen to real-time events from the socket connection
+    try {
+      _socketSub = _ref.read(socketServiceProvider).events$.listen((SocketEvent event) {
+        if (event.name == 'alert:new' || event.name == 'geofence:event') {
+          _handleIncomingSocketAlert(event);
+        }
+      });
+    } catch (_) {}
+
+    _ref.listen<String?>(fleetGroupFilterProvider, (prev, next) {
+      if (prev != next) {
+        refresh();
+      }
+    });
+
+    _ref.listen<FleetState>(fleetProvider, (prev, next) {
+      if (prev?.vehicles.length != next.vehicles.length) {
+        refresh();
+      }
+    });
+  }
+
+  List<String> _getActiveGroupVehicleIds() {
+    final String? activeGroup = _ref.read(fleetGroupFilterProvider);
+    final List<Vehicle> allVehicles = _ref.read(fleetProvider).vehicles;
+    if (activeGroup == null ||
+        activeGroup.trim().isEmpty ||
+        activeGroup.toLowerCase() == 'all') {
+      return allVehicles.map((Vehicle v) => v.id).toList();
+    }
+    return allVehicles
+        .where((Vehicle v) => v.belongsToGroup(activeGroup))
+        .map((Vehicle v) => v.id)
+        .toList();
+  }
+
+  Future<void> _handleIncomingSocketAlert(SocketEvent event) async {
+    try {
+      final String? activeGroup = _ref.read(fleetGroupFilterProvider);
+      if (activeGroup == null ||
+          activeGroup.trim().isEmpty ||
+          activeGroup.toLowerCase() == 'all') {
+        await refresh();
+        return;
+      }
+      final Map<String, dynamic> data = event.payload;
+      final String? vId =
+          data['vehicleId']?.toString() ?? data['vehicle_id']?.toString();
+      final List<String> groupVIds = _getActiveGroupVehicleIds();
+      if (vId != null && groupVIds.contains(vId)) {
+        await refresh();
+      }
+    } catch (_) {
+      state = state + 1;
+    }
+  }
+
+  /// Refreshes the unread count from the backend API for the active group's vehicles.
+  Future<void> refresh() async {
+    try {
+      final repo = _ref.read(alertRepositoryProvider);
+      final List<String> vIds = _getActiveGroupVehicleIds();
+      if (vIds.isEmpty) {
+        state = 0;
+        return;
+      }
+      final int count = await repo.getUnreadCount(vehicleIds: vIds);
+      state = count;
+    } catch (_) {}
+  }
+
+  void increment() {
+    state = state + 1;
+  }
+
+  void reset() {
+    state = 0;
+  }
+
+  void setCount(int count) {
+    state = count.clamp(0, 9999);
+  }
+
+  @override
+  void dispose() {
+    _socketSub?.cancel();
+    super.dispose();
+  }
+}
+
+final StateNotifierProvider<GroupUnreadAlertsCountNotifier, int>
+    groupUnreadAlertsCountProvider =
+    StateNotifierProvider<GroupUnreadAlertsCountNotifier, int>(
+  (Ref ref) => GroupUnreadAlertsCountNotifier(ref),
+);
+
 /// Manages the unread overspeed alert count for the dashboard overview tile.
 class UnreadOverspeedCountNotifier extends StateNotifier<int> {
   UnreadOverspeedCountNotifier(this._ref) : super(0) {
