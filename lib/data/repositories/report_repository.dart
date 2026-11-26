@@ -46,7 +46,8 @@ class ReportRepository {
         type != ReportType.geofenceTransit &&
         type != ReportType.geofenceSinglePlace &&
         type != ReportType.dailyTrip &&
-        type != ReportType.ignition;
+        type != ReportType.ignition &&
+        type != ReportType.nonSensorFuel;
 
     final String? activeGroup = _ref.read(fleetGroupFilterProvider);
     final List<Vehicle> allFleetVehicles = _ref.read(fleetProvider).vehicles;
@@ -176,6 +177,7 @@ class ReportRepository {
         type != ReportType.geofenceSinglePlace &&
         type != ReportType.dailyTrip &&
         type != ReportType.ignition &&
+        type != ReportType.nonSensorFuel &&
         vehicleId == null && singleRes.rows.isEmpty && vehicles.isNotEmpty) {
       final List<ReportResult> results = (await Future.wait(
         vehicles.map((Vehicle v) async {
@@ -580,21 +582,30 @@ class ReportRepository {
     }
 
     
-    // Dedicated Non-Sensor Fuel Report (/api/fuel/manual/report)
+    // Dedicated Non-Sensor Fuel Report (/api/fuel/manual/overview with fallback to /api/fuel/manual/report)
     if (type == ReportType.nonSensorFuel) {
-      final String sDate = start.toUtc().toIso8601String();
-      final String eDate = end.toUtc().toIso8601String();
       try {
-        final dynamic apiRes = await _api.get<dynamic>(
-          '/fuel/manual/report',
-          query: <String, dynamic>{
-            'startDate': sDate,
-            'endDate': eDate,
-            if (vehicleId != null && vehicleId.isNotEmpty && vehicleId != 'all')
-              'vehicleId': vehicleId,
-          },
-          cancelToken: cancelToken,
-        );
+        dynamic apiRes;
+        try {
+          apiRes = await _api.get<dynamic>(
+            '/fuel/manual/overview',
+            cancelToken: cancelToken,
+          );
+        } catch (overviewErr) {
+          debugPrint('Overview endpoint error, trying /fuel/manual/report fallback: $overviewErr');
+          final String sDate = start.toUtc().toIso8601String();
+          final String eDate = end.toUtc().toIso8601String();
+          apiRes = await _api.get<dynamic>(
+            '/fuel/manual/report',
+            query: <String, dynamic>{
+              'startDate': sDate,
+              'endDate': eDate,
+              if (vehicleId != null && vehicleId.isNotEmpty && vehicleId != 'all')
+                'vehicleId': vehicleId,
+            },
+            cancelToken: cancelToken,
+          );
+        }
 
         List<dynamic> rowsData = <dynamic>[];
         if (apiRes is Map) {
@@ -608,6 +619,19 @@ class ReportRepository {
           }
         } else if (apiRes is List) {
           rowsData = apiRes;
+        }
+
+        // If specific vehicle requested, filter down
+        if (vehicleId != null && vehicleId.isNotEmpty && vehicleId != 'all') {
+          rowsData = rowsData.where((dynamic item) {
+            if (item is Map) {
+              final String? id = item['vehicle_id']?.toString() ??
+                  item['vehicleId']?.toString() ??
+                  item['id']?.toString();
+              return id == vehicleId;
+            }
+            return true;
+          }).toList();
         }
 
         final List<ReportRow> rows = rowsData.map((dynamic item) {

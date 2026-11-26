@@ -49,7 +49,7 @@ extension ReportTypeX on ReportType {
         ReportType.geofenceTransit => '/reports/geofence-transit',
         ReportType.geofenceSinglePlace => '/reports/geofence-single-place',
         ReportType.dailyTrip => '/reports/daily-trip',
-        ReportType.nonSensorFuel => '/fuel/manual/report',
+        ReportType.nonSensorFuel => '/fuel/manual/overview',
       };
 
   String get label => switch (this) {
