@@ -279,19 +279,43 @@ class VehicleCard extends ConsumerWidget {
                                         focusOdometer: true,
                                       ),
                                     ),
-                                    if (vehicle.hasFuel) ...[
-                                      const SizedBox(height: 6),
-                                      _MetricItem(
-                                        icon: Icons.local_gas_station_rounded,
-                                        label: 'Fuel',
-                                        value: vehicle.fuelLevel != null
-                                            ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
-                                            : '0 L',
-                                        labelColor: const Color(0xFF0284C7), // Sharp Blue
-                                        valueColor: const Color(0xFF1D4ED8), // Dark Blue (from Orange)
-                                        onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
-                                      ),
-                                    ],
+                                    if (vehicle.hasFuel || vehicle.isNonSensorFuel) ...[
+                                       const SizedBox(height: 6),
+                                       _MetricItem(
+                                         icon: Icons.local_gas_station_rounded,
+                                         label: vehicle.isNonSensorFuel ? 'NS Fuel' : 'Fuel',
+                                         value: vehicle.fuelLevel != null
+                                             ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
+                                             : '0 L',
+                                         labelColor: const Color(0xFF0284C7),
+                                         valueColor: const Color(0xFF1D4ED8),
+                                         onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                       ),
+                                       if (vehicle.isNonSensorFuel) ...[
+                                         const SizedBox(height: 6),
+                                         _MetricItem(
+                                           icon: Icons.water_drop_rounded,
+                                           label: 'Fuel Used',
+                                           value: vehicle.effectiveFuelUsed != null
+                                               ? '${vehicle.effectiveFuelUsed! % 1 == 0 ? vehicle.effectiveFuelUsed!.toStringAsFixed(0) : vehicle.effectiveFuelUsed!.toStringAsFixed(1)} L'
+                                               : '0 L',
+                                           labelColor: const Color(0xFFD97706),
+                                           valueColor: const Color(0xFFB45309),
+                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                         ),
+                                         const SizedBox(height: 6),
+                                         _MetricItem(
+                                           icon: Icons.speed_rounded,
+                                           label: 'Range',
+                                           value: vehicle.effectiveEstimatedRange != null
+                                               ? '~${vehicle.effectiveEstimatedRange!.round()} km'
+                                               : 'N/A',
+                                           labelColor: const Color(0xFF0D9488),
+                                           valueColor: const Color(0xFF0F766E),
+                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                         ),
+                                       ],
+                                     ],
                                     const SizedBox(height: 6),
                                     Wrap(
                                       spacing: 8,
@@ -366,19 +390,43 @@ class VehicleCard extends ConsumerWidget {
                                       valueColor: const Color(0xFFD95D0B), // Burnt Orange
                                       icon: Icons.near_me_rounded,
                                     ),
-                                    if (vehicle.hasFuel) ...[
-                                      const SizedBox(height: 6),
-                                      _MetricItem(
-                                        icon: Icons.local_gas_station_rounded,
-                                        label: 'Fuel',
-                                        value: vehicle.fuelLevel != null
-                                            ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
-                                            : '0 L',
-                                        labelColor: const Color(0xFF0284C7), // Sharp Blue
-                                        valueColor: const Color(0xFF1D4ED8), // Dark Blue (from Orange)
-                                        onTap: () => context.push('/vehicle/${vehicle.id}/fuel-analytics'),
-                                      ),
-                                    ],
+                                    if (vehicle.hasFuel || vehicle.isNonSensorFuel) ...[
+                                       const SizedBox(height: 6),
+                                       _MetricItem(
+                                         icon: Icons.local_gas_station_rounded,
+                                         label: vehicle.isNonSensorFuel ? 'NS Fuel' : 'Fuel',
+                                         value: vehicle.fuelLevel != null
+                                             ? '${vehicle.fuelLevel! % 1 == 0 ? vehicle.fuelLevel!.toStringAsFixed(0) : vehicle.fuelLevel!.toStringAsFixed(1)} L'
+                                             : '0 L',
+                                         labelColor: const Color(0xFF0284C7),
+                                         valueColor: const Color(0xFF1D4ED8),
+                                         onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                       ),
+                                       if (vehicle.isNonSensorFuel) ...[
+                                         const SizedBox(height: 6),
+                                         _MetricItem(
+                                           icon: Icons.water_drop_rounded,
+                                           label: 'Fuel Used',
+                                           value: vehicle.effectiveFuelUsed != null
+                                               ? '${vehicle.effectiveFuelUsed! % 1 == 0 ? vehicle.effectiveFuelUsed!.toStringAsFixed(0) : vehicle.effectiveFuelUsed!.toStringAsFixed(1)} L'
+                                               : '0 L',
+                                           labelColor: const Color(0xFFD97706),
+                                           valueColor: const Color(0xFFB45309),
+                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                         ),
+                                         const SizedBox(height: 6),
+                                         _MetricItem(
+                                           icon: Icons.speed_rounded,
+                                           label: 'Range',
+                                           value: vehicle.effectiveEstimatedRange != null
+                                               ? '~${vehicle.effectiveEstimatedRange!.round()} km'
+                                               : 'N/A',
+                                           labelColor: const Color(0xFF0D9488),
+                                           valueColor: const Color(0xFF0F766E),
+                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                         ),
+                                       ],
+                                     ],
                                   ],
                                 ),
                               ),

@@ -1015,6 +1015,13 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           endDate: _endDate,
           vehicles: ref.watch(fleetProvider).vehicles,
         );
+            case ReportType.nonSensorFuel:
+        return NonSensorFuelReportTable(
+          rows: res.rows,
+          startDate: _startDate,
+          endDate: _endDate,
+          vehicles: ref.watch(fleetProvider).vehicles,
+        );
       case ReportType.fuelConsolidated:
         return FuelConsolidatedReportTable(
           rows: res.rows,

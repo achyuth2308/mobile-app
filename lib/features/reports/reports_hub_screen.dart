@@ -197,21 +197,20 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
   // ── 4. Non-Sensor Fuel Reports (Manual) ─────────────────────────────────────
   static const List<_ReportItemDef> _manualFuelReports = [
     _ReportItemDef(
-      type: null,
-      title: 'Manual Fuel Log',
-      description: 'Non-sensor vehicle fuel purchase & manual intake entries',
-      icon: Icons.edit_note_rounded,
-      color: Color(0xFF8B5CF6),
+      type: ReportType.nonSensorFuel,
+      title: 'Non-Sensor Fuel Report',
+      description: 'Current fuel, fuel used, distance from entered, range & average mileage',
+      icon: Icons.local_gas_station_rounded,
+      color: Color(0xFF7C3AED),
       bg: Color(0xFFF5F3FF),
-      isManualFuel: true,
     ),
     _ReportItemDef(
       type: null,
-      title: 'Non-Sensor Mileage Summary',
-      description: 'Calculated KM/L and consumption for manual fuel vehicles',
-      icon: Icons.calculate_rounded,
-      color: Color(0xFFA855F7),
-      bg: Color(0xFFFAF5FF),
+      title: 'Manual Fuel Entry',
+      description: 'Log refills, baseline calibrations & odometer sync for non-sensor vehicles',
+      icon: Icons.edit_note_rounded,
+      color: Color(0xFF8B5CF6),
+      bg: Color(0xFFF5F3FF),
       isManualFuel: true,
     ),
   ];

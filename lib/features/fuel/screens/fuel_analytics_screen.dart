@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../data/models/vehicle.dart';
 import '../../../providers/fleet_provider.dart';
@@ -92,6 +93,22 @@ class FuelAnalyticsScreen extends ConsumerWidget {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Log Fuel Entry',
+            icon: const Icon(
+              Icons.edit_note_rounded,
+              color: Color(0xFFFDBA74), // Warm amber/orange
+              size: 24,
+            ),
+            onPressed: () {
+              final String? targetId = vehicleId ?? state.selectedVehicleId;
+              if (targetId != null && targetId.isNotEmpty) {
+                context.push('/vehicle/$targetId/manual-fuel-entry');
+              } else {
+                context.push('/manual-fuel-entry');
+              }
+            },
+          ),
           IconButton(
             tooltip: 'Filter Date & Interval',
             icon: const Icon(

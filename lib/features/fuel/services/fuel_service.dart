@@ -617,6 +617,49 @@ class FuelService {
     return sampled;
   }
 
+  Future<Map<String, dynamic>?> getVehicleFuelConfig(String vehicleId) async {
+    try {
+      final Response<dynamic> response =
+          await _api.raw.get('/api/fuel/manual/config/$vehicleId');
+      if (response.data is Map && response.data['success'] == true) {
+        return response.data['data'] as Map<String, dynamic>?;
+      }
+    } catch (e) {
+      debugPrint('[FUEL] getVehicleFuelConfig error: $e');
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> saveVehicleFuelConfig({
+    required String vehicleId,
+    required String fuelType,
+    required double tankCapacity,
+    double initialFuel = 0.0,
+    double initialOdometer = 0.0,
+    double initialMileage = 8.0,
+    double reserveFuelLevel = 10.0,
+    double lowFuelAlertThreshold = 15.0,
+    double criticalFuelAlertThreshold = 8.0,
+  }) async {
+    final Response<dynamic> response = await _api.raw.post(
+      '/api/fuel/manual/config/$vehicleId',
+      data: <String, dynamic>{
+        'fuelType': fuelType,
+        'tankCapacity': tankCapacity,
+        'initialFuel': initialFuel,
+        'initialOdometer': initialOdometer,
+        'initialMileage': initialMileage,
+        'reserveFuelLevel': reserveFuelLevel,
+        'lowFuelAlertThreshold': lowFuelAlertThreshold,
+        'criticalFuelAlertThreshold': criticalFuelAlertThreshold,
+      },
+    );
+    if (response.data is Map && response.data['success'] == true) {
+      return response.data as Map<String, dynamic>;
+    }
+    throw Exception(response.data['error'] ?? 'Failed to save vehicle fuel configuration');
+  }
+
   Future<Map<String, dynamic>?> getManualFuelState(String vehicleId) async {
     try {
       final Response<dynamic> response =
@@ -637,6 +680,7 @@ class FuelService {
     double fuelFilled = 0.0,
     required double odometer,
     String? remarks,
+    DateTime? entryDate,
   }) async {
     final Response<dynamic> response = await _api.raw.post(
       '/api/fuel/manual/entry/$vehicleId',
@@ -646,6 +690,7 @@ class FuelService {
         'fuelFilled': fuelFilled,
         'odometer': odometer,
         if (remarks != null && remarks.isNotEmpty) 'remarks': remarks,
+        if (entryDate != null) 'entryDate': entryDate.toIso8601String(),
       },
     );
     if (response.data is Map && response.data['success'] == true) {

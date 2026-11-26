@@ -5229,3 +5229,438 @@ class IgnitionReportTable extends StatelessWidget {
     );
   }
 }
+
+
+// ═════════════════════════════════════════════════════════════════
+// 18. NON-SENSOR FUEL REPORT TABLE (Manual Telematics & Analytics)
+// ═════════════════════════════════════════════════════════════════
+class NonSensorFuelReportTable extends StatelessWidget {
+  const NonSensorFuelReportTable({
+    required this.rows,
+    required this.startDate,
+    required this.endDate,
+    required this.vehicles,
+    super.key,
+  });
+
+  final List<ReportRow> rows;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<Vehicle> vehicles;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF5F3FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.local_gas_station_rounded,
+                  size: 40,
+                  color: Color(0xFF7C3AED),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No Non-Sensor Fuel Records Found',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Configure baseline fuel setup or log fuel refills for your non-sensor vehicles.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF64748B),
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: rows.length,
+      itemBuilder: (BuildContext context, int index) {
+        final ReportRow r = rows[index];
+        final String? vId = r.vehicleId;
+        final Vehicle? vehicle =
+            vId != null ? vehicles.where((v) => v.id == vId).firstOrNull : null;
+        final String vName = r.vehicleName ?? vehicle?.displayName ?? 'Vehicle';
+        final String vPlate = r.plate ?? vehicle?.registrationNumber ?? '-';
+
+        final double currentFuel = r.currentFuel ?? 0.0;
+        final double fuelUsed = r.fuelUsedVal ?? 0.0;
+        final double distanceTracked = r.distanceFromEntered ?? 0.0;
+        final double range = r.estimatedRangeVal ?? (currentFuel * (r.averageMileageVal ?? 16.0));
+        final double mileage = r.averageMileageVal ?? 16.0;
+        final double? tankCap = r.tankCapacityVal;
+        final String fuelType = r.fuelTypeVal ?? 'Diesel';
+        final String status = r.fuelStatusVal ?? 'Normal';
+
+        final Color statusColor = switch (status.toLowerCase()) {
+          'healthy' || 'normal' => const Color(0xFF059669),
+          'low fuel' || 'low' || 'critical' => const Color(0xFFE11D48),
+          'warning' => const Color(0xFFD97706),
+          _ => const Color(0xFF0284C7),
+        };
+
+        final Color statusBg = switch (status.toLowerCase()) {
+          'healthy' || 'normal' => const Color(0xFFECFDF5),
+          'low fuel' || 'low' || 'critical' => const Color(0xFFFFE4E6),
+          'warning' => const Color(0xFFFEF3C7),
+          _ => const Color(0xFFEFF6FF),
+        };
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.grey.shade800 : const Color(0xFFE2E8F0),
+              width: 1.2,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Header: Vehicle info + Status Badge
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F3FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.local_gas_station_rounded,
+                        color: Color(0xFF7C3AED),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            vName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: <Widget>[
+                              Text(
+                                vPlate,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF64748B),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              if (tankCap != null && tankCap > 0) ...<Widget>[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${tankCap.toStringAsFixed(0)}L $fuelType',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+                Divider(
+                  height: 1,
+                  color: isDark ? Colors.grey.shade800 : const Color(0xFFF1F5F9),
+                ),
+                const SizedBox(height: 12),
+
+                // 5 Key Requested Metrics Grid
+                Row(
+                  children: <Widget>[
+                    // 1. Non-Sensor Fuel
+                    Expanded(
+                      child: _MetricBadge(
+                        label: 'Non-Sensor Fuel',
+                        value: '${currentFuel % 1 == 0 ? currentFuel.toStringAsFixed(0) : currentFuel.toStringAsFixed(1)} L',
+                        icon: Icons.local_gas_station_rounded,
+                        color: const Color(0xFF0284C7), // Blue
+                        bg: const Color(0xFFF0F9FF),
+                        isDark: isDark,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // 2. Fuel Used
+                    Expanded(
+                      child: _MetricBadge(
+                        label: 'Fuel Used',
+                        value: '${fuelUsed % 1 == 0 ? fuelUsed.toStringAsFixed(0) : fuelUsed.toStringAsFixed(1)} L',
+                        icon: Icons.water_drop_rounded,
+                        color: const Color(0xFFD97706), // Amber
+                        bg: const Color(0xFFFFFBEB),
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    // 3. Distance from entered
+                    Expanded(
+                      child: _MetricBadge(
+                        label: 'Dist. from entered',
+                        value: '${distanceTracked.toStringAsFixed(1)} km',
+                        icon: Icons.near_me_rounded,
+                        color: const Color(0xFF059669), // Emerald
+                        bg: const Color(0xFFECFDF5),
+                        isDark: isDark,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // 4. Range
+                    Expanded(
+                      child: _MetricBadge(
+                        label: 'Range',
+                        value: '~${range.round()} km',
+                        icon: Icons.speed_rounded,
+                        color: const Color(0xFF0D9488), // Teal
+                        bg: const Color(0xFFF0FDFA),
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 5. Average Mileage (Full Width Banner)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAF5FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE9D5FF)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Row(
+                        children: <Widget>[
+                          Icon(Icons.alt_route_rounded, size: 16, color: Color(0xFF7C3AED)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Average Mileage',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF581C87),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '${mileage.toStringAsFixed(1)} km/l',
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF6B21A8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Optional Footer: Driver & Remarks if present
+                if (r.lastDriverName != null || r.lastRemarks != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        if (r.lastDriverName != null) ...<Widget>[
+                          const Icon(Icons.person_rounded, size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              r.lastDriverName!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (r.lastDriverName != null && r.lastRemarks != null)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Text('•', style: TextStyle(color: Color(0xFF94A3B8))),
+                          ),
+                        if (r.lastRemarks != null) ...<Widget>[
+                          const Icon(Icons.note_alt_rounded, size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              r.lastRemarks!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MetricBadge extends StatelessWidget {
+  const _MetricBadge({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.bg,
+    required this.isDark,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

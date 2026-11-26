@@ -579,6 +579,54 @@ class ReportRepository {
       );
     }
 
+    
+    // Dedicated Non-Sensor Fuel Report (/api/fuel/manual/report)
+    if (type == ReportType.nonSensorFuel) {
+      final String sDate = start.toUtc().toIso8601String();
+      final String eDate = end.toUtc().toIso8601String();
+      try {
+        final dynamic apiRes = await _api.get<dynamic>(
+          '/fuel/manual/report',
+          query: <String, dynamic>{
+            'startDate': sDate,
+            'endDate': eDate,
+            if (vehicleId != null && vehicleId.isNotEmpty && vehicleId != 'all')
+              'vehicleId': vehicleId,
+          },
+          cancelToken: cancelToken,
+        );
+
+        List<dynamic> rowsData = <dynamic>[];
+        if (apiRes is Map) {
+          final dynamic data = apiRes['data'];
+          if (data is Map && data['vehicles'] is List) {
+            rowsData = data['vehicles'] as List<dynamic>;
+          } else if (apiRes['vehicles'] is List) {
+            rowsData = apiRes['vehicles'] as List<dynamic>;
+          } else if (data is List) {
+            rowsData = data;
+          }
+        } else if (apiRes is List) {
+          rowsData = apiRes;
+        }
+
+        final List<ReportRow> rows = rowsData.map((dynamic item) {
+          if (item is Map<String, dynamic>) return ReportRow.fromJson(item);
+          if (item is Map) return ReportRow.fromJson(Map<String, dynamic>.from(item));
+          return const ReportRow(cells: <String, String>{});
+        }).toList();
+
+        return ReportResult(
+          rows: rows,
+          summary: ReportSummary.fromRows(rows),
+          columns: rows.isEmpty ? <String>[] : rows.first.cells.keys.toList(),
+        );
+      } catch (err) {
+        debugPrint('Non-sensor fuel report failed: $err');
+        return const ReportResult(rows: <ReportRow>[], summary: ReportSummary());
+      }
+    }
+
     // Dedicated Ignition Report endpoint matches webapp (/api/vehicles/:id/ignition-report)
     if (type == ReportType.ignition) {
       final List<Vehicle> fleetVehicles = _ref.read(fleetProvider).vehicles;

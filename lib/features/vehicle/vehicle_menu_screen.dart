@@ -1398,16 +1398,17 @@ class _QuickControlActionTile extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: effectiveColor.withValues(
-              alpha: isDark ? (isActive ? 0.30 : 0.08) : (isActive ? 0.18 : 0.05),
+              alpha: isDark ? (isActive ? 0.40 : 0.22) : (isActive ? 0.28 : 0.16),
             ),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            blurRadius: 12,
+            spreadRadius: 0.5,
+            offset: const Offset(0, 4),
           ),
         ],
         gradient: LinearGradient(
           colors: [
             effectiveColor.withValues(
-              alpha: isDark ? (isActive ? 0.22 : 0.10) : (isActive ? 0.12 : 0.04),
+              alpha: isDark ? (isActive ? 0.32 : 0.18) : (isActive ? 0.20 : 0.10),
             ),
             isDark ? const Color(0xFF1E2238) : Colors.white,
           ],
@@ -1416,9 +1417,9 @@ class _QuickControlActionTile extends StatelessWidget {
         ),
         border: Border.all(
           color: effectiveColor.withValues(
-            alpha: isDark ? (isActive ? 0.6 : 0.25) : (isActive ? 0.5 : 0.20),
+            alpha: isDark ? (isActive ? 0.80 : 0.50) : (isActive ? 0.70 : 0.45),
           ),
-          width: isActive ? 1.4 : 1.0,
+          width: 1.6,
         ),
       ),
       child: Material(
@@ -1428,36 +1429,45 @@ class _QuickControlActionTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Glowing Icon
-                SizedBox(
-                  height: 32,
+                // Highlighted Circular Icon Container
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: effectiveColor.withValues(alpha: isDark ? 0.30 : 0.16),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: effectiveColor.withValues(alpha: isDark ? 0.55 : 0.35),
+                      width: 1.4,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: effectiveColor.withValues(alpha: isDark ? 0.35 : 0.22),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   child: Center(
                     child: Icon(
                       icon,
                       color: effectiveColor,
-                      size: 26,
-                      shadows: [
-                        Shadow(
-                          color: effectiveColor.withValues(alpha: isDark ? 0.75 : 0.5),
-                          blurRadius: 8,
-                          offset: const Offset(0, 1.5),
-                        ),
-                      ],
+                      size: 22,
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 7),
                 // Title
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                     letterSpacing: -0.2,
                   ),
                   maxLines: 1,
@@ -1467,72 +1477,58 @@ class _QuickControlActionTile extends StatelessWidget {
                 const SizedBox(height: 5),
                 // Status Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: effectiveColor.withValues(alpha: isDark ? 0.25 : 0.12),
-                    borderRadius: BorderRadius.circular(5),
+                    color: effectiveColor.withValues(alpha: isDark ? 0.30 : 0.16),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: effectiveColor.withValues(alpha: 0.35),
-                      width: 0.7,
+                      color: effectiveColor.withValues(alpha: 0.50),
+                      width: 0.8,
                     ),
                   ),
                   child: Text(
                     statusText,
                     style: TextStyle(
-                      fontSize: 8.5,
+                      fontSize: 9,
                       fontWeight: FontWeight.w900,
                       color: effectiveColor,
-                      letterSpacing: 0.3,
+                      letterSpacing: 0.4,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Action Button Pill
+                // Action Button Pill - Solid Vibrant Gradient with White Text
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  padding: const EdgeInsets.symmetric(vertical: 7),
                   decoration: BoxDecoration(
-                    gradient: isDisabled
-                        ? null
-                        : LinearGradient(
-                            colors: isActive
-                                ? [effectiveColor, effectiveColor.withValues(alpha: 0.82)]
-                                : [effectiveColor.withValues(alpha: 0.88), effectiveColor],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                    color: isDisabled
-                        ? (isDark
-                            ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
-                            : const Color(0xFFFEF3C7))
-                        : null,
-                    borderRadius: BorderRadius.circular(9),
-                    border: isDisabled
-                        ? Border.all(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.6),
-                            width: 1.0,
-                          )
-                        : null,
-                    boxShadow: isDisabled
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: effectiveColor.withValues(alpha: 0.35),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1.5),
-                            ),
-                          ],
+                    gradient: LinearGradient(
+                      colors: [
+                        effectiveColor,
+                        effectiveColor.withValues(alpha: 0.85),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: effectiveColor.withValues(alpha: 0.38),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Center(
                     child: Text(
                       actionLabel,
-                      style: TextStyle(
-                        fontSize: 9.5,
+                      style: const TextStyle(
+                        fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        color: isDisabled ? const Color(0xFFB45309) : Colors.white,
-                        letterSpacing: 0.3,
+                        color: Colors.white,
+                        letterSpacing: 0.4,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

@@ -24,6 +24,7 @@ enum ReportType {
   geofenceTransit,
   geofenceSinglePlace,
   dailyTrip,
+  nonSensorFuel,
 }
 
 extension ReportTypeX on ReportType {
@@ -48,6 +49,7 @@ extension ReportTypeX on ReportType {
         ReportType.geofenceTransit => '/reports/geofence-transit',
         ReportType.geofenceSinglePlace => '/reports/geofence-single-place',
         ReportType.dailyTrip => '/reports/daily-trip',
+        ReportType.nonSensorFuel => '/fuel/manual/report',
       };
 
   String get label => switch (this) {
@@ -71,6 +73,7 @@ extension ReportTypeX on ReportType {
         ReportType.geofenceTransit => 'Geofence Trips',
         ReportType.geofenceSinglePlace => 'Single Place Activity',
         ReportType.dailyTrip => 'Full Day Trips',
+        ReportType.nonSensorFuel => 'Non-Sensor Fuel Report',
       };
 
   String get blurb => switch (this) {
@@ -94,6 +97,7 @@ extension ReportTypeX on ReportType {
         ReportType.geofenceTransit => 'Corridor transit trips between geofences (One-Way, Two-Way & Round Trip)',
         ReportType.geofenceSinglePlace => 'Vehicle entry, exit, duration & idle time at a specific place',
         ReportType.dailyTrip => 'Consolidates the complete day\'s journey from initial departure to final arrival',
+        ReportType.nonSensorFuel => 'Current fuel, fuel used, distance tracked, range & mileage analytics',
       };
 
   /// Whether this report requires fuel sensor telematics
@@ -103,7 +107,8 @@ extension ReportTypeX on ReportType {
         ReportType.fuelTheft ||
         ReportType.fuelConsumption ||
         ReportType.fuelKmpl ||
-        ReportType.fuelLph =>
+        ReportType.fuelLph ||
+        ReportType.nonSensorFuel =>
           true,
         _ => false,
       };
@@ -637,6 +642,99 @@ class ReportRow extends Equatable {
         'dispensed',
         'dispense',
       ]);
+  
+  // Non-sensor fuel specific fields
+  double? get currentFuel => asDoubleOrNull(raw, const <String>[
+        'current_fuel',
+        'currentFuel',
+        'initial_fuel',
+        'last_entered_fuel',
+        'entered_fuel',
+        'fuel_quantity',
+        'fuel',
+      ]);
+
+  double? get fuelUsedVal => asDoubleOrNull(raw, const <String>[
+        'total_fuel_consumed',
+        'totalFuelConsumed',
+        'fuel_used',
+        'fuelUsed',
+        'fuel_consumed',
+        'consumed_fuel',
+        'total_fuel_consume',
+      ]) ?? consumption;
+
+  double? get distanceFromEntered => asDoubleOrNull(raw, const <String>[
+        'total_distance_travelled',
+        'totalDistanceTravelled',
+        'distance_travelled',
+        'distanceKm',
+        'distance',
+      ]) ?? distanceTravelled;
+
+  double? get estimatedRangeVal => asDoubleOrNull(raw, const <String>[
+        'estimated_range_km',
+        'estimatedRangeKm',
+        'range_km',
+        'range',
+        'estimated_range',
+      ]);
+
+  double? get averageMileageVal => asDoubleOrNull(raw, const <String>[
+        'current_mileage',
+        'currentMileage',
+        'initial_mileage',
+        'mileage',
+        'kmpl',
+        'avg_mileage',
+        'avgMileage',
+      ]) ?? kmpl;
+
+  String? get fuelStatusVal => asStringOrNull(raw, const <String>[
+        'fuel_status',
+        'fuelStatus',
+        'status',
+      ]);
+
+  double? get tankCapacityVal => asDoubleOrNull(raw, const <String>[
+        'tank_capacity',
+        'tankCapacity',
+      ]);
+
+  String? get fuelTypeVal => asStringOrNull(raw, const <String>[
+        'fuel_type',
+        'fuelType',
+      ]);
+
+  double? get lastEnteredFuel => asDoubleOrNull(raw, const <String>[
+        'last_entered_fuel',
+        'initial_fuel',
+        'entered_fuel',
+      ]);
+
+  double? get lastFuelFilled => asDoubleOrNull(raw, const <String>[
+        'last_fuel_filled',
+        'fuel_filled',
+      ]);
+
+  double? get lastEntryOdometer => asDoubleOrNull(raw, const <String>[
+        'last_entry_odometer',
+        'last_known_odometer',
+        'odometer',
+      ]);
+
+  String? get lastDriverName => asStringOrNull(raw, const <String>[
+        'last_driver_name',
+        'driver_name',
+        'driverName',
+      ]) ?? driverName;
+
+  String? get lastRemarks => asStringOrNull(raw, const <String>[
+        'last_remarks',
+        'remarks',
+        'notes',
+      ]);
+
   double? get kmpl => asDoubleOrNull(raw, <String>['kmpl', 'mileage', 'average', 'fuel_economy', 'fuelEconomy']);
   double? get lph => asDoubleOrNull(raw, <String>['lph', 'litresPerHour', 'avg_fuel_consumption_hourly']);
   String? get fromLocation {
