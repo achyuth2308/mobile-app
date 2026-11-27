@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
-
 import 'core/config/app_config.dart';
 import 'core/crashlytics/crash_reporter.dart';
 import 'core/notifications/push_service.dart';
@@ -25,12 +23,7 @@ import 'shared/widgets/connectivity_banner.dart';
 import 'shared/widgets/safety_parking_theft_overlay.dart';
 
 Future<void> main() async {
-  final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb) {
-    try {
-      FlutterNativeSplash.preserve(widgetsBinding: binding);
-    } catch (_) {}
-  }
+  WidgetsFlutterBinding.ensureInitialized();
 
   // Portrait-only: a fleet map in landscape on a phone is worse, not better,
   // and it doubles the layout surface we have to QA.
@@ -109,12 +102,6 @@ Future<void> main() async {
     }
     return true; // Returning true suppresses the default uncaught-error log.
   };
-
-  if (!kIsWeb) {
-    try {
-      FlutterNativeSplash.remove();
-    } catch (_) {}
-  }
 
   runApp(
     ProviderScope(
