@@ -43,11 +43,12 @@ class VehicleCard extends ConsumerWidget {
     final Color statusColor = AppColors.forStatus(vehicle.status.key);
     final bool use2Columns = MediaQuery.sizeOf(context).width < 365;
 
-    final bool showFuelMetric = vehicle.hasHardwareFuelSensor
-        ? vehicle.hasFuel
-        : (vehicle.isNonSensorFuel &&
-            (vehicle.hasInitialFuelSetup ||
-                (vehicle.fuelLevel != null && vehicle.fuelLevel! > 0)));
+    final bool showFuelMetric = vehicle.isNonSensorFuel
+        ? (vehicle.hasInitialFuelSetup ||
+            (vehicle.fuelLevel != null && vehicle.fuelLevel! > 0))
+        : (vehicle.hasFuel &&
+            vehicle.fuelLevel != null &&
+            vehicle.fuelLevel! > 0);
 
     final String cleanName = () {
       final String raw = vehicle.displayName.trim();

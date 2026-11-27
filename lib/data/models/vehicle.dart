@@ -362,7 +362,9 @@ class Vehicle extends Equatable {
         raw['manual_estimated_range'] != null ||
         raw['manual_mileage'] != null ||
         raw['manualTankCapacity'] != null ||
-        raw['manual_tank_capacity'] != null) {
+        raw['manual_tank_capacity'] != null ||
+        raw['is_non_sensor_fuel'] == true ||
+        raw['is_manual_fuel'] == true) {
       return false;
     }
 
@@ -411,12 +413,32 @@ class Vehicle extends Equatable {
       }
     }
 
-    if (raw['hasFuelSensor'] == false || raw['fuelSensor'] == false) return false;
-    if (raw['hasFuelSensor'] == true || raw['fuelSensor'] == true) return true;
+    if (raw['hasFuelSensor'] == false ||
+        raw['fuelSensor'] == false ||
+        raw['has_fuel_sensor'] == false ||
+        raw['fuel_sensor'] == false) {
+      return false;
+    }
+    if (raw['hasFuelSensor'] == true ||
+        raw['fuelSensor'] == true ||
+        raw['has_fuel_sensor'] == true ||
+        raw['has_fuel_sensor'] == 1 ||
+        raw['fuel_sensor'] == true ||
+        raw['fuel_sensor'] == 1) {
+      return true;
+    }
 
     final dynamic rawCal = raw['fuelCalibration'] ?? raw['calibrationPoints'];
     if (rawCal is List && rawCal.isNotEmpty) return true;
     if (rawCal is Map && rawCal.isNotEmpty) return true;
+
+    // If tracker is sending live calibrated fuel level and it is NOT a non-sensor vehicle,
+    // it is a hardware sensor vehicle
+    if (fuelLevel != null && fuelLevel! > 0) {
+      final String ft = (raw['fuel_type'] ?? raw['fuelType'] ?? '').toString().toLowerCase();
+      if (ft == 'sensor' || ft == 'calibrated' || ft == 'hardware') return true;
+      if (!isNonSensorFuel) return true;
+    }
 
     return false;
   }
@@ -449,44 +471,45 @@ class Vehicle extends Equatable {
         raw['hasInitialEntry'] == true ||
         raw['initialSetup'] == true ||
         raw['initial_setup'] == true ||
-        raw['manualFuelSetup'] == true) {
+        raw['manualFuelSetup'] == true ||
+        raw['is_non_sensor_fuel'] == true ||
+        raw['is_manual_fuel'] == true) {
       return true;
     }
 
-    // Backend enriches configured non-sensor vehicles with tank_capacity / current_fuel (even when drained to 0.0 L)
-    if (!hasHardwareFuelSensor) {
-      final double? manualTank = asDoubleOrNull(raw, const <String>[
-        'manual_tank_capacity',
-        'manualTankCapacity',
-        'tank_capacity',
-        'tankCapacity',
-      ]);
-      if (manualTank != null && manualTank > 0) return true;
-
-      if (raw['current_fuel'] != null ||
-          raw['currentFuel'] != null ||
-          raw['manual_last_entry_date'] != null ||
-          raw['last_entry_date'] != null ||
-          raw['last_refill_date'] != null) {
-        return true;
-      }
+    // Backend non-sensor telemetry attributes
+    if (raw['manual_tank_capacity'] != null ||
+        raw['manualTankCapacity'] != null ||
+        raw['manual_fuel_consumed'] != null ||
+        raw['manual_last_entry_date'] != null ||
+        raw['last_entry_date'] != null ||
+        raw['last_refill_date'] != null) {
+      return true;
     }
 
     return false;
   }
 
-  /// True if this vehicle is configured for non-sensor / manual fuel monitoring
-  /// (no hardware fuel sensor equipped, and non-sensor fuel parameters or setup configured).
+  /// True ONLY if this vehicle is configured for non-sensor / manual fuel monitoring
+  /// (from manual fuel overview endpoint, explicit manual fuel metadata, or manual fuel naming).
+  /// Hardware sensor vehicles MUST NEVER be classified as non-sensor fuel.
   bool get isNonSensorFuel {
-    // 1. Hardware calibrated sensor vehicles are NEVER non-sensor fuel
-    if (hasHardwareFuelSensor) return false;
-
-    // 2. Must have initial fuel setup completed or active fuel in tank (> 0)
-    if (hasInitialFuelSetup || (fuelLevel != null && fuelLevel! > 0)) {
+    // 1. Explicit non-sensor backend flags or telemetry
+    if (raw['is_non_sensor_fuel'] == true ||
+        raw['is_manual_fuel'] == true ||
+        raw['isNonSensor'] == true ||
+        raw['is_non_sensor'] == true ||
+        raw['manualFuel'] == true ||
+        raw['manual_fuel'] == true ||
+        raw['manualFuelSetup'] == true ||
+        raw['manual_fuel_consumed'] != null ||
+        raw['manual_tank_capacity'] != null ||
+        raw['manual_mileage'] != null ||
+        raw['manual_estimated_range'] != null ||
+        raw['manual_last_entry_date'] != null) {
       return true;
     }
 
-    // 3. Explicit non-sensor setup flags in metadata or raw
     final dynamic meta = raw['metadata'];
     if (meta is Map) {
       if (meta['isNonSensor'] == true ||
@@ -496,24 +519,30 @@ class Vehicle extends Equatable {
           meta['hasManualFuel'] == true ||
           meta['hasManualFuelSetup'] == true ||
           meta['manualFuelInitial'] == true ||
-          meta['initialSetup'] == true ||
-          meta['hasInitialFuel'] == true) {
+          meta['manualInitialSetup'] == true) {
         return true;
       }
       final String ft = (meta['fuelType'] ?? meta['fuel_type'] ?? '').toString().toLowerCase();
-      if (ft.contains('non') || ft.contains('manual')) {
+      if (ft == 'non-sensor' || ft == 'non_sensor' || ft == 'manual') {
         return true;
       }
     }
 
-    if (raw['isNonSensor'] == true ||
-        raw['isNonSensor'] == 'YES' ||
-        raw['isNonSensor'] == 'true' ||
-        raw['manualFuel'] == true ||
-        raw['hasManualFuel'] == true ||
-        raw['manualFuelSetup'] == true ||
-        raw['initialSetup'] == true ||
-        raw['hasInitialFuel'] == true) {
+    final String rawFt = (raw['fuel_type'] ?? raw['fuelType'] ?? '').toString().toLowerCase();
+    if (rawFt == 'non-sensor' || rawFt == 'non_sensor' || rawFt == 'manual') {
+      return true;
+    }
+
+    // 2. Known non-sensor vehicle names / plates (e.g. MFUEL, MANUALFUEL)
+    final String n = name.trim().toLowerCase();
+    final String p = registrationNumber.trim().toLowerCase();
+    if (n.startsWith('mfuel') ||
+        n.contains('manualfuel') ||
+        n.contains('manual_fuel') ||
+        n.contains('non-sensor') ||
+        n.contains('nonsensor') ||
+        p.startsWith('mfuel') ||
+        p.contains('manualfuel')) {
       return true;
     }
 
@@ -629,12 +658,11 @@ class Vehicle extends Equatable {
   }
 
   /// Whether the fuel metric in UI cards should display as 'Fuel' (tank level).
-  /// Strictly true ONLY if the vehicle has a physical fuel sensor OR has configured non-sensor initial fuel setup.
-  /// For all other non-sensor vehicles, fuel telemetry represents consumption and should display as 'Fuel Used'.
-  bool get shouldDisplayAsFuelLevel => hasHardwareFuelSensor || hasInitialFuelSetup;
+  /// Strictly true for sensor vehicles and initialized non-sensor vehicles.
+  bool get shouldDisplayAsFuelLevel => !isNonSensorFuel || hasInitialFuelSetup;
 
-  /// Label for the fuel metric: 'Fuel' for sensor/initialized vehicles, 'Fuel Used' for non-sensor vehicles.
-  String get fuelDisplayLabel => shouldDisplayAsFuelLevel ? 'Fuel' : 'Fuel Used';
+  /// Label for the fuel metric: 'Fuel' for sensor vehicles, 'NS Fuel' for non-sensor vehicles.
+  String get fuelDisplayLabel => isNonSensorFuel ? 'NS Fuel' : 'Fuel';
 
   /// Value for the fuel metric in liters.
   double? get effectiveFuelValue {

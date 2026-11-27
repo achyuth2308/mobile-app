@@ -450,6 +450,8 @@ class FleetController extends Notifier<FleetState> {
           if (ov['fuel_status'] != null) 'fuel_status': ov['fuel_status'],
           if (ov['last_entry_date'] != null) 'last_entry_date': ov['last_entry_date'],
           if (ov['last_refill_date'] != null) 'last_refill_date': ov['last_refill_date'],
+          'is_non_sensor_fuel': true,
+          'is_manual_fuel': true,
           'hasInitialFuel': true,
         };
 
