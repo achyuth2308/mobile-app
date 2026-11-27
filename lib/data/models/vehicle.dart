@@ -432,12 +432,19 @@ class Vehicle extends Equatable {
     if (rawCal is List && rawCal.isNotEmpty) return true;
     if (rawCal is Map && rawCal.isNotEmpty) return true;
 
-    // If tracker is sending live calibrated fuel level and it is NOT a non-sensor vehicle,
-    // it is a hardware sensor vehicle
+    // If tracker is sending live calibrated fuel level, and no manual/non-sensor
+    // flags are present in raw data, treat it as a hardware sensor vehicle.
+    // NOTE: Do NOT call isNonSensorFuel here — that causes circular evaluation.
     if (fuelLevel != null && fuelLevel! > 0) {
-      final String ft = (raw['fuel_type'] ?? raw['fuelType'] ?? '').toString().toLowerCase();
-      if (ft == 'sensor' || ft == 'calibrated' || ft == 'hardware') return true;
-      if (!isNonSensorFuel) return true;
+      final bool hasManualFlag =
+          raw['is_non_sensor_fuel'] == true ||
+          raw['is_manual_fuel'] == true ||
+          raw['manual_fuel_consumed'] != null ||
+          raw['manual_tank_capacity'] != null ||
+          raw['manual_mileage'] != null ||
+          raw['manual_estimated_range'] != null ||
+          raw['manual_last_entry_date'] != null;
+      if (!hasManualFlag) return true;
     }
 
     return false;

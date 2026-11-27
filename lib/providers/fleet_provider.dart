@@ -422,6 +422,8 @@ class FleetController extends Notifier<FleetState> {
       if (overviewByKey.isEmpty) return list;
 
       return list.map((Vehicle v) {
+        // Skip vehicles that already have a confirmed hardware sensor signal
+        // (they have live fuelLevel from the tracker — not a manual fuel vehicle)
         if (v.hasHardwareFuelSensor) return v;
 
         Map<String, dynamic>? ov = overviewByKey[v.id];
@@ -435,6 +437,27 @@ class FleetController extends Notifier<FleetState> {
         }
 
         if (ov == null) return v;
+
+        // Only stamp as non-sensor if the backend overview EXPLICITLY says so,
+        // OR the vehicle has zero / no live sensor fuel reading.
+        // A vehicle actively sending sensor fuel (fuelLevel > 0 with no manual flags) must NOT be stamped.
+        final bool backendSaysManual =
+            ov['is_non_sensor_fuel'] == true ||
+            ov['is_manual_fuel'] == true ||
+            ov['isNonSensor'] == true ||
+            (ov['fuel_type'] ?? '').toString().toLowerCase() == 'manual' ||
+            (ov['fuel_type'] ?? '').toString().toLowerCase() == 'non-sensor' ||
+            (ov['fuel_type'] ?? '').toString().toLowerCase() == 'non_sensor';
+
+        // If the vehicle already has a live fuelLevel from sensor telemetry and
+        // the backend does NOT explicitly say it's manual, do NOT reclassify it.
+        final bool hasSensorReading =
+            v.fuelLevel != null &&
+            v.fuelLevel! > 0 &&
+            v.raw['is_non_sensor_fuel'] != true &&
+            v.raw['is_manual_fuel'] != true;
+
+        if (!backendSaysManual && hasSensorReading) return v;
 
         final double? curFuel = asDoubleOrNull(ov, const <String>['current_fuel', 'currentFuel']);
         final double? consumed = asDoubleOrNull(ov, const <String>['total_fuel_consumed', 'totalFuelConsumed']);
