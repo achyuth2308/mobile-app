@@ -34,7 +34,7 @@ class AppTheme {
       onError: Colors.white,
       errorContainer: Color(0xFFFFE0E6),
       onErrorContainer: Color(0xFF540016),
-      surface: AppColors.day0,
+      surface: Colors.white,
       onSurface: AppColors.textOnDayHigh,
       surfaceContainerLowest: Colors.white,
       surfaceContainerLow: AppColors.day1,
@@ -58,7 +58,7 @@ class AppTheme {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: AppColors.day0,
+        systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
     );

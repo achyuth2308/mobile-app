@@ -91,7 +91,6 @@ dev_dependencies:
   json_serializable: ^6.8.0
   riverpod_generator: ^2.4.0
   flutter_launcher_icons: ^0.13.1
-  flutter_native_splash: ^2.4.0
   image: ^4.2.0
 
 flutter:
@@ -115,13 +114,6 @@ flutter:
     - family: JetBrainsMono
       fonts:
         - asset: assets/fonts/JetBrainsMono.ttf
-
-flutter_native_splash:
-  color: "#0B1020"
-  image: assets/images/splash_logo.png
-  android_12:
-    color: "#0B1020"
-    image: assets/images/splash_logo.png
 
 flutter_launcher_icons:
   android: true
