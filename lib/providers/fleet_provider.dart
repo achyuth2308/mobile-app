@@ -400,10 +400,34 @@ class FleetController extends Notifier<FleetState> {
         if (item is! Map) continue;
         final Map<String, dynamic> m = Map<String, dynamic>.from(item);
 
-        final bool hasFuelConfig = m['current_fuel'] != null ||
-            m['tank_capacity'] != null ||
-            (m['fuel_status'] != null && m['fuel_status'] != 'No Fuel Data');
-        if (!hasFuelConfig) continue;
+        // STRICT: Only index this vehicle in the manual overview if the backend
+        // EXPLICITLY marks it as a non-sensor / manual fuel vehicle.
+        // If the backend just returns fuel data without an explicit non-sensor flag,
+        // do NOT treat it as a manual fuel vehicle — it may be a sensor vehicle.
+        final bool isExplicitlyManual =
+            m['is_non_sensor_fuel'] == true ||
+            m['is_manual_fuel'] == true ||
+            m['isNonSensor'] == true ||
+            m['is_non_sensor'] == true ||
+            (m['fuel_type'] ?? '').toString().toLowerCase() == 'manual' ||
+            (m['fuel_type'] ?? '').toString().toLowerCase() == 'non-sensor' ||
+            (m['fuel_type'] ?? '').toString().toLowerCase() == 'non_sensor' ||
+            (m['type'] ?? '').toString().toLowerCase() == 'manual';
+
+        // Also accept vehicles that only have manual_fuel_consumed / manual entries
+        // (no current_fuel from sensor) — these are purely manual-entry vehicles.
+        final bool hasSensorFuelField = m['calibrated_fuel'] != null ||
+            m['normalizedFuel'] != null ||
+            m['fuel_litres'] != null ||
+            m['fuel_liters'] != null;
+        final bool hasManualEntryOnly =
+            !hasSensorFuelField &&
+            (m['total_fuel_consumed'] != null || m['tank_capacity'] != null);
+
+        if (!isExplicitlyManual && !hasManualEntryOnly) {
+          debugPrint('[ManualFuelSync] Skipping ${m['vehicle_name'] ?? m['vehicle_id']} — no explicit non-sensor flag from backend');
+          continue;
+        }
 
         final String? vid = m['vehicle_id']?.toString().trim();
         if (vid != null && vid.isNotEmpty) overviewByKey[vid] = m;
