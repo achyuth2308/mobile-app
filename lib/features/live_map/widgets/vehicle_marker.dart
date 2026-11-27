@@ -18,6 +18,8 @@ class VehicleMarkerPin extends StatefulWidget {
     this.showSpeed = true,
     this.useSprite = false,
     this.headingOverride,
+    this.coLocatedCount = 1,
+    this.labelText,
     super.key,
   });
 
@@ -27,6 +29,8 @@ class VehicleMarkerPin extends StatefulWidget {
   final bool showSpeed;
   final bool useSprite;
   final double? headingOverride;
+  final int coLocatedCount;
+  final String? labelText;
 
   @override
   State<VehicleMarkerPin> createState() => _VehicleMarkerPinState();
@@ -192,20 +196,59 @@ class _VehicleMarkerPinState extends State<VehicleMarkerPin>
                       ),
                     ),
                   ),
+
+                  // ── Co-located Count Badge (shows total vehicles at this location) ──
+                  if (widget.coLocatedCount > 1)
+                    Positioned(
+                      top: -4.0,
+                      right: -7.0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.0),
+                        constraints: const BoxConstraints(minWidth: 17.0, minHeight: 17.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(10.0),
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              blurRadius: 3.5,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${widget.coLocatedCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
 
-          // ── 4. Floating Speed Badge directly above pin head without disturbing marker ──
+          // ── 4. Floating Vehicle Name Badge directly above pin head ──
           if (widget.showSpeed)
             Positioned(
               bottom: pinHeight + 3.0,
-              left: -32.0,
-              right: -32.0,
+              left: -50.0,
+              right: -50.0,
               child: Center(
-                child: _SpeedBadge(
-                  speed: widget.vehicle.speed,
+                child: _VehicleNameBadge(
+                  label: widget.labelText ?? (widget.coLocatedCount > 1
+                      ? '${widget.vehicle.displayName.toUpperCase()} (+${widget.coLocatedCount - 1})'
+                      : widget.vehicle.displayName.toUpperCase()),
                   status: widget.vehicle.status,
                   color: pinColor,
                   isSelected: widget.selected,
@@ -350,34 +393,32 @@ class _Label extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Real-time Speed Badge floating directly on the marker
+//  Vehicle Name Badge floating directly on the marker
 // ─────────────────────────────────────────────────────────────────────────────
-class _SpeedBadge extends StatelessWidget {
-  const _SpeedBadge({
-    required this.speed,
+class _VehicleNameBadge extends StatelessWidget {
+  const _VehicleNameBadge({
+    required this.label,
     required this.status,
     required this.color,
     this.isSelected = false,
   });
 
-  final double speed;
+  final String label;
   final VehicleStatus status;
   final Color color;
   final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
-    final int speedInt = math.max(0, speed.toInt());
-    final String speedText = '$speedInt km/h';
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 2.0),
+      constraints: const BoxConstraints(maxWidth: 105),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.92), // Sleek dark slate
+        color: const Color(0xFF0F172A).withValues(alpha: 0.94), // Sleek dark slate
         borderRadius: BorderRadius.circular(9),
         border: Border.all(
           color: color,
-          width: isSelected ? 1.4 : 1.0,
+          width: isSelected ? 1.5 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
@@ -406,15 +447,19 @@ class _SpeedBadge extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 3.0),
-          Text(
-            speedText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-              height: 1.0,
+          const SizedBox(width: 3.5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+                height: 1.0,
+              ),
             ),
           ),
         ],

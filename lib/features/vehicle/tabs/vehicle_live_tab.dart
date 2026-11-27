@@ -122,9 +122,9 @@ class _VehicleLiveTabState extends ConsumerState<VehicleLiveTab>
                               Marker(
                                 point: LatLng(
                                     vehicle.latitude!, vehicle.longitude!),
-                                width: 44,
-                                height: 48,
-                                alignment: const Alignment(0.0, -0.89),
+                                width: 100,
+                                height: 52,
+                                alignment: const Alignment(0.0, -0.90),
                                 child: GestureDetector(
                                   onTap: () => context.push('/vehicle-map?focus=${vehicle.id}'),
                                   child: VehicleMarkerPin(

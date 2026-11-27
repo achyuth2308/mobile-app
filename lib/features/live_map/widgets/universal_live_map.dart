@@ -538,38 +538,84 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
       ));
     }
 
-    // ── Vehicle markers ──────────────────────────────────────────────────────
-    final List<Marker> vehicleMarkers = [];
+    // ── Vehicle markers (grouped by location so co-located vehicles show counts) ─
+    final List<List<Vehicle>> clusters = <List<Vehicle>>[];
     for (final Vehicle v in widget.vehicles) {
       if (!v.hasLocation) continue;
-      final bool isActive = (v.id == activeId);
+      bool addedToCluster = false;
+      for (final List<Vehicle> cluster in clusters) {
+        final Vehicle first = cluster.first;
+        // Group vehicles within ~20m of each other (approx 0.0002 deg)
+        final double dLat = (v.latitude! - first.latitude!).abs();
+        final double dLng = (v.longitude! - first.longitude!).abs();
+        if (dLat < 0.00025 && dLng < 0.00025) {
+          cluster.add(v);
+          addedToCluster = true;
+          break;
+        }
+      }
+      if (!addedToCluster) {
+        clusters.add(<Vehicle>[v]);
+      }
+    }
+
+    final List<Marker> vehicleMarkers = [];
+    for (final List<Vehicle> group in clusters) {
+      // Pick primary vehicle: prefer currently selected, or moving, or first
+      final Vehicle primaryV = group.firstWhere(
+        (v) => v.id == widget.selectedId,
+        orElse: () => group.firstWhere(
+          (v) => v.status == VehicleStatus.moving,
+          orElse: () => group.first,
+        ),
+      );
+
+      final bool isActive = (primaryV.id == activeId);
       final LatLng markerPos = isActive
-          ? (activeVisualPos ?? LatLng(v.latitude!, v.longitude!))
-          : LatLng(v.latitude!, v.longitude!);
+          ? (activeVisualPos ?? LatLng(primaryV.latitude!, primaryV.longitude!))
+          : LatLng(primaryV.latitude!, primaryV.longitude!);
+
+      final int groupCount = group.length;
+      final bool isSelected = group.any((v) => v.id == widget.selectedId);
 
       vehicleMarkers.add(
         Marker(
-          key: ValueKey<String>('marker_${v.id}'),
+          key: ValueKey<String>('marker_${primaryV.id}_count_$groupCount'),
           point: markerPos,
-          width: 44,
-          height: 48,
-          alignment: const Alignment(0.0,
-              -0.89), // Inverted y-axis: sharp needle tip rests directly on GPS road coordinate
+          width: 110,
+          height: 52,
+          alignment: const Alignment(0.0, -0.90),
           child: AnimatedVehicleMarker(
-            point: LatLng(v.latitude!, v.longitude!),
-            heading: v.heading,
-            status: v.status,
-            speed: v.speed,
+            point: LatLng(primaryV.latitude!, primaryV.longitude!),
+            heading: primaryV.heading,
+            status: primaryV.status,
+            speed: primaryV.speed,
             onVisualPositionUpdate: isActive ? _onVisualPosUpdate : null,
             onPositionConfirmed: isActive ? _onPositionConfirmed : null,
             builder: (BuildContext context, double heading) => GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => widget.onSelectVehicle(v),
+              onTap: () {
+                // If multiple vehicles at this location, cycle through them when tapped
+                if (group.length > 1 && widget.selectedId != null) {
+                  final int currentIndex =
+                      group.indexWhere((v) => v.id == widget.selectedId);
+                  if (currentIndex != -1) {
+                    final int nextIndex = (currentIndex + 1) % group.length;
+                    widget.onSelectVehicle(group[nextIndex]);
+                    return;
+                  }
+                }
+                widget.onSelectVehicle(primaryV);
+              },
               child: VehicleMarkerPin(
-                vehicle: v,
-                selected: v.id == widget.selectedId,
+                vehicle: primaryV,
+                selected: isSelected,
                 showLabel: false,
-                showSpeed: v.id != widget.selectedId,
+                showSpeed: true,
+                coLocatedCount: groupCount,
+                labelText: groupCount > 1
+                    ? '${primaryV.displayName.toUpperCase()} (+${groupCount - 1})'
+                    : primaryV.displayName.toUpperCase(),
                 useSprite: true,
                 headingOverride: heading,
               ),
