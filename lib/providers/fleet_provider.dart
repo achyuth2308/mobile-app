@@ -366,13 +366,103 @@ class FleetController extends Notifier<FleetState> {
   Future<void> _asyncCalibrateFuel(List<Vehicle> list) async {
     try {
       final List<Vehicle> calibratedList = await _syncConsolidatedFuel(list);
+      final List<Vehicle> manualSyncedList =
+          await _syncManualFuelOverview(calibratedList);
       if (!_mounted) return;
-      _rebuildIndexes(calibratedList);
+      _rebuildIndexes(manualSyncedList);
       _safeSetState(state.copyWith(
-        vehicles: calibratedList,
+        vehicles: manualSyncedList,
       ));
     } catch (e) {
       debugPrint('[FleetController] Background fuel calibration skipped: $e');
+    }
+  }
+
+  Future<List<Vehicle>> _syncManualFuelOverview(List<Vehicle> list) async {
+    try {
+      final dynamic apiRes =
+          await ref.read(apiClientProvider).get<dynamic>('/fuel/manual/overview');
+
+      List<dynamic> rowsData = <dynamic>[];
+      if (apiRes is List) {
+        rowsData = apiRes;
+      } else if (apiRes is Map) {
+        final dynamic d = apiRes['data'] ?? apiRes['vehicles'];
+        if (d is List) rowsData = d;
+      }
+
+      if (rowsData.isEmpty) return list;
+
+      final Map<String, Map<String, dynamic>> overviewByKey =
+          <String, Map<String, dynamic>>{};
+
+      for (final dynamic item in rowsData) {
+        if (item is! Map) continue;
+        final Map<String, dynamic> m = Map<String, dynamic>.from(item);
+
+        final bool hasFuelConfig = m['current_fuel'] != null ||
+            m['tank_capacity'] != null ||
+            (m['fuel_status'] != null && m['fuel_status'] != 'No Fuel Data');
+        if (!hasFuelConfig) continue;
+
+        final String? vid = m['vehicle_id']?.toString().trim();
+        if (vid != null && vid.isNotEmpty) overviewByKey[vid] = m;
+
+        final String? plate = m['plate']?.toString().trim();
+        if (plate != null && plate.isNotEmpty) {
+          overviewByKey[plate.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '')] = m;
+        }
+
+        final String? vName = m['vehicle_name']?.toString().trim();
+        if (vName != null && vName.isNotEmpty) {
+          overviewByKey[vName.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '')] = m;
+        }
+      }
+
+      if (overviewByKey.isEmpty) return list;
+
+      return list.map((Vehicle v) {
+        if (v.hasHardwareFuelSensor) return v;
+
+        Map<String, dynamic>? ov = overviewByKey[v.id];
+        if (ov == null && v.registrationNumber.isNotEmpty) {
+          ov = overviewByKey[
+              v.registrationNumber.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '')];
+        }
+        if (ov == null && v.name.isNotEmpty) {
+          ov = overviewByKey[
+              v.name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '')];
+        }
+
+        if (ov == null) return v;
+
+        final double? curFuel = asDoubleOrNull(ov, const <String>['current_fuel', 'currentFuel']);
+        final double? consumed = asDoubleOrNull(ov, const <String>['total_fuel_consumed', 'totalFuelConsumed']);
+        final double? mileage = asDoubleOrNull(ov, const <String>['current_mileage', 'currentMileage', 'initial_mileage']);
+
+        final Map<String, dynamic> mergedRaw = <String, dynamic>{
+          ...v.raw,
+          if (ov['tank_capacity'] != null) 'manual_tank_capacity': ov['tank_capacity'],
+          if (ov['current_fuel'] != null) 'current_fuel': ov['current_fuel'],
+          if (ov['total_fuel_consumed'] != null) 'manual_fuel_consumed': ov['total_fuel_consumed'],
+          if (ov['current_mileage'] != null) 'manual_mileage': ov['current_mileage'],
+          if (ov['estimated_range_km'] != null) 'manual_estimated_range': ov['estimated_range_km'],
+          if (ov['fuel_status'] != null) 'fuel_status': ov['fuel_status'],
+          if (ov['last_entry_date'] != null) 'last_entry_date': ov['last_entry_date'],
+          if (ov['last_refill_date'] != null) 'last_refill_date': ov['last_refill_date'],
+          'hasInitialFuel': true,
+        };
+
+        return v.copyWith(
+          fuelLevel: curFuel ?? v.fuelLevel,
+          fuelUsed: consumed ?? v.fuelUsed,
+          estimatedMileage: mileage ?? v.estimatedMileage,
+          raw: mergedRaw,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('[FleetController] Manual fuel overview sync skipped: $e');
+      return list;
     }
   }
 
