@@ -10,10 +10,11 @@ import '../models/fuel_telemetry_point.dart';
 /// Horizontally scrollable & two-finger pinch-zoomable Fuel & Speed Chart:
 /// - Fixed Left Y-Axis: Fuel level (Ltrs)
 /// - Fixed Right Y-Axis: Speed (km/h) (when Speed series is active)
-/// - Two-finger pinch-to-zoom (1.0x to 6.0x) and 1-finger horizontal pan
-/// - Mouse-wheel / trackpad zoom support for web & DevTools testing
-/// - Dedicated high-contrast dots & value badge painter when zoomed in
-/// - Custom translucent speech-bubble callout tooltip on tap
+/// - Two-finger pinch-to-zoom (1.0x to 6.0x) and 1-finger horizontal pan/scrub
+/// - Vehicle Activity Ribbon at bottom: 🟢 Moving, 🟧 Idle, ⚪ Parked
+/// - Interactive Event Badges for Refuels (⛽ +XX L) and Drains (⚠️ -XX L)
+/// - Modern translucent area fill gradient (eliminates heavy solid block)
+/// - Clean formatted tooltip with fuel percentage and human-readable odometer
 class FuelAnalyticsChart extends StatefulWidget {
   const FuelAnalyticsChart({
     required this.points,
@@ -23,6 +24,9 @@ class FuelAnalyticsChart extends StatefulWidget {
     this.showEngine = false,
     this.showAllFuel = false,
     this.showNormalize = false,
+    this.refuelEvents = const <Map<String, dynamic>>[],
+    this.theftEvents = const <Map<String, dynamic>>[],
+    this.tankCapacity = 300.0,
     super.key,
   });
 
@@ -33,16 +37,37 @@ class FuelAnalyticsChart extends StatefulWidget {
   final bool showEngine;
   final bool showAllFuel;
   final bool showNormalize;
+  final List<Map<String, dynamic>> refuelEvents;
+  final List<Map<String, dynamic>> theftEvents;
+  final double tankCapacity;
 
   @override
   State<FuelAnalyticsChart> createState() => _FuelAnalyticsChartState();
+}
+
+class _ChartEventMarker {
+  final int pointIndex;
+  final bool isRefuel;
+  final double liters;
+  final DateTime timestamp;
+  final double fuelLevel;
+  final String? address;
+
+  _ChartEventMarker({
+    required this.pointIndex,
+    required this.isRefuel,
+    required this.liters,
+    required this.timestamp,
+    required this.fuelLevel,
+    this.address,
+  });
 }
 
 class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
   int? _selectedPointIdx;
   final ScrollController _scrollController = ScrollController();
 
-  // Multi-touch tracking for 2-finger horizontal zoom & 1-finger horizontal pan
+  // Multi-touch tracking for 2-finger horizontal zoom & 1-finger horizontal pan/scrub
   double _scale = 1.0;
   double _baseContentWidth = 1400.0;
   final Map<int, Offset> _activePointers = <int, Offset>{};
@@ -255,7 +280,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
       final FuelTelemetryPoint pt = displayPoints[i];
       final double x = i.toDouble();
 
-      // Fuel (Blue Area) - forward filled so overnight parking stays flat at startFuel
+      // Fuel (Smooth Area) - forward filled so overnight parking stays flat at startFuel
       if (widget.showFilteredFuel) {
         double fVal = pt.filteredFuel > 0 ? pt.filteredFuel : pt.displayFuel;
         if (fVal <= 0.0 && lastKnownFuel > 0.0) {
@@ -287,9 +312,99 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
     // Dynamic canvas width scaled by horizontal zoom factor (1.0x to 6.0x)
     final double chartContentWidth = _baseContentWidth * _scale;
     final double timeInterval = max(1.0, maxX / (12.0 * min(_scale, 2.5)));
-    final double plotAreaHeight = widget.height - 26.0;
+    final double plotAreaHeight = widget.height - 28.0;
 
-    // Construct the bars (dots are painted via dedicated _TimelineDotsAndBadgesPainter)
+    // Detect refuel & theft event markers for the chart
+    final List<_ChartEventMarker> eventMarkers = <_ChartEventMarker>[];
+
+    for (final Map<String, dynamic> refuel in widget.refuelEvents) {
+      final double liters = (refuel['liters'] as num?)?.toDouble() ?? 0.0;
+      if (liters < 5.0) continue;
+      final DateTime? refTime = refuel['timestamp'] as DateTime? ??
+          (refuel['endTime'] as DateTime?);
+      int bestIdx = 0;
+      if (refTime != null) {
+        int minDiffMs = 999999999;
+        for (int i = 0; i < displayPoints.length; i++) {
+          final int diff =
+              (displayPoints[i].timestamp.difference(refTime).inMilliseconds)
+                  .abs();
+          if (diff < minDiffMs) {
+            minDiffMs = diff;
+            bestIdx = i;
+          }
+        }
+      }
+      final double fLevel = displayPoints[bestIdx].displayFuel;
+      eventMarkers.add(_ChartEventMarker(
+        pointIndex: bestIdx,
+        isRefuel: true,
+        liters: liters,
+        timestamp: displayPoints[bestIdx].timestamp,
+        fuelLevel: fLevel > 0 ? fLevel : lastKnownFuel,
+        address: refuel['address'] as String?,
+      ));
+    }
+
+    for (final Map<String, dynamic> theft in widget.theftEvents) {
+      final double liters = (theft['liters'] as num?)?.toDouble() ?? 0.0;
+      if (liters < 3.0) continue;
+      final DateTime? thTime = theft['timestamp'] as DateTime? ??
+          (theft['endTime'] as DateTime?);
+      int bestIdx = 0;
+      if (thTime != null) {
+        int minDiffMs = 999999999;
+        for (int i = 0; i < displayPoints.length; i++) {
+          final int diff =
+              (displayPoints[i].timestamp.difference(thTime).inMilliseconds)
+                  .abs();
+          if (diff < minDiffMs) {
+            minDiffMs = diff;
+            bestIdx = i;
+          }
+        }
+      }
+      final double fLevel = displayPoints[bestIdx].displayFuel;
+      eventMarkers.add(_ChartEventMarker(
+        pointIndex: bestIdx,
+        isRefuel: false,
+        liters: liters,
+        timestamp: displayPoints[bestIdx].timestamp,
+        fuelLevel: fLevel > 0 ? fLevel : lastKnownFuel,
+        address: theft['address'] as String?,
+      ));
+    }
+
+    // Auto-fallback: if backend events list was empty, detect significant visual jumps
+    if (eventMarkers.isEmpty && displayPoints.length >= 2) {
+      for (int i = 1; i < displayPoints.length; i++) {
+        final double prevF = displayPoints[i - 1].displayFuel;
+        final double currF = displayPoints[i].displayFuel;
+        if (prevF <= 0 || currF <= 0) continue;
+
+        if (currF - prevF >= 9.0) {
+          eventMarkers.add(_ChartEventMarker(
+            pointIndex: i,
+            isRefuel: true,
+            liters: (currF - prevF * 10).round() / 10.0,
+            timestamp: displayPoints[i].timestamp,
+            fuelLevel: currF,
+          ));
+        } else if (prevF - currF >= 6.0 &&
+            !displayPoints[i].ignition &&
+            displayPoints[i].speed <= 2.0) {
+          eventMarkers.add(_ChartEventMarker(
+            pointIndex: i,
+            isRefuel: false,
+            liters: (prevF - currF * 10).round() / 10.0,
+            timestamp: displayPoints[i].timestamp,
+            fuelLevel: currF,
+          ));
+        }
+      }
+    }
+
+    // Construct the chart bars
     final List<LineChartBarData> bars = <LineChartBarData>[];
 
     if (widget.showEngine && engineSpots.isNotEmpty) {
@@ -298,7 +413,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
           spots: engineSpots,
           isCurved: false,
           color: const Color(0xFFEAB308), // Sun Yellow
-          barWidth: 2.8,
+          barWidth: 2.4,
           dotData: const FlDotData(show: false),
         ),
       );
@@ -308,9 +423,11 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
       bars.add(
         LineChartBarData(
           spots: filteredFuelSpots,
-          isCurved: false,
-          color: const Color(0xFF38BDF8),
-          barWidth: 2.0,
+          isCurved: true,
+          curveSmoothness: 0.14,
+          preventCurveOverShooting: true,
+          color: const Color(0xFF0284C7), // Clean Sky/Navy Blue
+          barWidth: 2.2,
           dotData: const FlDotData(show: false),
           belowBarData: BarAreaData(
             show: true,
@@ -318,8 +435,8 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                const Color(0xFF38BDF8).withValues(alpha: 0.65),
-                const Color(0xFF0284C7).withValues(alpha: 0.18),
+                const Color(0xFF0284C7).withValues(alpha: 0.24),
+                const Color(0xFF0284C7).withValues(alpha: 0.02),
               ],
             ),
           ),
@@ -362,8 +479,8 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
       spotY = (1.0 - fuelFraction) * plotAreaHeight;
     }
 
-    const double bubbleWidth = 175.0;
-    const double bubbleHeight = 116.0;
+    const double bubbleWidth = 190.0;
+    const double bubbleHeight = 120.0;
 
     double tooltipLeft = 0.0;
     double tooltipTop = 0.0;
@@ -373,10 +490,10 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
     if (spotX != null && spotY != null) {
       if (spotY < plotAreaHeight * 0.45) {
         arrowPointsDown = false;
-        tooltipTop = spotY + 6.0;
+        tooltipTop = spotY + 8.0;
       } else {
         arrowPointsDown = true;
-        tooltipTop = (spotY - bubbleHeight - 6.0)
+        tooltipTop = (spotY - bubbleHeight - 8.0)
             .clamp(2.0, plotAreaHeight - bubbleHeight);
       }
 
@@ -385,366 +502,587 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
       arrowXFraction = ((spotX - tooltipLeft) / bubbleWidth).clamp(0.12, 0.88);
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 1. Fixed Left Y-Axis (Fuel Litres) - Pinned outside the scrollable canvas
-        SizedBox(
-          width: 34,
-          height: widget.height,
-          child: LineChart(
-            LineChartData(
-              minY: plotMinFuel,
-              maxY: plotMaxFuel,
-              minX: 0,
-              maxX: 1,
-              lineTouchData: const LineTouchData(enabled: false),
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(
-                show: true,
-                border: const Border(
-                  right: BorderSide(color: Color(0xFF94A3B8), width: 1.2),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Fixed Left Y-Axis (Fuel Litres) - Pinned outside the scrollable canvas
+            SizedBox(
+              width: 36,
+              height: widget.height,
+              child: LineChart(
+                LineChartData(
+                  minY: plotMinFuel,
+                  maxY: plotMaxFuel,
+                  minX: 0,
+                  maxX: 1,
+                  lineTouchData: const LineTouchData(enabled: false),
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: const Border(
+                      right: BorderSide(color: Color(0xFF94A3B8), width: 1.2),
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 34,
+                        interval: fuelInterval,
+                        getTitlesWidget: (double value, TitleMeta meta) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 5),
+                            child: Text(
+                              '${value.round()}',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: const AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 26,
+                        getTitlesWidget: _emptyTitleWidget,
+                      ),
+                    ),
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: const [FlSpot(0, 0), FlSpot(1, 0)],
+                      color: Colors.transparent,
+                      barWidth: 0,
+                      dotData: const FlDotData(show: false),
+                    ),
+                  ],
                 ),
               ),
-              titlesData: FlTitlesData(
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    interval: fuelInterval,
-                    getTitlesWidget: (double value, TitleMeta meta) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Text(
-                          '${value.round()}',
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                rightTitles:
-                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles:
-                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                bottomTitles: const AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 26,
-                    getTitlesWidget: _emptyTitleWidget,
-                  ),
-                ),
-              ),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: const [FlSpot(0, 0), FlSpot(1, 0)],
-                  color: Colors.transparent,
-                  barWidth: 0,
-                  dotData: const FlDotData(show: false),
-                ),
-              ],
             ),
-          ),
-        ),
 
-        // 2. Horizontally Scrollable & Two-Finger Pinch-Zoomable Graph Canvas
-        Expanded(
-          child: Listener(
-            onPointerDown: _onPointerDown,
-            onPointerMove: _onPointerMove,
-            onPointerUp: _onPointerUp,
-            onPointerCancel: _onPointerCancel,
-            onPointerSignal: (PointerSignalEvent event) {
-              if (event is PointerScrollEvent) {
-                // Mouse wheel / trackpad pinch zoom for web and desktop
-                if (event.scrollDelta.dy != 0) {
-                  final double zoomFactor =
-                      event.scrollDelta.dy < 0 ? 1.15 : 0.87;
-                  final double targetScale =
-                      (_scale * zoomFactor).clamp(1.0, 6.0);
-                  _applyZoom(targetScale, event.localPosition.dx);
-                }
-              }
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onDoubleTap: () => _applyZoom(1.0, null),
-              onTapUp: (TapUpDetails details) {
-                final double tapX = details.localPosition.dx +
-                    (_scrollController.hasClients
-                        ? _scrollController.offset
-                        : 0.0);
-                final double fraction =
-                    (tapX / chartContentWidth).clamp(0.0, 1.0);
-                final int tappedIdx = (fraction * (displayPoints.length - 1))
-                    .round()
-                    .clamp(0, displayPoints.length - 1);
-                setState(() {
-                  _selectedPointIdx =
-                      (_selectedPointIdx == tappedIdx) ? null : tappedIdx;
-                });
-              },
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                scrollDirection: Axis.horizontal,
-                physics: const NeverScrollableScrollPhysics(),
-                child: SizedBox(
-                  width: chartContentWidth,
-                  height: widget.height,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Base Chart Lines & Area Fill
-                      LineChart(
-                        LineChartData(
-                          minX: 0,
-                          maxX: max(1, maxX),
-                          minY: plotMinFuel,
-                          maxY: plotMaxFuel,
-                          lineTouchData: const LineTouchData(enabled: false),
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: true,
-                            horizontalInterval: fuelInterval,
-                            verticalInterval: timeInterval,
-                            getDrawingHorizontalLine: (value) => const FlLine(
-                              color: Color(0xFFE2E8F0),
-                              strokeWidth: 0.8,
-                            ),
-                            getDrawingVerticalLine: (value) => const FlLine(
-                              color: Color(0xFFE2E8F0),
-                              strokeWidth: 0.8,
-                            ),
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border(
-                              bottom: const BorderSide(
-                                  color: Color(0xFF94A3B8), width: 1.2),
-                              top: const BorderSide(
-                                  color: Color(0xFFCBD5E1), width: 0.8),
-                              right: widget.showSpeed
-                                  ? BorderSide.none
-                                  : const BorderSide(
+            // 2. Horizontally Scrollable & Two-Finger Pinch-Zoomable Graph Canvas
+            Expanded(
+              child: Listener(
+                onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
+                onPointerUp: _onPointerUp,
+                onPointerCancel: _onPointerCancel,
+                onPointerSignal: (PointerSignalEvent event) {
+                  if (event is PointerScrollEvent) {
+                    // Mouse wheel / trackpad pinch zoom for web and desktop
+                    if (event.scrollDelta.dy != 0) {
+                      final double zoomFactor =
+                          event.scrollDelta.dy < 0 ? 1.15 : 0.87;
+                      final double targetScale =
+                          (_scale * zoomFactor).clamp(1.0, 6.0);
+                      _applyZoom(targetScale, event.localPosition.dx);
+                    }
+                  }
+                },
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onDoubleTap: () => _applyZoom(1.0, null),
+                  onTapUp: (TapUpDetails details) {
+                    final double tapX = details.localPosition.dx +
+                        (_scrollController.hasClients
+                            ? _scrollController.offset
+                            : 0.0);
+                    final double fraction =
+                        (tapX / chartContentWidth).clamp(0.0, 1.0);
+                    final int tappedIdx = (fraction * (displayPoints.length - 1))
+                        .round()
+                        .clamp(0, displayPoints.length - 1);
+                    setState(() {
+                      _selectedPointIdx =
+                          (_selectedPointIdx == tappedIdx) ? null : tappedIdx;
+                    });
+                  },
+                  onHorizontalDragUpdate: (DragUpdateDetails details) {
+                    // Smooth scrubber drag across timeline
+                    final double dragX = details.localPosition.dx +
+                        (_scrollController.hasClients
+                            ? _scrollController.offset
+                            : 0.0);
+                    final double fraction =
+                        (dragX / chartContentWidth).clamp(0.0, 1.0);
+                    final int scrubbedIdx =
+                        (fraction * (displayPoints.length - 1))
+                            .round()
+                            .clamp(0, displayPoints.length - 1);
+                    if (_selectedPointIdx != scrubbedIdx) {
+                      setState(() {
+                        _selectedPointIdx = scrubbedIdx;
+                      });
+                    }
+                  },
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const ClampingScrollPhysics(),
+                    child: SizedBox(
+                      width: chartContentWidth,
+                      height: widget.height,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Base Chart Lines & Area Fill
+                          LineChart(
+                            LineChartData(
+                              minX: 0,
+                              maxX: max(1, maxX),
+                              minY: plotMinFuel,
+                              maxY: plotMaxFuel,
+                              lineTouchData: const LineTouchData(enabled: false),
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: true,
+                                horizontalInterval: fuelInterval,
+                                verticalInterval: timeInterval,
+                                getDrawingHorizontalLine: (value) => const FlLine(
+                                  color: Color(0xFFF1F5F9),
+                                  strokeWidth: 0.8,
+                                ),
+                                getDrawingVerticalLine: (value) => const FlLine(
+                                  color: Color(0xFFF1F5F9),
+                                  strokeWidth: 0.8,
+                                ),
+                              ),
+                              borderData: FlBorderData(
+                                show: true,
+                                border: Border(
+                                  bottom: const BorderSide(
                                       color: Color(0xFF94A3B8), width: 1.2),
-                            ),
-                          ),
-                          titlesData: FlTitlesData(
-                            leftTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            rightTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            topTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 26,
-                                interval: timeInterval,
-                                getTitlesWidget:
-                                    (double value, TitleMeta meta) {
-                                  final int idx = value.round();
-                                  if (idx < 0 ||
-                                      idx >= displayPoints.length) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  final DateTime t =
-                                      displayPoints[idx].timestamp;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      DateFormat('HH:mm').format(t),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Color(0xFF64748B),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  );
-                                },
+                                  top: const BorderSide(
+                                      color: Color(0xFFE2E8F0), width: 0.8),
+                                  right: widget.showSpeed
+                                      ? BorderSide.none
+                                      : const BorderSide(
+                                          color: Color(0xFF94A3B8), width: 1.2),
+                                ),
                               ),
-                            ),
-                          ),
-                          lineBarsData: bars,
-                        ),
-                      ),
+                              titlesData: FlTitlesData(
+                                leftTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
+                                rightTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
+                                topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 26,
+                                    interval: timeInterval,
+                                    getTitlesWidget:
+                                        (double value, TitleMeta meta) {
+                                      final int idx = value.round();
+                                      if (idx < 0 ||
+                                          idx >= displayPoints.length) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final DateTime t =
+                                          displayPoints[idx].timestamp;
+                                      final String timeStr =
+                                          DateFormat('HH:mm').format(t);
 
-                      // Dedicated High-Contrast Dots & Value Badges Layer
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _TimelineDotsAndBadgesPainter(
-                              points: displayPoints,
-                              plotMinFuel: plotMinFuel,
-                              plotMaxFuel: plotMaxFuel,
-                              plotMaxSpeed: plotMaxSpeed,
-                              plotAreaHeight: plotAreaHeight,
-                              chartContentWidth: chartContentWidth,
-                              scale: _scale,
-                              showFuel: widget.showFilteredFuel,
-                              showSpeed: widget.showSpeed,
-                              lastKnownFuel: lastKnownFuel,
-                            ),
-                          ),
-                        ),
-                      ),
+                                      // Padding prevents left ':00' clipping behind the fixed Y axis
+                                      EdgeInsets pad =
+                                          const EdgeInsets.only(top: 6);
+                                      if (idx == 0 || value < 1.0) {
+                                        pad = const EdgeInsets.only(
+                                            top: 6, left: 16);
+                                      } else if (idx >=
+                                          displayPoints.length - 2) {
+                                        pad = const EdgeInsets.only(
+                                            top: 6, right: 16);
+                                      }
 
-                      // Translucent Speech-Bubble Callout & Spot Target Indicators
-                      if (spotX != null &&
-                          spotY != null &&
-                          selectedPt != null &&
-                          selectedFuel != null) ...[
-                        // 1. Vertical guideline
-                        Positioned(
-                          left: spotX - 0.75,
-                          top: 0,
-                          bottom: 26,
-                          child: IgnorePointer(
-                            child: Container(
-                              width: 1.5,
-                              color: const Color(0xFF0284C7)
-                                  .withValues(alpha: 0.45),
-                            ),
-                          ),
-                        ),
-
-                        // 2. Data spot glow circle
-                        Positioned(
-                          left: spotX - 4.5,
-                          top: spotY - 4.5,
-                          child: IgnorePointer(
-                            child: Container(
-                              width: 9,
-                              height: 9,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0284C7),
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF0284C7)
-                                        .withValues(alpha: 0.5),
-                                    blurRadius: 4,
-                                    spreadRadius: 1,
+                                      return SideTitleWidget(
+                                        axisSide: meta.axisSide,
+                                        space: 2,
+                                        child: Padding(
+                                          padding: pad,
+                                          child: Text(
+                                            timeStr,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Color(0xFF64748B),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
-                                ],
+                                ),
+                              ),
+                              lineBarsData: bars,
+                            ),
+                          ),
+
+                          // Vehicle Activity Ribbon (Moving, Idle, Parked) right at bottom line
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 25,
+                            height: 4,
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _ActivityRibbonPainter(
+                                  points: displayPoints,
+                                  chartContentWidth: chartContentWidth,
+                                ),
                               ),
                             ),
                           ),
-                        ),
 
-                        // 3. Transparent Speech-Bubble Callout Card (Matches Image 1)
-                        Positioned(
-                          left: tooltipLeft,
-                          top: tooltipTop,
-                          width: bubbleWidth,
-                          child: IgnorePointer(
-                            child: SpeechBubbleTooltip(
-                              point: selectedPt,
-                              fuel: selectedFuel,
-                              arrowPointsDown: arrowPointsDown,
-                              arrowXOffset: arrowXFraction,
+                          // High-Contrast Dots & Value Badges Layer
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _TimelineDotsAndBadgesPainter(
+                                  points: displayPoints,
+                                  plotMinFuel: plotMinFuel,
+                                  plotMaxFuel: plotMaxFuel,
+                                  plotMaxSpeed: plotMaxSpeed,
+                                  plotAreaHeight: plotAreaHeight,
+                                  chartContentWidth: chartContentWidth,
+                                  scale: _scale,
+                                  showFuel: widget.showFilteredFuel,
+                                  showSpeed: widget.showSpeed,
+                                  lastKnownFuel: lastKnownFuel,
+                                ),
+                              ),
                             ),
                           ),
+
+                          // Refuel & Theft Event Badges Layer
+                          for (final _ChartEventMarker marker in eventMarkers) ...[
+                            Builder(builder: (context) {
+                              final double mx = (marker.pointIndex /
+                                      max(1, displayPoints.length - 1)) *
+                                  chartContentWidth;
+                              final double fFrac = ((marker.fuelLevel -
+                                          plotMinFuel) /
+                                      (plotMaxFuel - plotMinFuel))
+                                  .clamp(0.0, 1.0);
+                              final double my =
+                                  (1.0 - fFrac) * plotAreaHeight;
+
+                              return Positioned(
+                                left: mx - 28,
+                                top: (my - 26).clamp(2.0, plotAreaHeight - 20),
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedPointIdx = marker.pointIndex;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: marker.isRefuel
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFFDC2626),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                          color: Colors.white, width: 1.2),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (marker.isRefuel
+                                                  ? const Color(0xFF16A34A)
+                                                  : const Color(0xFFDC2626))
+                                              .withValues(alpha: 0.45),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 1.5),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          marker.isRefuel
+                                              ? Icons.local_gas_station_rounded
+                                              : Icons.warning_amber_rounded,
+                                          color: Colors.white,
+                                          size: 11,
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          '${marker.isRefuel ? '+' : '-'}${marker.liters.toStringAsFixed(0)}L',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+
+                          // Translucent Speech-Bubble Callout & Spot Target Indicators
+                          if (spotX != null &&
+                              spotY != null &&
+                              selectedPt != null &&
+                              selectedFuel != null) ...[
+                            // 1. Vertical guideline
+                            Positioned(
+                              left: spotX - 0.75,
+                              top: 0,
+                              bottom: 26,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: 1.5,
+                                  color: const Color(0xFF0284C7)
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ),
+
+                            // 2. Data spot glow circle
+                            Positioned(
+                              left: spotX - 4.5,
+                              top: spotY - 4.5,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: 9,
+                                  height: 9,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF0284C7)
+                                            .withValues(alpha: 0.5),
+                                        blurRadius: 4,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // 3. Transparent Speech-Bubble Callout Card
+                            Positioned(
+                              left: tooltipLeft,
+                              top: tooltipTop,
+                              width: bubbleWidth,
+                              child: IgnorePointer(
+                                child: SpeechBubbleTooltip(
+                                  point: selectedPt,
+                                  fuel: selectedFuel,
+                                  tankCapacity: widget.tankCapacity,
+                                  arrowPointsDown: arrowPointsDown,
+                                  arrowXOffset: arrowXFraction,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 3. Fixed Right Y-Axis (Speed km/h) - Pinned outside the scrollable canvas
+            if (widget.showSpeed) ...[
+              SizedBox(
+                width: 32,
+                height: widget.height,
+                child: LineChart(
+                  LineChartData(
+                    minY: plotMinFuel,
+                    maxY: plotMaxFuel,
+                    minX: 0,
+                    maxX: 1,
+                    lineTouchData: const LineTouchData(enabled: false),
+                    gridData: const FlGridData(show: false),
+                    borderData: FlBorderData(
+                      show: true,
+                      border: const Border(
+                        left: BorderSide(color: Color(0xFF94A3B8), width: 1.2),
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      leftTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          interval: fuelInterval,
+                          getTitlesWidget: (double value, TitleMeta meta) {
+                            final double fraction = ((value - plotMinFuel) /
+                                    (plotMaxFuel - plotMinFuel))
+                                .clamp(0.0, 1.0);
+                            final int speedVal =
+                                (fraction * plotMaxSpeed).round();
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Text(
+                                '$speedVal',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFEA580C),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      ],
+                      ),
+                      bottomTitles: const AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 26,
+                          getTitlesWidget: _emptyTitleWidget,
+                        ),
+                      ),
+                    ),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: const [FlSpot(0, 0), FlSpot(1, 0)],
+                        color: Colors.transparent,
+                        barWidth: 0,
+                        dotData: const FlDotData(show: false),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ),
+            ],
+          ],
         ),
 
-        // 3. Fixed Right Y-Axis (Speed km/h) - Pinned outside the scrollable canvas
-        if (widget.showSpeed) ...[
-          SizedBox(
-            width: 32,
-            height: widget.height,
-            child: LineChart(
-              LineChartData(
-                minY: plotMinFuel,
-                maxY: plotMaxFuel,
-                minX: 0,
-                maxX: 1,
-                lineTouchData: const LineTouchData(enabled: false),
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(
-                  show: true,
-                  border: const Border(
-                    left: BorderSide(color: Color(0xFF94A3B8), width: 1.2),
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      interval: fuelInterval,
-                      getTitlesWidget: (double value, TitleMeta meta) {
-                        final double fraction = ((value - plotMinFuel) /
-                                (plotMaxFuel - plotMinFuel))
-                            .clamp(0.0, 1.0);
-                        final int speedVal =
-                            (fraction * plotMaxSpeed).round();
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Text(
-                            '$speedVal',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFEA580C),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  bottomTitles: const AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 26,
-                      getTitlesWidget: _emptyTitleWidget,
-                    ),
-                  ),
-                ),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: const [FlSpot(0, 0), FlSpot(1, 0)],
-                    color: Colors.transparent,
-                    barWidth: 0,
-                    dotData: const FlDotData(show: false),
-                  ),
-                ],
-              ),
-            ),
+        // Activity Ribbon Legend (🟢 Moving, 🟧 Idle, ⚪ Parked)
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _legendDot(const Color(0xFF16A34A), 'Moving'),
+              const SizedBox(width: 14),
+              _legendDot(const Color(0xFFF59E0B), 'Idle (Engine ON)'),
+              const SizedBox(width: 14),
+              _legendDot(const Color(0xFF94A3B8), 'Parked (OFF)'),
+            ],
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
+          ),
+        ),
       ],
     );
   }
 }
 
-/// Dedicated Canvas painter for Data Point Circles & Zoom-Triggered Value Badges:
-/// - Overview Mode (scale <= 1.2x): Crisp, prominent circular dots.
-/// - Zoomed Mode (scale > 1.2x):
-///   - Fuel: Deep Blue numeric badges (e.g. 138, 75) rendered above each dot with a contrast pill.
-///   - Speed: Vibrant Orange numeric badges (e.g. 24, 0) rendered above each dot.
-/// - Adaptive stride so numbers never collide or overlap when points are dense.
+/// Canvas painter for the continuous vehicle activity status ribbon
+class _ActivityRibbonPainter extends CustomPainter {
+  const _ActivityRibbonPainter({
+    required this.points,
+    required this.chartContentWidth,
+  });
+
+  final List<FuelTelemetryPoint> points;
+  final double chartContentWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    final int total = points.length;
+    final double stepX =
+        total > 1 ? chartContentWidth / (total - 1) : chartContentWidth;
+
+    final Paint paintMoving = Paint()
+      ..color = const Color(0xFF16A34A)
+      ..style = PaintingStyle.fill;
+
+    final Paint paintIdle = Paint()
+      ..color = const Color(0xFFF59E0B)
+      ..style = PaintingStyle.fill;
+
+    final Paint paintParked = Paint()
+      ..color = const Color(0xFFCBD5E1)
+      ..style = PaintingStyle.fill;
+
+    const double barHeight = 4.0;
+    final double top = size.height - barHeight;
+
+    for (int i = 0; i < total; i++) {
+      final FuelTelemetryPoint pt = points[i];
+      final double xStart = i * stepX;
+      final double xEnd =
+          (i == total - 1) ? chartContentWidth : (i + 1) * stepX;
+
+      final Paint p = pt.speed > 6
+          ? paintMoving
+          : (pt.ignition ? paintIdle : paintParked);
+
+      canvas.drawRect(
+        Rect.fromLTRB(xStart, top, xEnd, top + barHeight),
+        p,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ActivityRibbonPainter old) {
+    return old.chartContentWidth != chartContentWidth || old.points != points;
+  }
+}
+
+/// Dedicated Canvas painter for Data Point Circles & Zoom-Triggered Value Badges
 class _TimelineDotsAndBadgesPainter extends CustomPainter {
   const _TimelineDotsAndBadgesPainter({
     required this.points,
@@ -774,10 +1112,6 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
 
-    // Progressive disclosure:
-    // 1. Unzoomed (scale <= 1.08x): Clean graph line & area (NO DOTS, NO NUMBERS)
-    // 2. Gentle spread (scale > 1.08x): Data points / dots appear on curve
-    // 3. Spreading (scale > 1.25x): Exact numbers appear above dots
     if (scale <= 1.08) {
       return;
     }
@@ -786,7 +1120,6 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
     final double stepX = total > 1 ? chartContentWidth / (total - 1) : 0.0;
     final bool showNumbers = scale > 1.25;
 
-    // Adaptive label stride so numbers never collide
     int labelStride = 1;
     if (stepX < 26.0) {
       labelStride = 4;
@@ -799,11 +1132,11 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
     }
 
     final Paint fuelDotPaint = Paint()
-      ..color = const Color(0xFF38BDF8) // Sky Blue
+      ..color = const Color(0xFF0284C7)
       ..style = PaintingStyle.fill;
 
     final Paint speedDotPaint = Paint()
-      ..color = const Color(0xFFEA580C) // Vibrant Orange
+      ..color = const Color(0xFFEA580C)
       ..style = PaintingStyle.fill;
 
     final Paint whiteBorderPaint = Paint()
@@ -811,14 +1144,14 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
       ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
 
-    const double dotRadius = 3.8;
+    const double dotRadius = 3.6;
 
     for (int i = 0; i < total; i++) {
       final FuelTelemetryPoint pt = points[i];
       final double px = (i * stepX).clamp(0.0, chartContentWidth);
       double? pySpeed;
 
-      // 1. Draw Speed Dot & Badge (if enabled)
+      // 1. Draw Speed Dot & Badge
       if (showSpeed) {
         final double speedFraction = (pt.speed / plotMaxSpeed).clamp(0.0, 1.0);
         pySpeed = (1.0 - speedFraction) * plotAreaHeight;
@@ -839,7 +1172,7 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
         }
       }
 
-      // 2. Draw Fuel Dot & Badge (if enabled)
+      // 2. Draw Fuel Dot & Badge
       if (showFuel) {
         double fVal = pt.filteredFuel > 0 ? pt.filteredFuel : pt.displayFuel;
         if (fVal <= 0.0 && lastKnownFuel > 0.0) {
@@ -898,9 +1231,8 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
     final double badgeW = tp.width + (hPad * 2);
     final double badgeH = tp.height + (vPad * 2);
 
-    final double topY = isAbove
-        ? anchor.dy - badgeH - 5.0
-        : anchor.dy + 5.0;
+    final double topY =
+        isAbove ? anchor.dy - badgeH - 5.0 : anchor.dy + 5.0;
     final double leftX = anchor.dx - (badgeW / 2);
 
     final RRect pillRect = RRect.fromRectAndRadius(
@@ -908,7 +1240,6 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
       const Radius.circular(4.0),
     );
 
-    // Subtle background pill for high contrast against gridlines
     final Paint pillPaint = Paint()
       ..color = bgColor.withValues(alpha: 0.94)
       ..style = PaintingStyle.fill;
@@ -933,14 +1264,16 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
   }
 }
 
-/// Translucent Speech-Bubble Callout Widget matching Image 1:
-/// - Distinct callout pointer triangle (▼ or ▲) touching the data spot
-/// - Translucent charcoal grey background (55% opacity) letting fuel curve shine through
-/// - 5 clean lines of telemetry info
+/// Translucent Speech-Bubble Callout Widget
+/// - Distinct callout pointer triangle touching data spot
+/// - Translucent charcoal navy background letting fuel curve shine through
+/// - Formatted human-readable odometer with comma separators
+/// - Fuel level accompanied by tank fill percentage
 class SpeechBubbleTooltip extends StatelessWidget {
   const SpeechBubbleTooltip({
     required this.point,
     required this.fuel,
+    this.tankCapacity = 300.0,
     this.arrowPointsDown = true,
     this.arrowXOffset = 0.5,
     super.key,
@@ -948,6 +1281,7 @@ class SpeechBubbleTooltip extends StatelessWidget {
 
   final FuelTelemetryPoint point;
   final double fuel;
+  final double tankCapacity;
   final bool arrowPointsDown;
   final double arrowXOffset;
 
@@ -955,15 +1289,28 @@ class SpeechBubbleTooltip extends StatelessWidget {
   Widget build(BuildContext context) {
     final String timeStr =
         DateFormat('yyyy-MM-dd HH:mm:ss').format(point.timestamp);
-    final String fuelStr = 'Fuel :${fuel.toStringAsFixed(2)} ltrs';
-    final String speedStr = 'Speed : ${point.speed.round()} Kmph';
-    final String ignStr = 'Ignition : ${point.ignition ? 'ON' : 'OFF'}';
-    final String odoStr = 'Device Odo : ${point.odo.toStringAsFixed(1)}';
+
+    final int fuelPct = tankCapacity > 0
+        ? ((fuel / tankCapacity) * 100).round().clamp(0, 100)
+        : 0;
+    final String fuelStr = 'Fuel : ${fuel.toStringAsFixed(1)} L ($fuelPct%)';
+
+    final String statusStr = point.speed > 6
+        ? 'Moving • ${point.speed.round()} km/h'
+        : (point.ignition ? 'Idle (Engine ON)' : 'Parked (Engine OFF)');
+
+    double odoKm = point.odo;
+    if (odoKm > 10000000) {
+      odoKm = odoKm / 1000.0;
+    }
+    final String odoStr = odoKm > 0
+        ? 'Odo : ${NumberFormat('#,##0.0').format(odoKm)} km'
+        : 'Odo : -';
 
     return CustomPaint(
       painter: _SpeechBubblePainter(
-        color: const Color(0x942B3441), // Translucent charcoal grey matching Image 1 (~58% opacity)
-        borderColor: Colors.white.withValues(alpha: 0.25),
+        color: const Color(0xE81E293B), // Charcoal Slate
+        borderColor: Colors.white.withValues(alpha: 0.3),
         arrowPointsDown: arrowPointsDown,
         arrowXFraction: arrowXOffset,
       ),
@@ -976,53 +1323,89 @@ class SpeechBubbleTooltip extends StatelessWidget {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              timeStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.access_time_rounded,
+                    color: Color(0xFF94A3B8), size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  timeStr,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.water_drop_rounded,
+                    color: Color(0xFF38BDF8), size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  fuelStr,
+                  style: const TextStyle(
+                    color: Color(0xFFE0F2FE),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 2),
-            Text(
-              fuelStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  point.speed > 6
+                      ? Icons.navigation_rounded
+                      : (point.ignition
+                          ? Icons.power_rounded
+                          : Icons.pause_circle_rounded),
+                  color: point.speed > 6
+                      ? const Color(0xFF4ADE80)
+                      : (point.ignition
+                          ? const Color(0xFFFBBF24)
+                          : const Color(0xFF94A3B8)),
+                  size: 12,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  statusStr,
+                  style: TextStyle(
+                    color: point.speed > 6
+                        ? const Color(0xFF4ADE80)
+                        : (point.ignition
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFFCBD5E1)),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              speedStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-            Text(
-              ignStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-            Text(
-              odoStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.speed_rounded,
+                    color: Color(0xFF94A3B8), size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  odoStr,
+                  style: const TextStyle(
+                    color: Color(0xFFCBD5E1),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1042,7 +1425,7 @@ class _SpeechBubblePainter extends CustomPainter {
 
   static const double arrowWidth = 14.0;
   static const double arrowHeight = 9.0;
-  static const double radius = 4.0;
+  static const double radius = 6.0;
 
   final Color color;
   final Color borderColor;
@@ -1069,7 +1452,7 @@ class _SpeechBubblePainter extends CustomPainter {
 
     final Rect bodyRect = Rect.fromLTRB(0, bodyTop, size.width, bodyBottom);
     final RRect bodyRRect =
-        RRect.fromRectAndRadius(bodyRect, Radius.circular(radius));
+        RRect.fromRectAndRadius(bodyRect, const Radius.circular(radius));
 
     path.addRRect(bodyRRect);
 

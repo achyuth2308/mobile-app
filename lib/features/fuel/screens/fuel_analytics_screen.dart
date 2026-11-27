@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../data/models/vehicle.dart';
 import '../../../providers/fleet_provider.dart';
@@ -179,13 +180,31 @@ class FuelAnalyticsScreen extends ConsumerWidget {
           final double screenHeight = MediaQuery.of(context).size.height;
           // Allocate ~58-60% of viewport to graph height (clamped safely between 420 and 560px)
           final double heroGraphHeight =
-              (screenHeight * 0.58).clamp(420.0, 560.0);
+              (screenHeight * 0.56).clamp(400.0, 540.0);
+
+          final double currentFuel = data.points.isNotEmpty
+              ? data.points.last.displayFuel
+              : 0.0;
+          final double tankPct = summary.tankSize > 0
+              ? ((currentFuel / summary.tankSize) * 100.0).clamp(0.0, 100.0)
+              : 0.0;
+          final Color tankColor = tankPct > 30
+              ? const Color(0xFF16A34A)
+              : (tankPct > 15
+                  ? const Color(0xFFF59E0B)
+                  : const Color(0xFFDC2626));
+          final bool isEngineOn =
+              data.points.isNotEmpty && data.points.last.ignition;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Quick Date Range Filter Chips Bar (Today, Yesterday, Last 24h, 7 Days, Custom)
+                _buildDatePresetBar(context, state, notifier),
+                const SizedBox(height: 10),
+
                 // 1. Hero Chart Card (Primary 60% viewport focus)
                 Container(
                   padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
@@ -203,66 +222,126 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Vehicle Specs Ribbon matching desktop portal
+                      // Vehicle Specs & Visual Fuel Tank Capacity Gauge
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 7),
+                            horizontal: 12, vertical: 8),
                         margin: const EdgeInsets.only(bottom: 10),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              Text(
-                                'Tank: ${summary.tankSize.round()} Ltrs',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF334155),
+                        child: Row(
+                          children: [
+                            // Tank capacity & current level with visual progress bar
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Tank: ${summary.tankSize.round()} L',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                      const Text('  •  ',
+                                          style: TextStyle(
+                                              color: Color(0xFFCBD5E1),
+                                              fontSize: 11)),
+                                      Text(
+                                        'Current: ${currentFuel.toStringAsFixed(1)} L',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF0284C7),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 5, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: tankColor.withValues(
+                                              alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          '${tankPct.round()}%',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: tankColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 5),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(3),
+                                    child: LinearProgressIndicator(
+                                      value:
+                                          (tankPct / 100.0).clamp(0.0, 1.0),
+                                      minHeight: 5,
+                                      backgroundColor: const Color(0xFFE2E8F0),
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                              tankColor),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Engine Status Pill Badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isEngineOn
+                                    ? const Color(0xFFDCFCE7)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isEngineOn
+                                      ? const Color(0xFF86EFAC)
+                                      : const Color(0xFFE2E8F0),
                                 ),
                               ),
-                              const Text('  •  ',
-                                  style: TextStyle(
-                                      color: Color(0xFF94A3B8), fontSize: 11)),
-                              Text(
-                                'Current: ${data.points.isNotEmpty ? data.points.last.displayFuel.toStringAsFixed(1) : '0'} L',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0284C7),
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: isEngineOn
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFF94A3B8),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isEngineOn ? 'Engine ON' : 'Engine OFF',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isEngineOn
+                                          ? const Color(0xFF15803D)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const Text('  •  ',
-                                  style: TextStyle(
-                                      color: Color(0xFF94A3B8), fontSize: 11)),
-                              Text(
-                                'Mode: ${currentVehicle?.type.isNotEmpty == true ? currentVehicle!.type[0].toUpperCase() + currentVehicle!.type.substring(1) : 'Vehicle'}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF475569),
-                                ),
-                              ),
-                              const Text('  •  ',
-                                  style: TextStyle(
-                                      color: Color(0xFF94A3B8), fontSize: 11)),
-                              Text(
-                                'Engine: ${data.points.isNotEmpty && data.points.last.ignition ? 'ON' : 'OFF'}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: data.points.isNotEmpty &&
-                                          data.points.last.ignition
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
 
@@ -324,142 +403,103 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                         showFilteredFuel: state.showFilteredFuel,
                         showSpeed: state.showSpeed,
                         showEngine: state.showEngine,
+                        refuelEvents: data.refuelEvents,
+                        theftEvents: data.theftEvents,
+                        tankCapacity: summary.tankSize,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // 2. Top KPI Summary Cards (Fuel Consumed & Distance)
+                // 2. 2x2 Primary KPI Summary Cards
                 Row(
                   children: [
                     // KPI: Fuel Consumed
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x06000000),
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFEFF6FF),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.water_drop_rounded,
-                                color: Color(0xFF2563EB),
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Fuel Consumed',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${summary.totalFuelConsumed.toStringAsFixed(1)} L',
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: _kpiCard(
+                        icon: Icons.water_drop_rounded,
+                        iconColor: const Color(0xFF2563EB),
+                        bgColor: const Color(0xFFEFF6FF),
+                        title: 'Fuel Consumed',
+                        value:
+                            '${summary.totalFuelConsumed.toStringAsFixed(1)} L',
+                        subtitle: summary.mileageKmpl > 0
+                            ? '${summary.mileageKmpl.toStringAsFixed(1)} km/L avg'
+                            : null,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
 
                     // KPI: Distance
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x06000000),
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFFF7ED),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.route_rounded,
-                                color: Color(0xFFEA580C),
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Distance',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${summary.tripDistance.toStringAsFixed(1)} km',
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: _kpiCard(
+                        icon: Icons.route_rounded,
+                        iconColor: const Color(0xFFEA580C),
+                        bgColor: const Color(0xFFFFF7ED),
+                        title: 'Trip Distance',
+                        value: '${summary.tripDistance.toStringAsFixed(1)} km',
+                        subtitle: summary.totalFuelConsumed > 0
+                            ? '${(summary.tripDistance / summary.totalFuelConsumed).toStringAsFixed(1)} km/L'
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    // KPI: Fuel Filled
+                    Expanded(
+                      child: _kpiCard(
+                        icon: Icons.local_gas_station_rounded,
+                        iconColor: const Color(0xFF16A34A),
+                        bgColor: const Color(0xFFF0FDF4),
+                        title: 'Fuel Filled',
+                        value:
+                            '+${summary.totalFuelFill.toStringAsFixed(1)} L',
+                        subtitle:
+                            '${summary.refuelCount} refill${summary.refuelCount == 1 ? '' : 's'}',
+                        valueColor: const Color(0xFF16A34A),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // KPI: Theft / Drain
+                    Expanded(
+                      child: _kpiCard(
+                        icon: Icons.warning_amber_rounded,
+                        iconColor: summary.theftDrain > 0
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF64748B),
+                        bgColor: summary.theftDrain > 0
+                            ? const Color(0xFFFEF2F2)
+                            : const Color(0xFFF8FAFC),
+                        title: 'Theft / Drain',
+                        value: summary.theftDrain > 0
+                            ? '-${summary.theftDrain.toStringAsFixed(1)} L'
+                            : '0.0 L',
+                        subtitle: summary.theftDrain > 0
+                            ? '${summary.drainCount} drain${summary.drainCount == 1 ? '' : 's'} detected'
+                            : 'No drain detected',
+                        valueColor: summary.theftDrain > 0
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF0F172A),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
 
-                // 3. Fuel Summary Card
+                // 3. Fuel Events Breakdown (Refills & Drains)
+                if (data.refuelEvents.isNotEmpty ||
+                    data.theftEvents.isNotEmpty) ...[
+                  _buildEventsBreakdownCard(data),
+                  const SizedBox(height: 12),
+                ],
+
+                // 4. Fuel Summary Card
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -513,22 +553,38 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                         icon: Icons.local_gas_station_rounded,
                         iconColor: const Color(0xFF16A34A),
                         label: 'Fuel Filled',
-                        value: '${summary.totalFuelFill.toStringAsFixed(1)} L',
+                        value:
+                            '+${summary.totalFuelFill.toStringAsFixed(1)} L',
                         valueColor: const Color(0xFF16A34A),
+                      ),
+                      const SizedBox(height: 14),
+                      _summaryRow(
+                        icon: Icons.warning_amber_rounded,
+                        iconColor: summary.theftDrain > 0
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF64748B),
+                        label: 'Theft / Drain',
+                        value: summary.theftDrain > 0
+                            ? '-${summary.theftDrain.toStringAsFixed(1)} L'
+                            : '0.0 L',
+                        valueColor: summary.theftDrain > 0
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF0F172A),
                       ),
                       const SizedBox(height: 14),
                       _summaryRow(
                         icon: Icons.water_drop_rounded,
                         iconColor: const Color(0xFF2563EB),
                         label: 'Fuel Consumed',
-                        value: '${summary.totalFuelConsumed.toStringAsFixed(1)} L',
+                        value:
+                            '${summary.totalFuelConsumed.toStringAsFixed(1)} L',
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 14),
 
-                // 4. Distance & Odometer Card
+                // 5. Distance & Odometer Card
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -552,7 +608,10 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                         value: '${summary.tripDistance.toStringAsFixed(1)} km',
                       ),
                       const SizedBox(height: 16),
-                      const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                      const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Color(0xFFF1F5F9)),
                       const SizedBox(height: 14),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -579,7 +638,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
                           Padding(
                             padding: const EdgeInsets.only(left: 26),
                             child: Text(
-                              '${startOdo > 0 ? startOdo.toStringAsFixed(2) : '-'} → ${endOdo > 0 ? endOdo.toStringAsFixed(2) : '-'}',
+                              '${_formatOdo(startOdo)} → ${_formatOdo(endOdo)}',
                               style: const TextStyle(
                                 fontSize: 14.5,
                                 fontWeight: FontWeight.w800,
@@ -681,6 +740,373 @@ class FuelAnalyticsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _kpiCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color bgColor,
+    required String title,
+    required String value,
+    String? subtitle,
+    Color? valueColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: bgColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: valueColor ?? const Color(0xFF0F172A),
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatOdo(double odo) {
+    if (odo <= 0) return '-';
+    final double val = odo > 10000000 ? odo / 1000.0 : odo;
+    return '${val.toStringAsFixed(1)} km';
+  }
+
+  Widget _buildDatePresetBar(
+    BuildContext context,
+    FuelAnalyticsState state,
+    FuelAnalyticsNotifier notifier,
+  ) {
+    final DateTime now = DateTime.now();
+    final DateTime startOfToday =
+        DateTime(now.year, now.month, now.day, 0, 0, 0);
+    final DateTime startOfYesterday =
+        startOfToday.subtract(const Duration(days: 1));
+    final DateTime endOfYesterday = DateTime(startOfYesterday.year,
+        startOfYesterday.month, startOfYesterday.day, 23, 59, 59);
+
+    final bool isToday =
+        (state.startDate.difference(startOfToday).inMinutes).abs() < 5 &&
+            state.endDate.day == now.day;
+    final bool isYesterday =
+        (state.startDate.difference(startOfYesterday).inMinutes).abs() < 5 &&
+            (state.endDate.difference(endOfYesterday).inMinutes).abs() < 5;
+    final bool is24h = !isToday &&
+        !isYesterday &&
+        (state.endDate.difference(state.startDate).inHours).abs() == 24;
+    final bool is7d =
+        (state.endDate.difference(state.startDate).inDays).abs() == 7;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _datePresetChip(
+            label: 'Today',
+            isSelected: isToday,
+            onTap: () {
+              notifier.updateDateRangeAndInterval(
+                start: startOfToday,
+                end: DateTime.now(),
+                interval: state.interval,
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          _datePresetChip(
+            label: 'Yesterday',
+            isSelected: isYesterday,
+            onTap: () {
+              notifier.updateDateRangeAndInterval(
+                start: startOfYesterday,
+                end: endOfYesterday,
+                interval: state.interval,
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          _datePresetChip(
+            label: 'Last 24h',
+            isSelected: is24h,
+            onTap: () {
+              final DateTime current = DateTime.now();
+              notifier.updateDateRangeAndInterval(
+                start: current.subtract(const Duration(hours: 24)),
+                end: current,
+                interval: state.interval,
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          _datePresetChip(
+            label: 'Last 7 Days',
+            isSelected: is7d,
+            onTap: () {
+              final DateTime current = DateTime.now();
+              notifier.updateDateRangeAndInterval(
+                start: current.subtract(const Duration(days: 7)),
+                end: current,
+                interval: state.interval,
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          _datePresetChip(
+            label: 'Custom 📅',
+            isSelected: !isToday && !isYesterday && !is24h && !is7d,
+            onTap: () {
+              FuelFilterSheet.show(
+                context,
+                initialStart: state.startDate,
+                initialEnd: state.endDate,
+                initialInterval: state.interval,
+                onApply: (DateTime s, DateTime e, FuelInterval i) {
+                  notifier.updateDateRangeAndInterval(
+                    start: s,
+                    end: e,
+                    interval: i,
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _datePresetChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F2042) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF0F2042)
+                : const Color(0xFFCBD5E1),
+            width: isSelected ? 1.4 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x180F2042),
+                    blurRadius: 4,
+                    offset: Offset(0, 1.5),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventsBreakdownCard(FuelReportData data) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bolt_rounded, color: Color(0xFF0284C7), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Detected Fuel Events',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final Map<String, dynamic> refuel in data.refuelEvents) ...[
+            _eventTile(
+              isRefuel: true,
+              liters: (refuel['liters'] as num?)?.toDouble() ?? 0.0,
+              time: refuel['timestamp'] as DateTime?,
+              address: refuel['address'] as String?,
+            ),
+            const SizedBox(height: 8),
+          ],
+          for (final Map<String, dynamic> theft in data.theftEvents) ...[
+            _eventTile(
+              isRefuel: false,
+              liters: (theft['liters'] as num?)?.toDouble() ?? 0.0,
+              time: theft['timestamp'] as DateTime?,
+              address: theft['address'] as String?,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _eventTile({
+    required bool isRefuel,
+    required double liters,
+    required DateTime? time,
+    String? address,
+  }) {
+    final Color themeColor =
+        isRefuel ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final Color bgColor =
+        isRefuel ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2);
+    final String title =
+        isRefuel ? 'Refuel Added' : 'Potential Drain / Theft';
+    final String timeStr = time != null
+        ? DateFormat('dd MMM, HH:mm').format(time)
+        : 'Time recorded';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: themeColor.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: themeColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isRefuel
+                  ? Icons.local_gas_station_rounded
+                  : Icons.warning_amber_rounded,
+              color: themeColor,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: themeColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  address != null && address.isNotEmpty
+                      ? '$timeStr • $address'
+                      : timeStr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${isRefuel ? '+' : '-'}${liters.toStringAsFixed(1)} L',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: themeColor,
+            ),
+          ),
+        ],
       ),
     );
   }
