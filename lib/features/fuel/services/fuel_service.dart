@@ -383,7 +383,18 @@ class FuelService {
             if (settled) {
               isEvent = true;
               final double liters = (m * 10).round() / 10.0;
-              refuels.add(<String, dynamic>{'liters': liters, 'startIdx': e, 'endIdx': u});
+              final DateTime? uDate = asDate(rawList[u], <String>['device_time', 'time', 'timestamp']);
+              final DateTime? eDate = asDate(rawList[e], <String>['device_time', 'time', 'timestamp']);
+              refuels.add(<String, dynamic>{
+                'liters': liters,
+                'startIdx': e,
+                'endIdx': u,
+                'timestamp': uDate ?? DateTime.now(),
+                'startTime': eDate,
+                'startFuel': pVal,
+                'endFuel': c,
+                'address': asStringOrNull(rawList[u], <String>['address', 'location']),
+              });
               pVal = c;
               e = u;
               oList[e] = max(0.0, min(tankSize, (pVal * 10).round() / 10.0));
@@ -418,7 +429,18 @@ class FuelService {
             if (mTheft >= minTheft && lIdx > e && gMs >= 30 * 1000) {
               isEvent = true;
               final double liters = (mTheft * 10).round() / 10.0;
-              thefts.add(<String, dynamic>{'liters': liters, 'startIdx': e, 'endIdx': lIdx});
+              final DateTime? lTime = asDate(rawList[lIdx], <String>['device_time', 'time', 'timestamp']);
+              final DateTime? eTime = asDate(rawList[e], <String>['device_time', 'time', 'timestamp']);
+              thefts.add(<String, dynamic>{
+                'liters': liters,
+                'startIdx': e,
+                'endIdx': lIdx,
+                'timestamp': lTime ?? DateTime.now(),
+                'startTime': eTime,
+                'startFuel': pVal,
+                'endFuel': sVal,
+                'address': asStringOrNull(rawList[lIdx], <String>['address', 'location']),
+              });
               pVal = sVal;
               e = lIdx;
               oList[e] = max(0.0, min(tankSize, (pVal * 10).round() / 10.0));
