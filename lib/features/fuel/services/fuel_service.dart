@@ -620,7 +620,7 @@ class FuelService {
   Future<Map<String, dynamic>?> getVehicleFuelConfig(String vehicleId) async {
     try {
       final Response<dynamic> response =
-          await _api.raw.get('/api/fuel/manual/config/$vehicleId');
+          await _api.raw.get('/fuel/manual/config/$vehicleId');
       if (response.data is Map && response.data['success'] == true) {
         return response.data['data'] as Map<String, dynamic>?;
       }
@@ -642,7 +642,7 @@ class FuelService {
     double criticalFuelAlertThreshold = 8.0,
   }) async {
     final Response<dynamic> response = await _api.raw.post(
-      '/api/fuel/manual/config/$vehicleId',
+      '/fuel/manual/config/$vehicleId',
       data: <String, dynamic>{
         'fuelType': fuelType,
         'tankCapacity': tankCapacity,
@@ -663,7 +663,7 @@ class FuelService {
   Future<Map<String, dynamic>?> getManualFuelState(String vehicleId) async {
     try {
       final Response<dynamic> response =
-          await _api.raw.get('/api/fuel/manual/state/$vehicleId');
+          await _api.raw.get('/fuel/manual/state/$vehicleId');
       if (response.data is Map && response.data['success'] == true) {
         return response.data['data'] as Map<String, dynamic>?;
       }
@@ -683,7 +683,7 @@ class FuelService {
     DateTime? entryDate,
   }) async {
     final Response<dynamic> response = await _api.raw.post(
-      '/api/fuel/manual/entry/$vehicleId',
+      '/fuel/manual/entry/$vehicleId',
       data: <String, dynamic>{
         'entryType': entryType,
         'fuelQuantity': fuelQuantity,
@@ -702,7 +702,7 @@ class FuelService {
   Future<List<Map<String, dynamic>>> getManualFuelEntries(String vehicleId) async {
     try {
       final Response<dynamic> response =
-          await _api.raw.get('/api/fuel/manual/entries/$vehicleId');
+          await _api.raw.get('/fuel/manual/entries/$vehicleId');
       if (response.data is Map && response.data['success'] == true) {
         final dynamic data = response.data['data'];
         if (data is Map && data['entries'] is List) {
