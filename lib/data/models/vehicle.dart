@@ -497,59 +497,65 @@ class Vehicle extends Equatable {
     return false;
   }
 
-  /// True ONLY if this vehicle is configured for non-sensor / manual fuel monitoring
-  /// (from manual fuel overview endpoint, explicit manual fuel metadata, or manual fuel naming).
+  /// True ONLY if this vehicle is confirmed to be a non-sensor / manual fuel vehicle.
   /// Hardware sensor vehicles MUST NEVER be classified as non-sensor fuel.
   bool get isNonSensorFuel {
-    // 1. Explicit non-sensor backend flags or telemetry
+    final String n = name.trim().toLowerCase();
+    final String p = registrationNumber.trim().toLowerCase();
+    final bool isExplicitlyNamedManual = n.startsWith('mfuel') ||
+        n.contains('manualfuel') ||
+        n.contains('manual_fuel') ||
+        n.contains('non-sensor') ||
+        n.contains('nonsensor') ||
+        p.startsWith('mfuel') ||
+        p.contains('manualfuel');
+
+    final dynamic meta = raw['metadata'];
+    final String metaFt = meta is Map
+        ? (meta['fuelType'] ?? meta['fuel_type'] ?? '').toString().toLowerCase()
+        : '';
+    final String rawFt =
+        (raw['fuel_type'] ?? raw['fuelType'] ?? '').toString().toLowerCase();
+
+    final bool isExplicitlyConfiguredManual =
+        rawFt == 'manual' ||
+        rawFt == 'non-sensor' ||
+        rawFt == 'non_sensor' ||
+        rawFt == 'nonsensor' ||
+        metaFt == 'manual' ||
+        metaFt == 'non-sensor' ||
+        metaFt == 'non_sensor' ||
+        metaFt == 'nonsensor' ||
+        (meta is Map &&
+            (meta['isNonSensor'] == true ||
+                meta['isNonSensor'] == 'YES' ||
+                meta['isNonSensor'] == 'true' ||
+                meta['manualFuel'] == true ||
+                meta['hasManualFuel'] == true ||
+                meta['hasManualFuelSetup'] == true ||
+                meta['manualFuelInitial'] == true ||
+                meta['manualInitialSetup'] == true));
+
+    // SENSOR IMMUNITY: If this vehicle has active calibrated fuel telemetry
+    // or has a hardware fuel sensor, and is not explicitly named or configured
+    // as manual, it is 100% a hardware sensor vehicle and MUST NOT be non-sensor.
+    if ((fuelLevel != null && fuelLevel! > 0) || hasHardwareFuelSensor) {
+      if (!isExplicitlyNamedManual && !isExplicitlyConfiguredManual) {
+        return false;
+      }
+    }
+
+    if (isExplicitlyNamedManual || isExplicitlyConfiguredManual) {
+      return true;
+    }
+
     if (raw['is_non_sensor_fuel'] == true ||
         raw['is_manual_fuel'] == true ||
         raw['isNonSensor'] == true ||
         raw['is_non_sensor'] == true ||
         raw['manualFuel'] == true ||
         raw['manual_fuel'] == true ||
-        raw['manualFuelSetup'] == true ||
-        raw['manual_fuel_consumed'] != null ||
-        raw['manual_tank_capacity'] != null ||
-        raw['manual_mileage'] != null ||
-        raw['manual_estimated_range'] != null ||
-        raw['manual_last_entry_date'] != null) {
-      return true;
-    }
-
-    final dynamic meta = raw['metadata'];
-    if (meta is Map) {
-      if (meta['isNonSensor'] == true ||
-          meta['isNonSensor'] == 'YES' ||
-          meta['isNonSensor'] == 'true' ||
-          meta['manualFuel'] == true ||
-          meta['hasManualFuel'] == true ||
-          meta['hasManualFuelSetup'] == true ||
-          meta['manualFuelInitial'] == true ||
-          meta['manualInitialSetup'] == true) {
-        return true;
-      }
-      final String ft = (meta['fuelType'] ?? meta['fuel_type'] ?? '').toString().toLowerCase();
-      if (ft == 'non-sensor' || ft == 'non_sensor' || ft == 'manual') {
-        return true;
-      }
-    }
-
-    final String rawFt = (raw['fuel_type'] ?? raw['fuelType'] ?? '').toString().toLowerCase();
-    if (rawFt == 'non-sensor' || rawFt == 'non_sensor' || rawFt == 'manual') {
-      return true;
-    }
-
-    // 2. Known non-sensor vehicle names / plates (e.g. MFUEL, MANUALFUEL)
-    final String n = name.trim().toLowerCase();
-    final String p = registrationNumber.trim().toLowerCase();
-    if (n.startsWith('mfuel') ||
-        n.contains('manualfuel') ||
-        n.contains('manual_fuel') ||
-        n.contains('non-sensor') ||
-        n.contains('nonsensor') ||
-        p.startsWith('mfuel') ||
-        p.contains('manualfuel')) {
+        raw['manualFuelSetup'] == true) {
       return true;
     }
 
