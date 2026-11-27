@@ -453,6 +453,25 @@ class Vehicle extends Equatable {
       return true;
     }
 
+    // Backend enriches configured non-sensor vehicles with tank_capacity / current_fuel (even when drained to 0.0 L)
+    if (!hasHardwareFuelSensor) {
+      final double? manualTank = asDoubleOrNull(raw, const <String>[
+        'manual_tank_capacity',
+        'manualTankCapacity',
+        'tank_capacity',
+        'tankCapacity',
+      ]);
+      if (manualTank != null && manualTank > 0) return true;
+
+      if (raw['current_fuel'] != null ||
+          raw['currentFuel'] != null ||
+          raw['manual_last_entry_date'] != null ||
+          raw['last_entry_date'] != null ||
+          raw['last_refill_date'] != null) {
+        return true;
+      }
+    }
+
     return false;
   }
 
