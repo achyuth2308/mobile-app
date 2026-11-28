@@ -706,7 +706,7 @@ class FuelAnalyticsScreen extends ConsumerWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.10) : Colors.white,
+          color: isSelected ? color.withOpacity( 0.10) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? color : const Color(0xFFCBD5E1),
@@ -1365,7 +1365,7 @@ class _FuelVehicleSearchSheetState extends State<_FuelVehicleSearchSheet> {
                         },
                         child: Container(
                           color: isSelected
-                              ? const Color(0xFF0284C7).withValues(alpha: 0.06)
+                              ? const Color(0xFF0284C7).withOpacity( 0.06)
                               : Colors.transparent,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,

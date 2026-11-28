@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../providers/fleet_provider.dart';
 
-/// Fleet Overview card featuring a live status indicator and proportional
-/// status progress bars (Running, Idle, Parking, Offline, Others).
+/// Fleet Overview card featuring Neumorphic (Soft UI) styling,
+/// debossed status progress bars, and animated ratios.
 class FleetOverviewCard extends ConsumerWidget {
   const FleetOverviewCard({super.key});
 
@@ -15,23 +15,40 @@ class FleetOverviewCard extends ConsumerWidget {
     final bool isDark = theme.brightness == Brightness.dark;
     final FleetStats stats = ref.watch(fleetStatsProvider);
 
+    final Color surfaceColor =
+        isDark ? const Color(0xFF161C26) : const Color(0xFFE8EEF5);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: Gap.xs),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-          width: 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isDark
+            ? [
+                const BoxShadow(
+                  color: Color(0xFF232D3D),
+                  offset: Offset(-4, -4),
+                  blurRadius: 10,
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.60),
+                  offset: const Offset(4, 4),
+                  blurRadius: 10,
+                ),
+              ]
+            : [
+                const BoxShadow(
+                  color: Colors.white,
+                  offset: Offset(-5, -5),
+                  blurRadius: 10,
+                ),
+                BoxShadow(
+                  color: const Color(0xFFA6B4C9).withOpacity(0.55),
+                  offset: const Offset(5, 5),
+                  blurRadius: 10,
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,12 +60,44 @@ class FleetOverviewCard extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.bar_chart_rounded,
-                    color: Color(0xFF2563EB),
-                    size: 24,
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: surfaceColor,
+                      shape: BoxShape.circle,
+                      boxShadow: isDark
+                          ? [
+                              const BoxShadow(
+                                color: Color(0xFF232D3D),
+                                offset: Offset(-2, -2),
+                                blurRadius: 4,
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                offset: const Offset(2, 2),
+                                blurRadius: 4,
+                              ),
+                            ]
+                          : [
+                              const BoxShadow(
+                                color: Colors.white,
+                                offset: Offset(-2, -2),
+                                blurRadius: 4,
+                              ),
+                              BoxShadow(
+                                color: const Color(0xFFA6B4C9).withOpacity(0.5),
+                                offset: const Offset(2, 2),
+                                blurRadius: 4,
+                              ),
+                            ],
+                    ),
+                    child: const Icon(
+                      Icons.bar_chart_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 19,
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Text(
                     'Fleet Overview',
                     style: TextStyle(
@@ -62,17 +111,35 @@ class FleetOverviewCard extends ConsumerWidget {
               ),
               // Live badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                  color: isDark
+                      ? const Color(0xFF064E3B).withOpacity(0.35)
+                      : const Color(0xFFD1FAE5),
                   borderRadius: BorderRadius.circular(16),
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            offset: const Offset(1, 1),
+                            blurRadius: 2,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: const Color(0xFFA6B4C9).withOpacity(0.3),
+                            offset: const Offset(1, 1),
+                            blurRadius: 2,
+                          ),
+                        ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 6,
-                      height: 6,
+                      width: 7,
+                      height: 7,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: Color(0xFF10B981),
@@ -110,7 +177,7 @@ class FleetOverviewCard extends ConsumerWidget {
             total: stats.total,
             isDark: isDark,
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 14),
           _buildStatusRow(
             label: 'Idle',
             color: const Color(0xFFF59E0B),
@@ -118,7 +185,7 @@ class FleetOverviewCard extends ConsumerWidget {
             total: stats.total,
             isDark: isDark,
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 14),
           _buildStatusRow(
             label: 'Stopped',
             color: const Color(0xFF8A99AD),
@@ -126,7 +193,7 @@ class FleetOverviewCard extends ConsumerWidget {
             total: stats.total,
             isDark: isDark,
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 14),
           _buildStatusRow(
             label: 'No Data',
             color: const Color(0xFFEF4444),
@@ -134,7 +201,7 @@ class FleetOverviewCard extends ConsumerWidget {
             total: stats.total,
             isDark: isDark,
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 14),
           _buildStatusRow(
             label: 'Unreachable',
             color: const Color(0xFFA855F7),
@@ -167,7 +234,7 @@ class FleetOverviewCard extends ConsumerWidget {
             color: color,
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.4),
+                color: color.withOpacity(0.4),
                 blurRadius: 4,
                 spreadRadius: 0.5,
               ),
@@ -190,35 +257,61 @@ class FleetOverviewCard extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 8),
-        // Progress bar
+        // Debossed recessed progress bar well
         Expanded(
           child: Container(
             height: 14,
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF334155).withValues(alpha: 0.5)
-                  : const Color(0xFFF1F5F9),
+              color: isDark ? const Color(0xFF11161F) : const Color(0xFFDCE3ED),
               borderRadius: BorderRadius.circular(7),
+              boxShadow: isDark
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.55),
+                        offset: const Offset(1.5, 1.5),
+                        blurRadius: 2,
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: const Color(0xFFA3B2C6).withOpacity(0.50),
+                        offset: const Offset(1.5, 1.5),
+                        blurRadius: 2,
+                      ),
+                      const BoxShadow(
+                        color: Colors.white,
+                        offset: Offset(-1, -1),
+                        blurRadius: 1.5,
+                      ),
+                    ],
             ),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: ratio,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(7),
-                    boxShadow: count > 0
-                        ? [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.35),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: ratio),
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.easeOutCubic,
+                builder:
+                    (BuildContext context, double animRatio, Widget? child) {
+                  return FractionallySizedBox(
+                    widthFactor: animRatio,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(7),
+                        boxShadow: count > 0
+                            ? [
+                                BoxShadow(
+                                  color: color.withOpacity(0.35),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

@@ -387,15 +387,37 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
           style: TextStyle(fontSize: 13, height: 1.5),
         ),
         actions: [
-          FilledButton(
+          TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final nonSensorVehicles = ref
+                  .read(fleetProvider)
+                  .vehicles
+                  .where((v) => v.isNonSensorFuel)
+                  .toList();
+              if (nonSensorVehicles.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'All vehicles in this account are calibrated with physical fuel sensors.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } else {
+                context.push('/manual-fuel-entry');
+              }
+            },
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF7C3AED),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            child:
-                const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Open Entry',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -500,7 +522,7 @@ class _ReportsHubScreenState extends ConsumerState<ReportsHubScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.04),
+                color: const Color(0xFF0F172A).withOpacity( isDark ? 0.25 : 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
