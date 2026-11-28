@@ -288,14 +288,21 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
 
     if (widget.followingId != null) {
       if (!_isUserInteracting && !widget.isFollowPaused) {
-        if (widget.mapController.camera.rotation != 0) {
-          widget.mapController.moveAndRotate(
-            pos,
-            widget.mapController.camera.zoom,
-            0.0,
-          );
-        } else {
-          widget.mapController.move(pos, widget.mapController.camera.zoom);
+        const Distance d = Distance();
+        final double distFromCenter =
+            d(widget.mapController.camera.center, pos);
+        // Throttle camera movement: only shift camera when vehicle has moved >= 1.5m
+        // to avoid thrashing map tile rendering at 60fps on micro-ticks.
+        if (distFromCenter >= 1.5) {
+          if (widget.mapController.camera.rotation != 0) {
+            widget.mapController.moveAndRotate(
+              pos,
+              widget.mapController.camera.zoom,
+              0.0,
+            );
+          } else {
+            widget.mapController.move(pos, widget.mapController.camera.zoom);
+          }
         }
       } else if (!_isUserInteracting && widget.isFollowPaused) {
         // Vehicle is moving while camera follow is paused.
@@ -701,7 +708,7 @@ class _UniversalLiveMapState extends State<UniversalLiveMap> {
       mapController: widget.mapController,
       options: MapOptions(
         initialCenter: resolvedCenter,
-        initialZoom: 16.0,
+        initialZoom: 14.5,
         minZoom: 2,
         maxZoom: 22.0,
         backgroundColor: widget.style == MapStyle.satellite

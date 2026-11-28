@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -45,7 +44,9 @@ class FastCachedTileProvider extends TileProvider {
     return CachedNetworkImageProvider(
       url,
       cacheManager: cacheManager ?? MapTileCacheManager.instance,
-      headers: headers,
+      headers: headers.isNotEmpty
+          ? headers
+          : const <String, String>{'User-Agent': AppConfig.tileUserAgent},
     );
   }
 }
@@ -66,23 +67,18 @@ extension MapStyleX on MapStyle {
       };
 
   String urlTemplate(String? apiKey, {bool highDpi = false}) {
-    final String effectiveKey = (apiKey != null && apiKey.isNotEmpty)
-        ? apiKey
-        : AppConfig.googleMapsApiKey;
-    final String keyParam = effectiveKey.isNotEmpty ? '&key=$effectiveKey' : '';
-
     return switch (this) {
       MapStyle.satellite =>
-        'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}$keyParam', // Google Hybrid (Satellite + Labels)
+        'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', // Google Hybrid (Satellite + Labels)
       MapStyle.terrain =>
-        'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}$keyParam', // Google Terrain
+        'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', // Google Terrain
       MapStyle.standard ||
       MapStyle.google =>
-        'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}$keyParam', // Google Maps Roadmap
+        'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', // Google Maps Roadmap
     };
   }
 
-  List<String> get subdomains => const <String>['0', '1', '2', '3'];
+  List<String> get subdomains => const <String>[];
 
   /// Max zoom the source serves reliably everywhere.
   double get maxZoom => switch (this) {
@@ -115,13 +111,11 @@ Widget buildTileLayer(
     maxZoom: 22.0,
     userAgentPackageName: AppConfig.tileUserAgent,
     tileProvider:
-        kIsWeb ? NetworkTileProvider() : CancellableNetworkTileProvider(),
+        kIsWeb ? NetworkTileProvider() : FastCachedTileProvider(),
     retinaMode: false,
     panBuffer: 1,
     keepBuffer: 3,
-    tileDisplay: const TileDisplay.fadeIn(
-      duration: Duration(milliseconds: 150),
-    ),
+    tileDisplay: const TileDisplay.instantaneous(),
     errorTileCallback: (TileImage tile, Object error, StackTrace? _) {
       if (kDebugMode) {
         debugPrint('Tile load error for ${tile.coordinates}: $error');
