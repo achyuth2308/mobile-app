@@ -705,7 +705,9 @@ class FuelService {
           await _api.raw.get('/fuel/manual/entries/$vehicleId');
       if (response.data is Map && response.data['success'] == true) {
         final dynamic data = response.data['data'];
-        if (data is Map && data['entries'] is List) {
+        if (data is List) {
+          return data.cast<Map<String, dynamic>>();
+        } else if (data is Map && data['entries'] is List) {
           return (data['entries'] as List).cast<Map<String, dynamic>>();
         }
       }

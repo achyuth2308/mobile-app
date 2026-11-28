@@ -8,11 +8,11 @@ import '../../core/utils/formatters.dart';
 import '../../providers/alerts_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/fleet_provider.dart';
+import 'widgets/fleet_overview_card.dart';
 import 'widgets/stat_tiles.dart';
 
 /// Screen displayed after splash screen allowing user to choose an assigned group.
-/// Matches the 1st page dashboard header (Good morning/afternoon/evening, User Name, Date, Alerts & Profile icons)
-/// and displays the user's assigned vehicle groups below it.
+/// Features clean, tactile Neumorphic (Soft UI) styling on a matte canvas.
 class GroupSelectionScreen extends ConsumerStatefulWidget {
   const GroupSelectionScreen({super.key});
 
@@ -26,7 +26,6 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Ensure latest fleet groups and vehicle telemetry are loaded
       ref.read(fleetProvider.notifier).load(silent: true);
     });
   }
@@ -57,8 +56,11 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
     final int alertCount = ref.watch(unreadAlertsCountProvider);
     final String? name = ref.watch(authProvider).user?.name;
 
+    final Color canvasColor =
+        isDark ? const Color(0xFF161C26) : const Color(0xFFE8EEF5);
+
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFEDF1F7),
+      backgroundColor: canvasColor,
       body: RefreshIndicator(
         onRefresh: () => ref.read(fleetProvider.notifier).load(),
         color: AppColors.brand,
@@ -72,8 +74,8 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
               pinned: true,
               automaticallyImplyLeading: false,
               toolbarHeight: 88,
-              backgroundColor:
-                  isDark ? const Color(0xFF0F172A) : const Color(0xFFEDF1F7),
+              backgroundColor: canvasColor,
+              elevation: 0,
               surfaceTintColor: Colors.transparent,
               titleSpacing: Gap.md,
               title: Row(
@@ -114,7 +116,9 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                               fontSize: 20,
                               fontWeight: FontWeight.w900,
                               letterSpacing: -0.4,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
                               height: 1.2,
                             ),
                           ),
@@ -125,7 +129,7 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                               const Icon(
                                 Icons.calendar_today_rounded,
                                 size: 12,
-                                color: Color(0xFFEF4444), // Vibrant Red Calendar Icon
+                                color: Color(0xFFEF4444),
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -180,7 +184,8 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                       icon: Icon(
                         Icons.person_rounded,
                         size: 26,
-                        color: isDark ? const Color(0xFF818CF8) : AppColors.brand,
+                        color:
+                            isDark ? const Color(0xFF818CF8) : AppColors.brand,
                       ),
                     ),
                   ),
@@ -193,7 +198,7 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
               child: SizedBox(height: Gap.xs),
             ),
 
-            // ── Fleet Overview Pie Chart ─────────────────────────────
+            // ── Fleet Overview Neumorphic Card ─────────────────────────────
             if (fleet.vehicles.isNotEmpty)
               const SliverToBoxAdapter(
                 child: Padding(
@@ -246,7 +251,8 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color:
+                                isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -269,18 +275,19 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                 ),
               )
             else
-              // Assigned Groups List (One by one cards)
+              // Assigned Groups List (Neumorphic Cards)
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (BuildContext context, int index) {
                       final FleetGroup group = allGroups[index];
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildGroupItemCard(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildNeumorphicGroupCard(
                           group: group,
                           isDark: isDark,
+                          surfaceColor: canvasColor,
                           onTap: () => _selectGroup(group.id),
                         ),
                       );
@@ -295,9 +302,11 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
     );
   }
 
-    Widget _buildGroupItemCard({
+  /// Extruded Neumorphic Card with dual light/dark directional shadows
+  Widget _buildNeumorphicGroupCard({
     required FleetGroup group,
     required bool isDark,
+    required Color surfaceColor,
     required VoidCallback onTap,
   }) {
     const Color brandBlue = Color(0xFF2563EB);
@@ -309,64 +318,46 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [
-                      const Color(0xFF1E293B),
-                      const Color(0xFF0F172A),
-                    ]
-                  : [
-                      Colors.white,
-                      const Color(0xFFFBFDFF),
-                      const Color(0xFFF1F5F9).withValues(alpha: 0.7),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isDark
-                  ? const Color(0xFF334155)
-                  : const Color(0xFFE2E8F0),
-              width: 1.0,
-            ),
-            boxShadow: [
-              // Ambient soft 3D blur
-              BoxShadow(
-                color: const Color(0xFF0F172A)
-                    .withValues(alpha: isDark ? 0.40 : 0.05),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-                spreadRadius: 0,
-              ),
-              // Subtle directional color depth shadow
-              BoxShadow(
-                color: brandBlue
-                    .withValues(alpha: isDark ? 0.20 : 0.07),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-              // Bevel rim shadow
-              BoxShadow(
-                color: const Color(0xFF1E293B)
-                    .withValues(alpha: isDark ? 0.35 : 0.03),
-                blurRadius: 1,
-                offset: const Offset(0, 1),
-              ),
-            ],
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isDark
+                ? [
+                    const BoxShadow(
+                      color: Color(0xFF232D3D),
+                      offset: Offset(-4, -4),
+                      blurRadius: 10,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.60),
+                      offset: const Offset(4, 4),
+                      blurRadius: 10,
+                    ),
+                  ]
+                : [
+                    const BoxShadow(
+                      color: Colors.white,
+                      offset: Offset(-5, -5),
+                      blurRadius: 10,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFFA6B4C9).withOpacity(0.55),
+                      offset: const Offset(5, 5),
+                      blurRadius: 10,
+                    ),
+                  ],
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             child: InkWell(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(20),
               onTap: onTap,
               child: Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: Row(
                   children: [
-                    // Left 3D embossed leading icon
+                    // Embossed Brand Icon
                     Container(
                       width: 48,
                       height: 48,
@@ -383,14 +374,9 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: brandBlue.withValues(alpha: 0.38),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
+                            color: brandBlue.withOpacity(0.35),
+                            blurRadius: 8,
+                            offset: const Offset(2, 3),
                           ),
                         ],
                       ),
@@ -398,14 +384,7 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                         child: Icon(
                           Icons.local_shipping_rounded,
                           color: Colors.white,
-                          size: 25,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black38,
-                              blurRadius: 3,
-                              offset: Offset(0, 1.5),
-                            ),
-                          ],
+                          size: 24,
                         ),
                       ),
                     ),
@@ -429,26 +408,43 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 7),
                           Wrap(
                             spacing: 8,
                             runSpacing: 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              // Vehicle Count Chip
+                              // Debossed Vehicle Count Chip
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
+                                    horizontal: 9, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: isDark
-                                      ? const Color(0xFF334155).withValues(alpha: 0.6)
-                                      : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(7),
-                                  border: Border.all(
-                                    color: isDark
-                                        ? const Color(0xFF475569)
-                                        : const Color(0xFFE2E8F0),
-                                  ),
+                                      ? const Color(0xFF11161F)
+                                      : const Color(0xFFDCE3ED),
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: isDark
+                                      ? [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.4),
+                                            offset: const Offset(1, 1),
+                                            blurRadius: 1.5,
+                                          ),
+                                        ]
+                                      : [
+                                          BoxShadow(
+                                            color: const Color(0xFFA6B4C9)
+                                                .withOpacity(0.35),
+                                            offset: const Offset(1, 1),
+                                            blurRadius: 1.5,
+                                          ),
+                                          const BoxShadow(
+                                            color: Colors.white,
+                                            offset: Offset(-0.8, -0.8),
+                                            blurRadius: 1,
+                                          ),
+                                        ],
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -474,55 +470,6 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                                   ],
                                 ),
                               ),
-
-                              // Online Count Chip (Pulsing Emerald)
-                              if (group.onlineCount > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(0xFF064E3B)
-                                            .withValues(alpha: 0.45)
-                                        : const Color(0xFFECFDF5),
-                                    borderRadius: BorderRadius.circular(7),
-                                    border: Border.all(
-                                      color: isDark
-                                          ? const Color(0xFF059669)
-                                              .withValues(alpha: 0.45)
-                                          : const Color(0xFFA7F3D0),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 6,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF10B981),
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: const Color(0xFF10B981)
-                                                  .withValues(alpha: 0.7),
-                                              blurRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4.5),
-                                      Text(
-                                        '${group.onlineCount} online',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF059669),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                             ],
                           ),
                         ],
@@ -530,43 +477,44 @@ class _GroupSelectionScreenState extends ConsumerState<GroupSelectionScreen> {
                     ),
                     const SizedBox(width: 10),
 
-                    // 3D Interactive Trailing Action Button
+                    // Neumorphic Soft Action Button
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark
-                              ? [
-                                  const Color(0xFF334155),
-                                  const Color(0xFF1E293B),
-                                ]
-                              : [
-                                  const Color(0xFFEFF6FF),
-                                  const Color(0xFFDBEAFE),
-                                ],
-                        ),
+                        color: surfaceColor,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isDark
-                              ? const Color(0xFF475569)
-                              : const Color(0xFFBFDBFE),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: brandBlue
-                                .withValues(alpha: isDark ? 0.3 : 0.15),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        boxShadow: isDark
+                            ? [
+                                const BoxShadow(
+                                  color: Color(0xFF242E3E),
+                                  offset: Offset(-2.5, -2.5),
+                                  blurRadius: 5,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.55),
+                                  offset: const Offset(2.5, 2.5),
+                                  blurRadius: 5,
+                                ),
+                              ]
+                            : [
+                                const BoxShadow(
+                                  color: Colors.white,
+                                  offset: Offset(-2.5, -2.5),
+                                  blurRadius: 5,
+                                ),
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFFA6B4C9).withOpacity(0.50),
+                                  offset: const Offset(2.5, 2.5),
+                                  blurRadius: 5,
+                                ),
+                              ],
                       ),
-                      child: Center(
+                      child: const Center(
                         child: Icon(
                           Icons.arrow_forward_rounded,
-                          color: isDark
-                              ? const Color(0xFF93C5FD)
-                              : brandBlue,
+                          color: brandBlue,
                           size: 18,
                         ),
                       ),

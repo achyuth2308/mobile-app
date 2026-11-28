@@ -287,10 +287,14 @@ class ReportFilterBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final List<Vehicle> allVehicles = ref.watch(fleetProvider).vehicles;
-    final List<Vehicle> vehicles = type.isFuelReport
-        ? allVehicles.where((Vehicle v) => v.hasFuel).toList()
-        : allVehicles;
+    final List<Vehicle> allVehicles = ref.watch(groupScopedVehiclesProvider);
+    final List<Vehicle> vehicles = type == ReportType.nonSensorFuel
+        ? (allVehicles.where((Vehicle v) => v.isNonSensorFuel).isNotEmpty
+            ? allVehicles.where((Vehicle v) => v.isNonSensorFuel).toList()
+            : allVehicles)
+        : (type.isFuelReport
+            ? allVehicles.where((Vehicle v) => v.hasFuel).toList()
+            : allVehicles);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -407,7 +411,7 @@ class ReportFilterBar extends ConsumerWidget {
                                       width: 28,
                                       height: 28,
                                       decoration: BoxDecoration(
-                                        color: itemMeta.color.withValues(alpha: 0.12),
+                                        color: itemMeta.color.withOpacity(0.12),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Icon(itemMeta.icon, size: 16, color: itemMeta.color),
@@ -521,7 +525,7 @@ class ReportFilterBar extends ConsumerWidget {
                                         width: 28,
                                         height: 28,
                                         decoration: BoxDecoration(
-                                          color: itemMeta.color.withValues(alpha: 0.12),
+                                          color: itemMeta.color.withOpacity(0.12),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Icon(itemMeta.icon, size: 16, color: itemMeta.color),
@@ -929,7 +933,7 @@ class ReportFilterBar extends ConsumerWidget {
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                      color: const Color(0xFF3B82F6).withOpacity(0.35),
                       width: 1.1,
                     ),
                   ),

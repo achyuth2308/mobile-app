@@ -468,7 +468,7 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.3 : 0.04),
+                  color: const Color(0xFF0F172A).withOpacity( isDark ? 0.3 : 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -917,16 +917,28 @@ class _VehicleMenuScreenState extends ConsumerState<VehicleMenuScreen> {
           // ── Vehicle Operations ─────────────────────────────────────────
           const _SectionHeader(label: 'VEHICLE OPERATIONS'),
 
-          _MenuItemCard(
-            title: 'Manual Fuel Entry',
-            subtitle: 'Log refill & view mileage',
-            icon: Icons.local_gas_station_rounded,
-            accentColor: const Color(0xFFEA580C),
-            badgeText: 'ESTIMATED',
-            badgeColor: const Color(0xFFEA580C),
-            onTap: () =>
-                context.push('/vehicle/${widget.vehicleId}/manual-fuel-entry'),
-          ),
+          if (!vehicle.isNonSensorFuel)
+            _MenuItemCard(
+              title: 'Fuel Analytics',
+              subtitle: 'Calibrated fuel level, consumption & speed',
+              icon: Icons.local_gas_station_rounded,
+              accentColor: const Color(0xFF0284C7),
+              badgeText: 'SENSOR',
+              badgeColor: const Color(0xFF0284C7),
+              onTap: () =>
+                  context.push('/vehicle/${widget.vehicleId}/fuel-analytics'),
+            )
+          else
+            _MenuItemCard(
+              title: 'Manual Fuel Entry',
+              subtitle: 'Log refill & view mileage',
+              icon: Icons.local_gas_station_rounded,
+              accentColor: const Color(0xFFEA580C),
+              badgeText: 'ESTIMATED',
+              badgeColor: const Color(0xFFEA580C),
+              onTap: () =>
+                  context.push('/vehicle/${widget.vehicleId}/manual-fuel-entry'),
+            ),
           const SizedBox(height: 5),
 
           _MenuItemCard(
@@ -1028,7 +1040,7 @@ class _HeroMetric extends StatelessWidget {
             color: color,
             shadows: [
               Shadow(
-                color: color.withValues(alpha: isDark ? 0.6 : 0.4),
+                color: color.withOpacity( isDark ? 0.6 : 0.4),
                 blurRadius: 5,
               ),
             ],
@@ -1104,14 +1116,14 @@ class _TrackDockButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: glowColor.withValues(alpha: isDark ? 0.38 : 0.28),
+            color: glowColor.withOpacity( isDark ? 0.38 : 0.28),
             blurRadius: 10,
             offset: const Offset(0, 4),
             spreadRadius: 0.5,
           ),
         ],
         border: Border.all(
-          color: Colors.white.withValues(alpha: isDark ? 0.20 : 0.28),
+          color: Colors.white.withOpacity( isDark ? 0.20 : 0.28),
           width: 1.0,
         ),
       ),
@@ -1153,10 +1165,10 @@ class _TrackDockButton extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.20),
+                        color: Colors.black.withOpacity( 0.20),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.25),
+                          color: Colors.white.withOpacity( 0.25),
                           width: 0.8,
                         ),
                       ),
@@ -1213,7 +1225,7 @@ class _TrackDockButton extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.90),
+                    color: Colors.white.withOpacity( 0.90),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1288,7 +1300,7 @@ class _MenuItemCard extends StatelessWidget {
                       size: 25,
                       shadows: [
                         Shadow(
-                          color: accentColor.withValues(alpha: isDark ? 0.65 : 0.45),
+                          color: accentColor.withOpacity( isDark ? 0.65 : 0.45),
                           blurRadius: 8,
                           offset: const Offset(0, 1.5),
                         ),
@@ -1397,8 +1409,8 @@ class _QuickControlActionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: effectiveColor.withValues(
-              alpha: isDark ? (isActive ? 0.40 : 0.22) : (isActive ? 0.28 : 0.16),
+            color: effectiveColor.withOpacity(
+              isDark ? (isActive ? 0.40 : 0.22) : (isActive ? 0.28 : 0.16),
             ),
             blurRadius: 12,
             spreadRadius: 0.5,
@@ -1407,8 +1419,8 @@ class _QuickControlActionTile extends StatelessWidget {
         ],
         gradient: LinearGradient(
           colors: [
-            effectiveColor.withValues(
-              alpha: isDark ? (isActive ? 0.32 : 0.18) : (isActive ? 0.20 : 0.10),
+            effectiveColor.withOpacity(
+              isDark ? (isActive ? 0.32 : 0.18) : (isActive ? 0.20 : 0.10),
             ),
             isDark ? const Color(0xFF1E2238) : Colors.white,
           ],
@@ -1416,8 +1428,8 @@ class _QuickControlActionTile extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
         border: Border.all(
-          color: effectiveColor.withValues(
-            alpha: isDark ? (isActive ? 0.80 : 0.50) : (isActive ? 0.70 : 0.45),
+          color: effectiveColor.withOpacity(
+            isDark ? (isActive ? 0.80 : 0.50) : (isActive ? 0.70 : 0.45),
           ),
           width: 1.6,
         ),
@@ -1438,15 +1450,15 @@ class _QuickControlActionTile extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: effectiveColor.withValues(alpha: isDark ? 0.30 : 0.16),
+                    color: effectiveColor.withOpacity( isDark ? 0.30 : 0.16),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: effectiveColor.withValues(alpha: isDark ? 0.55 : 0.35),
+                      color: effectiveColor.withOpacity( isDark ? 0.55 : 0.35),
                       width: 1.4,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: effectiveColor.withValues(alpha: isDark ? 0.35 : 0.22),
+                        color: effectiveColor.withOpacity( isDark ? 0.35 : 0.22),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -1479,10 +1491,10 @@ class _QuickControlActionTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: effectiveColor.withValues(alpha: isDark ? 0.30 : 0.16),
+                    color: effectiveColor.withOpacity( isDark ? 0.30 : 0.16),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: effectiveColor.withValues(alpha: 0.50),
+                      color: effectiveColor.withOpacity( 0.50),
                       width: 0.8,
                     ),
                   ),
@@ -1507,7 +1519,7 @@ class _QuickControlActionTile extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         effectiveColor,
-                        effectiveColor.withValues(alpha: 0.85),
+                        effectiveColor.withOpacity( 0.85),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -1515,7 +1527,7 @@ class _QuickControlActionTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: effectiveColor.withValues(alpha: 0.38),
+                        color: effectiveColor.withOpacity( 0.38),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -1571,8 +1583,8 @@ class _SectionHeader extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.0),
+                    theme.colorScheme.onSurfaceVariant.withOpacity( 0.2),
+                    theme.colorScheme.onSurfaceVariant.withOpacity( 0.0),
                   ],
                 ),
               ),
@@ -1583,10 +1595,10 @@ class _SectionHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF1F5F9),
+                color: isDark ? Colors.white.withOpacity( 0.06) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
+                  color: isDark ? Colors.white.withOpacity( 0.1) : const Color(0xFFE2E8F0),
                   width: 1,
                 ),
               ),

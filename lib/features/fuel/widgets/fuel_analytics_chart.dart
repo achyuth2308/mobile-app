@@ -318,8 +318,8 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                const Color(0xFF38BDF8).withValues(alpha: 0.65),
-                const Color(0xFF0284C7).withValues(alpha: 0.18),
+                const Color(0xFF38BDF8).withOpacity(0.65),
+                const Color(0xFF0284C7).withOpacity(0.18),
               ],
             ),
           ),
@@ -388,9 +388,9 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Fixed Left Y-Axis (Fuel Litres) - Pinned outside the scrollable canvas
+        // 1. Fixed Left Y-Axis (Fuel Litres) - Tightened width from 34px to 26px
         SizedBox(
-          width: 34,
+          width: 26,
           height: widget.height,
           child: LineChart(
             LineChartData(
@@ -410,16 +410,16 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 32,
+                    reservedSize: 24,
                     interval: fuelInterval,
                     getTitlesWidget: (double value, TitleMeta meta) {
                       return Padding(
-                        padding: const EdgeInsets.only(right: 4),
+                        padding: const EdgeInsets.only(right: 2),
                         child: Text(
                           '${value.round()}',
                           textAlign: TextAlign.right,
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF475569),
                           ),
@@ -489,11 +489,20 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                       (_selectedPointIdx == tappedIdx) ? null : tappedIdx;
                 });
               },
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                scrollDirection: Axis.horizontal,
-                physics: const NeverScrollableScrollPhysics(),
-                child: SizedBox(
+              child: ScrollConfiguration(
+                behavior: const MaterialScrollBehavior().copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                    PointerDeviceKind.stylus,
+                  },
+                ),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: SizedBox(
                   width: chartContentWidth,
                   height: widget.height,
                   child: Stack(
@@ -577,26 +586,6 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                         ),
                       ),
 
-                      // Dedicated High-Contrast Dots & Value Badges Layer
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _TimelineDotsAndBadgesPainter(
-                              points: displayPoints,
-                              plotMinFuel: plotMinFuel,
-                              plotMaxFuel: plotMaxFuel,
-                              plotMaxSpeed: plotMaxSpeed,
-                              plotAreaHeight: plotAreaHeight,
-                              chartContentWidth: chartContentWidth,
-                              scale: _scale,
-                              showFuel: widget.showFilteredFuel,
-                              showSpeed: widget.showSpeed,
-                              lastKnownFuel: lastKnownFuel,
-                            ),
-                          ),
-                        ),
-                      ),
-
                       // Translucent Speech-Bubble Callout & Spot Target Indicators
                       if (spotX != null &&
                           spotY != null &&
@@ -611,7 +600,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                             child: Container(
                               width: 1.5,
                               color: const Color(0xFF0284C7)
-                                  .withValues(alpha: 0.45),
+                                  .withOpacity(0.45),
                             ),
                           ),
                         ),
@@ -632,7 +621,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(0xFF0284C7)
-                                        .withValues(alpha: 0.5),
+                                        .withOpacity(0.5),
                                     blurRadius: 4,
                                     spreadRadius: 1,
                                   ),
@@ -664,6 +653,7 @@ class _FuelAnalyticsChartState extends State<FuelAnalyticsChart> {
             ),
           ),
         ),
+      ),
 
         // 3. Fixed Right Y-Axis (Speed km/h) - Pinned outside the scrollable canvas
         if (widget.showSpeed) ...[
@@ -910,10 +900,10 @@ class _TimelineDotsAndBadgesPainter extends CustomPainter {
 
     // Subtle background pill for high contrast against gridlines
     final Paint pillPaint = Paint()
-      ..color = bgColor.withValues(alpha: 0.94)
+      ..color = bgColor.withOpacity(0.94)
       ..style = PaintingStyle.fill;
     final Paint borderPaint = Paint()
-      ..color = color.withValues(alpha: 0.35)
+      ..color = color.withOpacity(0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8;
 
@@ -963,7 +953,7 @@ class SpeechBubbleTooltip extends StatelessWidget {
     return CustomPaint(
       painter: _SpeechBubblePainter(
         color: const Color(0x942B3441), // Translucent charcoal grey matching Image 1 (~58% opacity)
-        borderColor: Colors.white.withValues(alpha: 0.25),
+        borderColor: Colors.white.withOpacity(0.25),
         arrowPointsDown: arrowPointsDown,
         arrowXFraction: arrowXOffset,
       ),

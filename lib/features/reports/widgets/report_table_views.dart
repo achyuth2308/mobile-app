@@ -1640,9 +1640,9 @@ class StoppageReportTable extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withOpacity( 0.08),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withOpacity( 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1901,9 +1901,9 @@ class IdleReportTable extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withOpacity( 0.08),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withOpacity( 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2851,7 +2851,7 @@ class FuelRefillReportTable extends StatelessWidget {
                                   color: catBg,
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                      color: catColor.withValues(alpha: 0.2)),
+                                      color: catColor.withOpacity( 0.2)),
                                 ),
                                 child: Text(
                                   category,
@@ -4223,7 +4223,7 @@ class GeofenceTransitReportTable extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: pillColor.withValues(alpha: 0.12),
+                              color: pillColor.withOpacity( 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Icon(Icons.sync_alt_rounded,
@@ -4266,10 +4266,10 @@ class GeofenceTransitReportTable extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: pillColor.withValues(alpha: 0.1),
+                        color: pillColor.withOpacity( 0.1),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: pillColor.withValues(alpha: 0.3), width: 1),
+                            color: pillColor.withOpacity( 0.3), width: 1),
                       ),
                       child: Text(
                         tripLabel,

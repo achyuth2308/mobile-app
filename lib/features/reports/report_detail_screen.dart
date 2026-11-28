@@ -583,7 +583,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                                       ? <BoxShadow>[
                                           BoxShadow(
                                             color: const Color(0xFF2563EB)
-                                                .withValues(alpha: 0.3),
+                                                .withOpacity( 0.3),
                                             blurRadius: 6,
                                             offset: const Offset(0, 2),
                                           ),
@@ -650,14 +650,14 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                                color: const Color(0xFF3B82F6).withOpacity( 0.35),
                                 width: 1.1,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                                color: const Color(0xFF3B82F6).withOpacity( 0.35),
                                 width: 1.1,
                               ),
                             ),
@@ -915,6 +915,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         : null;
 
     if (type.isFuelReport &&
+        type != ReportType.nonSensorFuel &&
         selectedVehicle != null &&
         !selectedVehicle.hasFuel) {
       return Center(
@@ -1107,7 +1108,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: <BoxShadow>[
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
+                    color: Colors.black.withOpacity( 0.18),
                     blurRadius: 28,
                     offset: const Offset(0, 10),
                   ),
@@ -1133,7 +1134,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: const Color(0xFF2563EB)
-                                  .withValues(alpha: 0.1),
+                                  .withOpacity( 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -1283,7 +1284,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
+                color: Colors.black.withOpacity( 0.02),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -1295,7 +1296,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
+                  color: accentColor.withOpacity( 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: accentColor, size: 22),
@@ -1320,7 +1321,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 5, vertical: 2),
                           decoration: BoxDecoration(
-                            color: accentColor.withValues(alpha: 0.12),
+                            color: accentColor.withOpacity( 0.12),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(

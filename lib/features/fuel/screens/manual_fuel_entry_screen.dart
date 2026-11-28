@@ -76,10 +76,18 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
     super.initState();
     _selectedVehicleId = widget.initialVehicleId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final List<Vehicle> vehicles = ref.read(fleetProvider).vehicles;
-      if (_selectedVehicleId == null && vehicles.isNotEmpty) {
+      final List<Vehicle> allVehicles = ref.read(fleetProvider).vehicles;
+      final List<Vehicle> nonSensorVehicles =
+          allVehicles.where((v) => v.isNonSensorFuel).toList();
+
+      if (_selectedVehicleId != null &&
+          !nonSensorVehicles.any((v) => v.id == _selectedVehicleId)) {
+        _selectedVehicleId = null;
+      }
+
+      if (_selectedVehicleId == null && nonSensorVehicles.isNotEmpty) {
         setState(() {
-          _selectedVehicleId = vehicles.first.id;
+          _selectedVehicleId = nonSensorVehicles.first.id;
         });
       }
       if (_selectedVehicleId != null) {
@@ -538,7 +546,9 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Vehicle> vehicles = ref.watch(fleetProvider).vehicles;
+    final List<Vehicle> allVehicles = ref.watch(fleetProvider).vehicles;
+    final List<Vehicle> vehicles =
+        allVehicles.where((v) => v.isNonSensorFuel).toList();
     final Vehicle? activeVeh = _getActiveVehicle();
     final DateFormat dateDisplayFormat = DateFormat('MM/dd/yyyy hh:mm a');
 
@@ -598,19 +608,61 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(14.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: vehicles.isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0284C7).withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.sensors_rounded,
+                        size: 48,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Calibrated Fleet Account',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'All vehicles in this fleet are equipped with hardware fuel sensors. Telemetry and fuel levels are recorded automatically via live tracking and do not require manual fuel entries.\n\nManual fuel entry is strictly reserved for vehicles in the Non-Sensor Fuel account.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(14.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 // ── Informational Disclaimer Banner ───────────────────
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7).withValues(alpha: 0.8),
+                    color: const Color(0xFFFEF3C7).withOpacity( 0.8),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
@@ -1029,7 +1081,7 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     elevation: 2,
-                    shadowColor: const Color(0xFFEA580C).withValues(alpha: 0.4),
+                    shadowColor: const Color(0xFFEA580C).withOpacity( 0.4),
                   ),
                 ),
 
@@ -1104,7 +1156,7 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: typeColor.withValues(alpha: 0.12),
+                                      color: typeColor.withOpacity( 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -1232,9 +1284,9 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.2),
+                  color: statusColor.withOpacity( 0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                  border: Border.all(color: statusColor.withOpacity( 0.5)),
                 ),
                 child: Text(
                   status,
@@ -1394,7 +1446,7 @@ class _ManualFuelEntryScreenState extends ConsumerState<ManualFuelEntryScreen> {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFEA580C).withValues(alpha: 0.15),
+                      color: const Color(0xFFEA580C).withOpacity( 0.15),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),

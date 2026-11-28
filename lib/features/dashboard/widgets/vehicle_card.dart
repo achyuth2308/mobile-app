@@ -139,13 +139,13 @@ class VehicleCard extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(
-                          alpha: isDark ? 0.20 : 0.12,
+                        color: statusColor.withOpacity(
+                          isDark ? 0.20 : 0.12,
                         ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: statusColor.withValues(
-                            alpha: isDark ? 0.45 : 0.28,
+                          color: statusColor.withOpacity(
+                            isDark ? 0.45 : 0.28,
                           ),
                           width: 1.0,
                         ),
@@ -296,7 +296,7 @@ class VehicleCard extends ConsumerWidget {
                                              : '0 L',
                                          labelColor: const Color(0xFF0284C7),
                                          valueColor: const Color(0xFF1D4ED8),
-                                         onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                         onTap: () => context.push(vehicle.isNonSensorFuel ? '/vehicle/${vehicle.id}/manual-fuel-entry' : '/vehicle/${vehicle.id}/fuel-analytics'),
                                        ),
                                        if (vehicle.isNonSensorFuel) ...[
                                          const SizedBox(height: 6),
@@ -308,7 +308,7 @@ class VehicleCard extends ConsumerWidget {
                                                : '0 L',
                                            labelColor: const Color(0xFFD97706),
                                            valueColor: const Color(0xFFB45309),
-                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                           onTap: () => context.push('/vehicle/${vehicle.id}/manual-fuel-entry'),
                                          ),
                                        ],
                                      ],
@@ -396,7 +396,7 @@ class VehicleCard extends ConsumerWidget {
                                              : '0 L',
                                          labelColor: const Color(0xFF0284C7),
                                          valueColor: const Color(0xFF1D4ED8),
-                                         onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                         onTap: () => context.push(vehicle.isNonSensorFuel ? '/vehicle/${vehicle.id}/manual-fuel-entry' : '/vehicle/${vehicle.id}/fuel-analytics'),
                                        ),
                                        if (vehicle.isNonSensorFuel) ...[
                                          const SizedBox(height: 6),
@@ -408,7 +408,7 @@ class VehicleCard extends ConsumerWidget {
                                                : '0 L',
                                            labelColor: const Color(0xFFD97706),
                                            valueColor: const Color(0xFFB45309),
-                                           onTap: () => context.push('/vehicle/${vehicle.id}'),
+                                           onTap: () => context.push('/vehicle/${vehicle.id}/manual-fuel-entry'),
                                          ),
                                        ],
                                      ],
@@ -699,7 +699,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
       case VehicleStatus.moving:
         color = const Color(0xFF16A34A);
         bg = isDark
-            ? const Color(0xFF052E16).withValues(alpha: 0.6)
+            ? const Color(0xFF052E16).withOpacity( 0.6)
             : const Color(0xFFF0FDF4);
         border = isDark ? const Color(0xFF166534) : const Color(0xFFBBF7D0);
         icon = Icons.navigation_rounded;
@@ -707,7 +707,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
       case VehicleStatus.idle:
         color = const Color(0xFFD97706);
         bg = isDark
-            ? const Color(0xFF451A03).withValues(alpha: 0.6)
+            ? const Color(0xFF451A03).withOpacity( 0.6)
             : const Color(0xFFFFFBEB);
         border = isDark ? const Color(0xFF92400E) : const Color(0xFFFDE68A);
         icon = Icons.key_rounded;
@@ -715,7 +715,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
       case VehicleStatus.stopped:
         color = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF18181B);
         bg = isDark
-            ? const Color(0xFF18181B).withValues(alpha: 0.8)
+            ? const Color(0xFF18181B).withOpacity( 0.8)
             : const Color(0xFFF4F4F5);
         border = isDark ? const Color(0xFF27272A) : const Color(0xFFD4D4D8);
         icon = Icons.local_parking_rounded;
@@ -723,7 +723,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
       case VehicleStatus.offline:
         color = const Color(0xFFDC2626);
         bg = isDark
-            ? const Color(0xFF450A0A).withValues(alpha: 0.6)
+            ? const Color(0xFF450A0A).withOpacity( 0.6)
             : const Color(0xFFFEF2F2);
         border = isDark ? const Color(0xFF991B1B) : const Color(0xFFFECACA);
         icon = Icons.cloud_off_rounded;
@@ -731,7 +731,7 @@ class _LiveStatusStripState extends State<_LiveStatusStrip> {
       case VehicleStatus.noData:
         color = const Color(0xFF7C3AED);
         bg = isDark
-            ? const Color(0xFF2E1065).withValues(alpha: 0.6)
+            ? const Color(0xFF2E1065).withOpacity( 0.6)
             : const Color(0xFFF5F3FF);
         border = isDark ? const Color(0xFF5B21B6) : const Color(0xFFDDD6FE);
         icon = Icons.sensors_off_rounded;
@@ -876,7 +876,7 @@ class _MetricItem extends StatelessWidget {
               Icon(
                 Icons.edit_rounded,
                 size: 9.5,
-                color: labelColor.withValues(alpha: 0.8),
+                color: labelColor.withOpacity( 0.8),
               ),
             ],
           ],
@@ -1053,8 +1053,8 @@ class _JumpingGoogleMapPinButtonState
                         width: 12,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.35 : 0.18,
+                          color: Colors.black.withOpacity(
+                            isDark ? 0.35 : 0.18,
                           ),
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -1176,7 +1176,7 @@ void _showEditVehicleDialog(
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                    color: const Color(0xFF3B82F6).withOpacity( 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(

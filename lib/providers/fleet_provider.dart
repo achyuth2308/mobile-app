@@ -1213,3 +1213,19 @@ final Provider<List<Vehicle>> filteredVehiclesProvider =
 
   return list;
 });
+
+/// Vehicles filtered strictly by the currently active fleet group (e.g. BSTPLTEST).
+/// When no group or 'all' is selected, returns all fleet vehicles.
+/// Used for reports dropdowns and report queries to ensure group-scoping.
+final Provider<List<Vehicle>> groupScopedVehiclesProvider =
+    Provider<List<Vehicle>>((Ref ref) {
+  final List<Vehicle> all = ref.watch(fleetProvider).vehicles;
+  final String? groupFilter = ref.watch(fleetGroupFilterProvider);
+  if (groupFilter != null &&
+      groupFilter.trim().isNotEmpty &&
+      groupFilter.trim().toLowerCase() != 'all') {
+    return all.where((Vehicle v) => v.belongsToGroup(groupFilter)).toList();
+  }
+  return all;
+});
+
